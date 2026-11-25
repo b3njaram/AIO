@@ -51,3 +51,5 @@ The scan at `85bcc327` confirmed zero high/critical/unknown findings in the hard
 
 ## Phases 7–10
 Performance planning and isolated encode probe: PERFORMANCE.md. Optional local UPS monitoring and native shutdown qualification: POWER.md. Bilingual handoff drafts: DELIVERY.md. Commercial readiness evidence: COMMERCIAL-LAUNCH.md. These are development tools, not hardware or legal certifications. Physical qualification remains deferred, and commercial approval remains false until actual evidence is reviewed.
+
+The foreground CPU policy is opt-in and changes only the two background workers' relative weights; actual GPU application configuration, UPS native shutdown and measured load/energy gains remain deferred hardware qualification. Static and browser fixture tests do not prove physical behavior.
