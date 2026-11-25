@@ -66,6 +66,8 @@ def main():
     if not re.fullmatch(r'jobbi-[a-z0-9-]+',old) or old==project:p.error('Restore must have a new project name')
     if 'dns' in env.get('COMPOSE_PROFILES','').split(','):p.error('DNS restores require a separate manual LAN plan')
     if env.get('OWNER_UID')!=str(os.getuid()) or env.get('OWNER_GID')!=str(os.getgid()):p.error('Restore using the original installation UID/GID; manual ownership migration otherwise')
+    version=release.get('customer_patch_version',0)
+    if version not in (0,1,2):p.error('Unknown customer patch version')
     pins=release.get('source_pins',{})
     if any(k not in ALLOWED_REPOS or not re.fullmatch('[0-9a-f]{40}',v) for k,v in pins.items()):p.error('Unsupported source pins')
     volumes={}
@@ -85,7 +87,7 @@ def main():
     oldports={int(env[k]):a.base_port+n for k,n in PORTS.items() if k in env}
     env.update({'INSTANCE_DIR':str(dest),'COMPOSE_PROJECT_NAME':project,'BIND_IP':'127.0.0.1','MUSIC_HTTPS':'false',
                 'VAULT_DOMAIN':'http://127.0.0.1:'+str(a.base_port+PORTS['VAULT_PORT']),
-                'TASK_URL':'http://127.0.0.1:'+str(a.base_port+PORTS['TASK_PORT'])+'/'})
+                'TASK_REGISTRATION':'false','TASK_URL':'http://127.0.0.1:'+str(a.base_port+PORTS['TASK_PORT'])+'/'})
     env.update({k:str(a.base_port+n) for k,n in PORTS.items()})
     (dest/'.env').write_text(''.join(k+'='+v+'\n' for k,v in env.items()));(dest/'.env').chmod(0o600)
     cfg['name']='Jobbi Home · '+a.name
@@ -103,7 +105,7 @@ def main():
             run('git','-C',str(folder),'remote','add','origin','https://github.com/b3njaram/'+repo+'.git')
             run('git','-C',str(folder),'fetch','--depth=1','origin',sha)
             run('git','-C',str(folder),'checkout','--detach','FETCH_HEAD')
-            if release.get('customer_patch_version')==1:apply(dest,repo)
+            if version:apply(dest,repo,version)
     finally:os.umask(oldmask)
     ctl=['bash',str(ROOT/'scripts/ctl.sh'),str(dest)]
     run(*ctl,'config','--quiet')

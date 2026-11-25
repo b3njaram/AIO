@@ -1,10 +1,17 @@
-"""AIO-only deterministic patches to pinned public upstream checkout."""
+"""Versioned AIO-only patches to pinned upstream customer checkouts."""
 from pathlib import Path
-def apply(instance,repo):
-    if repo!='movies':return
-    p=Path(instance)/'sources/movies/backend/db.js'
-    old="INSERT INTO profiles (user_id, name, avatar, kids) VALUES (?, ?, 0, 0)"
-    new="INSERT INTO profiles (user_id, name, avatar, kids, max_age) VALUES (?, ?, 0, 0, 18)"
-    s=p.read_text()
-    if s.count(old)!=1:raise ValueError('Unexpected pinned StreamHub default profile SQL')
-    p.write_text(s.replace(old,new))
+VERSION=2
+def apply(instance,repo,version=VERSION):
+    if version not in (1,2):raise ValueError('Unsupported customer patch version')
+    if repo=='movies':
+        p=Path(instance)/'sources/movies/backend/db.js'
+        old="INSERT INTO profiles (user_id, name, avatar, kids) VALUES (?, ?, 0, 0)"
+        new="INSERT INTO profiles (user_id, name, avatar, kids, max_age) VALUES (?, ?, 0, 0, 18)"
+        s=p.read_text()
+        if s.count(old)!=1:raise ValueError('Unexpected pinned StreamHub default profile SQL')
+        p.write_text(s.replace(old,new))
+    if version>=2 and repo=='navidrome':
+        p=Path(instance)/'sources/navidrome/jobbi-music/server/android-update.js'
+        if 'export async function androidLatest(){' not in p.read_text():raise ValueError('Unexpected upstream Android release module')
+        # No personal release feed or network request in the commercial edition.
+        p.write_text("export function findAndroidRelease(){return {available:false};}\nexport async function androidLatest(){return {available:false,reason:'Use a compatible client or contact your server administrator for optional native builds.'};}\n")

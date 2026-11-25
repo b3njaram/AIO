@@ -10,7 +10,7 @@ STEPS={
 'photos':('Create initial Immich owner privately, upload and retrieve a sample photo.','PHOTO_PORT'),
 'files':('Finish Nextcloud admin setup and verify upload/sync.','CLOUD_PORT'),
 'passwords':('Configure private HTTPS, invite owner, disable public signups and test recovery.','VAULT_PORT'),
-'tasks':('Register owner privately, disable new registration and test a task.','TASK_PORT'),
+'tasks':('Create owner with task-owner.py; verify registration is disabled and test a task.','TASK_PORT'),
 'dns':('Test Pi-hole on one LAN device; document DNS rollback.','DNS_WEB_PORT'),
 'monitor':('Create Uptime Kuma owner and set private monitors.','MONITOR_PORT'),
 'remote':('Customer enrolls their own Tailscale account; verify ACLs, HTTPS and independent device access.',None)}

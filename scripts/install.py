@@ -2,7 +2,7 @@
 """Prepare and start a new isolated customer instance; never overwrite an existing one."""
 import argparse, ipaddress, json, os, re, secrets, shutil, socket, subprocess, sys
 from pathlib import Path
-from customer_patches import apply
+from customer_patches import apply, VERSION
 ROOT=Path(__file__).resolve().parents[1]
 PINS={'navidrome':'83684735def8138100dc1e304d62f0f1ca556357','movies':'d80c1eb6a255a3a6e1f0912a7777bd1461c5a49f'}
 DEFAULT='music,movies,photos,files,passwords,tasks,monitor,remote'
@@ -77,7 +77,7 @@ def main():
     os.umask(0o077)
     instance.mkdir()
     shutil.copytree(ROOT/'deploy',instance/'deployment')
-    release={'aio_commit':subprocess.check_output(['git','-C',str(ROOT),'rev-parse','HEAD'],text=True).strip(),'customer_patch_version':1,'source_pins':{k:v for k,v in PINS.items() if ('music' if k=='navidrome' else 'movies') in apps}}
+    release={'aio_commit':subprocess.check_output(['git','-C',str(ROOT),'rev-parse','HEAD'],text=True).strip(),'customer_patch_version':VERSION,'source_pins':{k:v for k,v in PINS.items() if ('music' if k=='navidrome' else 'movies') in apps}}
     (instance/'release.json').write_text(json.dumps(release,indent=2)+'\n')
     data=instance/'data'
     data.mkdir()
@@ -118,7 +118,7 @@ def main():
     env={'COMPOSE_PROJECT_NAME':project,'COMPOSE_PROFILES':','.join(sorted(apps-{'remote'})),
          'INSTANCE_DIR':str(instance),'BIND_IP':a.bind,'TZ':a.tz,'OWNER_UID':str(os.getuid()),'OWNER_GID':str(os.getgid()),
          'MUSIC_ADMIN':a.music_admin,'MUSIC_HTTPS':'false','VAULT_DOMAIN':a.vault_url or 'http://'+a.bind+':'+str(ports['VAULT_PORT']),
-         'TASK_URL':a.task_url or 'http://'+a.bind+':'+str(ports['TASK_PORT'])+'/','PROWLARR_API_KEY':'','TMDB_API_KEY':''}
+         'TASK_REGISTRATION':'false','TASK_URL':a.task_url or 'http://'+a.bind+':'+str(ports['TASK_PORT'])+'/','PROWLARR_API_KEY':'','TMDB_API_KEY':''}
     for k in ('MUSIC_DB_PASSWORD','MOVIE_SECRET','IMMICH_DB_PASSWORD','CLOUD_DB_PASSWORD','VAULT_ADMIN_TOKEN','TASK_SECRET','TASK_DB_PASSWORD','DNS_PASSWORD'):
         env[k]=secrets.token_hex(32)
     env.update({k:str(v) for k,v in ports.items()})
