@@ -156,8 +156,8 @@ def payment(d):
     return {'ok':True}
 def operations(d,action):
     with db() as conn:
-        if action in ('appliance','sharing','health-import'):
-            return {'appliance':customers.save,'sharing':customers.consent,'health-import':customers.ingest}[action](conn,d)
+        if action in ('appliance','sharing','health-import','reporting-enable','reporting-disable'):
+            return {'appliance':customers.save,'sharing':customers.consent,'health-import':customers.ingest,'reporting-enable':customers.enable_reporting,'reporting-disable':customers.disable_reporting}[action](conn,d)
         if action=='component':
             ops.warranty(conn,d);return {'ok':True}
         if action=='installation-event':
@@ -253,7 +253,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not 0<length<=65536:raise ValueError('Invalid request size')
             data=json.loads(self.rfile.read(length))
             if not isinstance(data,dict):raise ValueError('Invalid payload')
-            routes={'/api/appliance':lambda d:operations(d,'appliance'),'/api/sharing':lambda d:operations(d,'sharing'),'/api/health-import':lambda d:operations(d,'health-import'),'/api/search':start_search,'/api/cost':costing,'/api/confirmed':confirmations,'/api/confirm':lambda d:confirmations(d,save=True),'/api/remove-offer':lambda d:confirmations(d,remove=True),'/api/order':lambda d:save_order(d,True),'/api/order-update':lambda d:save_order(d,False),'/api/payment':payment,'/api/plan':lambda d:operations(d,'plan'),'/api/case':lambda d:operations(d,'case'),'/api/component':lambda d:operations(d,'component'),'/api/installation-event':lambda d:operations(d,'installation-event'),'/api/handoff':lambda d:operations(d,'handoff'),'/api/document':lambda d:operations(d,'document')}
+            routes={'/api/reporting-enable':lambda d:operations(d,'reporting-enable'),'/api/reporting-disable':lambda d:operations(d,'reporting-disable'),'/api/appliance':lambda d:operations(d,'appliance'),'/api/sharing':lambda d:operations(d,'sharing'),'/api/health-import':lambda d:operations(d,'health-import'),'/api/search':start_search,'/api/cost':costing,'/api/confirmed':confirmations,'/api/confirm':lambda d:confirmations(d,save=True),'/api/remove-offer':lambda d:confirmations(d,remove=True),'/api/order':lambda d:save_order(d,True),'/api/order-update':lambda d:save_order(d,False),'/api/payment':payment,'/api/plan':lambda d:operations(d,'plan'),'/api/case':lambda d:operations(d,'case'),'/api/component':lambda d:operations(d,'component'),'/api/installation-event':lambda d:operations(d,'installation-event'),'/api/handoff':lambda d:operations(d,'handoff'),'/api/document':lambda d:operations(d,'document')}
             if self.server.preview and self.path=='/api/search':
                 self.send(403,{'error':'Live hardware search is disabled in the no-login demo.'});return
             fn=routes.get(self.path)

@@ -34,6 +34,14 @@ Revoke sharing|Revocar permiso
 Record customer consent|Registrar consentimiento
 Revoke sharing and erase the stored health report?|¿Revocar el permiso y borrar el informe almacenado?
 Confirm the customer explicitly agreed to share health reports.|Confirma que el cliente aceptó compartir informes de salud.
+Automatic reporting enabled|Informes automáticos habilitados
+Automatic reporting disabled|Informes automáticos deshabilitados
+Reporting credential expires|Vencimiento de credencial
+Revoke reporting credential|Revocar credencial
+Issue reporting credential|Generar credencial
+Revoke automatic reporting?|¿Revocar informes automáticos?
+Confirm customer approved automatic private health reporting for 90 days.|Confirma que el cliente autorizó informes privados automáticos durante 90 días.
+Copy this one-time credential securely. It will not be displayed again.|Copia esta credencial de forma segura. No se mostrará nuevamente.
 No registered appliances.|Sin servidores registrados.
 Appliance saved.|Servidor guardado.
 Health report imported.|Informe de salud importado.

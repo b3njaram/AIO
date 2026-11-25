@@ -150,6 +150,10 @@ function renderAppliances(){
  if(order?.support_end)c.append(el('p',translate('Support ends')+': '+order.support_end));
  if(order?.warranty_end)c.append(el('p',translate('Warranty ends')+': '+order.warranty_end));
  c.append(button(x.consent?'Revoke sharing':'Record customer consent',async()=>{if(!confirm(translate(x.consent?'Revoke sharing and erase the stored health report?':'Confirm the customer explicitly agreed to share health reports.')))return;await api('sharing',{id:x.id,allow:!x.consent,confirmed:true});await loadAppliances()}));
+ if(x.consent){c.append(el('p',translate(x.reporting?'Automatic reporting enabled':'Automatic reporting disabled')));
+ if(x.reporting)c.append(el('small',translate('Reporting credential expires')+': '+new Date(x.reporting_expires).toLocaleDateString()));
+ c.append(button(x.reporting?'Revoke reporting credential':'Issue reporting credential',async()=>{if(!confirm(translate(x.reporting?'Revoke automatic reporting?':'Confirm customer approved automatic private health reporting for 90 days.')))return;
+ if(x.reporting){await api('reporting-disable',{id:x.id,confirmed:true})}else{const grant=await api('reporting-enable',{id:x.id,confirmed:true});prompt(translate('Copy this one-time credential securely. It will not be displayed again.'),grant.token)}await loadAppliances()}));}
  list.append(c)}
  if(!appliances.length)list.append(el('p',translate('No registered appliances.')));
 }
