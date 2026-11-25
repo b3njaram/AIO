@@ -93,3 +93,7 @@ The tool verifies checksums, streams encrypted data without writing an intermedi
     python3 scripts/backup-export.py import /mnt/offsite/customer-backup.age /mnt/recovery/new-backup --identity /private/customer-recovery.key --project jobbi-home --mount-id APPROVED_DESTINATION_FINGERPRINT
 
 The importer verifies authenticated decryption, safe archive members, checksums and exact project identity before publishing the new directory. Use strict restore separately. Never delete the only recovery identity or last known-good backup. No automatic offsite upload or deletion; establish retention and storage costs with the customer.
+
+## Retention review
+
+`python3 scripts/recovery-center.py retention INSTANCE BACKUP_ROOT --mount-id FINGERPRINT --keep 3 --days 30` previews older generations eligible for manual review only after checking the protected recent generations. It refuses active upgrade/backup journals, keeps at least three generations and thirty days, and never deletes or moves files. Before retiring any copy, verify actual restore, encryption recovery keys, offsite coverage and customer retention policy. Checksum verification is not a restore test.

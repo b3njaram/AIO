@@ -23,6 +23,21 @@ def verified(i,b,name):
     path=b/name;archives=verified_archives(path);e,_,release=metadata(archives['instance.tar.gz'])
     if e['COMPOSE_PROJECT_NAME']!=env(i)['COMPOSE_PROJECT_NAME'] or e['INSTANCE_DIR']!=str(i):raise ValueError('Backup identity mismatch')
     return path,release
+def retention(i,b,keep,days):
+    """Preview only; require multiple independently checksum-verified recent copies."""
+    if keep<3 or days<30:raise ValueError('Keep at least three backups and thirty days')
+    if (i/'.upgrade-hold.json').exists() or (i/'.backup-running-services').exists():raise ValueError('Resolve active backup or upgrade before retention review')
+    rows=candidates(i,b)
+    cutoff=dt.datetime.now(dt.timezone.utc)-dt.timedelta(days=days)
+    result=[]
+    protected=set(x.name for x in rows[:keep])
+    # Verify the protected recent backups before even proposing older copies.
+    if len(protected)<keep:raise ValueError('Not enough completed backup generations')
+    for name in sorted(protected):verified(i,b,name)
+    for x in rows:
+        timestamp=dt.datetime.strptime(x.name.rsplit('-',1)[-1],'%Y%m%dT%H%M%SZ').replace(tzinfo=dt.timezone.utc)
+        result.append({'name':x.name,'decision':'keep' if x.name in protected or timestamp>=cutoff else 'review_for_manual_retention'})
+    return result
 def running(i):
     return set(subprocess.check_output(ctl(i,'ps','--status','running','--services'),text=True).split())
 def hold(i):
@@ -45,10 +60,13 @@ def record(i,state):
         out.flush();os.fsync(out.fileno())
     os.replace(tmp,i/'recovery-state.json')
 def main():
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('action',choices=['catalog','verify','restore','stage','start-trial','rollback']);p.add_argument('instance',type=Path);p.add_argument('backup_root',type=Path);p.add_argument('--mount-id',required=True);p.add_argument('--backup');p.add_argument('--candidate');p.add_argument('--base-port',type=int);p.add_argument('--to-commit');p.add_argument('--apply',action='store_true');p.add_argument('--confirm-no-candidate-writes',action='store_true',help='Acknowledge trial has no customer writes, or these were separately reconciled');a=p.parse_args()
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('action',choices=['catalog','verify','retention','restore','stage','start-trial','rollback']);p.add_argument('instance',type=Path);p.add_argument('backup_root',type=Path);p.add_argument('--mount-id',required=True);p.add_argument('--keep',type=int,default=3);p.add_argument('--days',type=int,default=30);p.add_argument('--backup');p.add_argument('--candidate');p.add_argument('--base-port',type=int);p.add_argument('--to-commit');p.add_argument('--apply',action='store_true');p.add_argument('--confirm-no-candidate-writes',action='store_true',help='Acknowledge trial has no customer writes, or these were separately reconciled');a=p.parse_args()
     i=a.instance.resolve();b=a.backup_root.resolve();e=env(i);independent(i,b,a.mount_id)
     if a.action=='catalog':
         print(json.dumps([{'name':x.name,'completed_manifest':True,'integrity':'not_checked'} for x in candidates(i,b)],indent=2));return
+    if a.action=='retention':
+        if a.apply:p.error('Retention is preview-only; no automatic deletion')
+        print(json.dumps(retention(i,b,a.keep,a.days),indent=2));return
     if a.action=='verify':
         path,release=verified(i,b,a.backup);print('Verified archive checksums and instance identity. Release:',release['aio_commit']);return
     if a.candidate and not re.fullmatch(r'[a-z0-9][a-z0-9-]{0,35}',a.candidate):p.error('Invalid candidate')
