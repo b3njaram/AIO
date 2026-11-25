@@ -198,7 +198,8 @@ services:
       VIKUNJA_DATABASE_PASSWORD: ${TASK_DB_PASSWORD}
     volumes: [vikunja-files:/app/vikunja/files]
     ports: ["${BIND_IP}:${TASK_PORT}:3456"]
-    depends_on: [vikunja-db]
+    depends_on:
+      vikunja-db: {condition: service_healthy}
   vikunja-db:
     profiles: [tasks]
     image: postgres:17-alpine@sha256:f9cf3e1f0066f0eb0c48707d864f0ac5941e9ff454a072077d97a4d278d07d73
@@ -208,6 +209,11 @@ services:
       POSTGRES_USER: vikunja
       POSTGRES_PASSWORD: ${TASK_DB_PASSWORD}
     volumes: [vikunja-db:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U vikunja -d vikunja -h 127.0.0.1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
   pihole:
     profiles: [dns]
     image: pihole/pihole:2026.11.0@sha256:66c798d79a95c2691f280329c3611dba1746117c61c9f331907ca35a06a52778

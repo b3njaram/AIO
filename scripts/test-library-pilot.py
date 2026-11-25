@@ -69,6 +69,11 @@ def music(env,instance,fixture,recover):
         js(base,'/api/playlists','POST',{'name':'Jobbi synthetic playlist'},h,opener)
         pl=next(x for x in js(base,'/api/playlists',headers=h,opener=opener) if x['name']=='Jobbi synthetic playlist')
         js(base,'/api/playlists/'+urllib.parse.quote(pl['id'],safe=''),'PATCH',{'addSongId':sid,'public':False},h,opener)
+        playlist_path='/api/playlists/'+urllib.parse.quote(pl['id'],safe='')
+        check(js(base,playlist_path,'PATCH',{'public':True},h,opener)['playlist']['public'] is True,'Public visibility change not confirmed')
+        check(js(base,playlist_path,'PATCH',{'public':False},h,opener)['playlist']['public'] is False,'Private visibility change not confirmed')
+        listed=next(x for x in js(base,'/api/playlists',headers=h,opener=opener) if x['id']==pl['id'])
+        check(listed.get('public') is False,'Private visibility omitted in listing')
         fixture['playlist_id']=pl['id']
     starred=js(base,'/api/starred',headers=h,opener=opener)
     check(any(x['id']==sid for x in starred.get('song',[])),'Favorite missing')

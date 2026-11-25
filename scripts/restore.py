@@ -78,7 +78,7 @@ def main():
         env['DNS_LISTEN_PORT']=str(a.base_port+11)
     if env.get('OWNER_UID')!=str(os.getuid()) or env.get('OWNER_GID')!=str(os.getgid()):p.error('Restore using the original installation UID/GID; manual ownership migration otherwise')
     version=release.get('customer_patch_version',0)
-    if version not in (0,1,2,3):p.error('Unknown customer patch version')
+    if version not in (0,1,2,3,4):p.error('Unknown customer patch version')
     pins=release.get('source_pins',{})
     if any(k not in ALLOWED_REPOS or not re.fullmatch('[0-9a-f]{40}',v) for k,v in pins.items()):p.error('Unsupported source pins')
     volumes={}

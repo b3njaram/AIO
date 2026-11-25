@@ -19,13 +19,15 @@ def main():
         try:r=urllib.request.urlopen(urllib.request.Request(base+path,data=b,headers=h,method=method),timeout=15)
         except urllib.error.HTTPError as e:return e.code,{}
         with r:return r.status,json.loads(r.read())
-    for n in range(30):
+    last_status='connection unavailable'
+    for n in range(90):
         try:
             code,info=request('/info')
+            last_status=str(code)
             if code==200:break
-        except OSError:pass
+        except (OSError,ValueError):pass
         time.sleep(2)
-    else:raise AssertionError('Vikunja API unavailable')
+    else:raise AssertionError('Vikunja API unavailable after 180s; last HTTP status: '+last_status)
     assert info.get('registration_enabled') is False, 'Registration not closed'
     code,_=request('/register','POST',{'username':user,'password':pw,'email':email})
     assert code in (400,403,404,405),f'Registration unexpectedly returned {code}'

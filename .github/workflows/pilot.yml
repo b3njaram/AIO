@@ -89,7 +89,7 @@ jobs:
         run: |
           if test -f /tmp/jobbi-full/full/.env; then
             bash scripts/ctl.sh /tmp/jobbi-full/full ps -a
-            bash scripts/ctl.sh /tmp/jobbi-full/full logs --tail=45 jobbi-music jobbi-storage-agent
+            bash scripts/ctl.sh /tmp/jobbi-full/full logs --tail=45 jobbi-music jobbi-storage-agent vikunja vikunja-db
           fi
       - if: always()
         run: |
@@ -190,6 +190,14 @@ jobs:
           bash scripts/ctl.sh "$JOBBI_PILOT_INSTANCE" up -d
           python3 scripts/test-files-pilot.py
           python3 scripts/test-tasks-pilot.py
+      - if: failure()
+        run: |
+          for n in source recovered; do
+            if test -f "/tmp/jobbi-office/$n/.env"; then
+              bash scripts/ctl.sh "/tmp/jobbi-office/$n" ps -a
+              bash scripts/ctl.sh "/tmp/jobbi-office/$n" logs --tail=60 vikunja vikunja-db
+            fi
+          done
       - if: always()
         run: |
           for n in source recovered; do
