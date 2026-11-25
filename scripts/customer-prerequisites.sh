@@ -16,14 +16,16 @@ if command -v docker >/dev/null; then
   exit 0
 fi
 packages=(docker.io docker-compose-v2 python3 git curl util-linux smartmontools)
-apt-get --simulate --no-remove install "${packages[@]}" > /dev/null
 printf 'Customer host packages: %s\n' "${packages[*]}"
 [[ "$mode" == --install ]] || exit 0
 [[ $EUID -eq 0 ]] || { echo 'Run --install with sudo on the dedicated customer host.' >&2; exit 1; }
 for path in /var/lib/docker /var/lib/containerd /etc/docker; do
   if [[ -e "$path" ]]; then echo "Existing runtime state at $path. Review manually." >&2; exit 1; fi
 done
-apt-get --no-remove install "${packages[@]}"
+apt-get update
+apt-get --simulate --no-remove install "${packages[@]}" >/dev/null
+apt-get --yes --no-remove install "${packages[@]}"
+systemctl enable --now docker
 docker compose version
 docker info --format '{{.ServerVersion}}'
 echo 'Confirm the customer installation account has intentional Docker access, then run preflight.py as that account.'

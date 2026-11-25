@@ -3,6 +3,7 @@
 import argparse, ipaddress, json, os, re, secrets, shutil, socket, subprocess, sys
 from pathlib import Path
 from customer_patches import apply, VERSION
+from task_storage import initialize as initialize_task_storage
 ROOT=Path(__file__).resolve().parents[1]
 PINS={'navidrome':'83684735def8138100dc1e304d62f0f1ca556357','movies':'d80c1eb6a255a3a6e1f0912a7777bd1461c5a49f'}
 DEFAULT='music,movies,photos,files,passwords,tasks,monitor,remote'
@@ -144,7 +145,11 @@ def main():
     print('Prepared:',instance,flush=True)
     if not a.prepare_only:
         progress(instance,'building and starting services')
-        run(*cmd,'up','-d','--build')
+        if 'tasks' in apps:
+            run(*cmd,'create','--build')
+            initialize_task_storage(instance)
+            run(*cmd,'up','-d','--no-build')
+        else:run(*cmd,'up','-d','--build')
         run(*cmd,'ps')
         progress(instance,'services started; onboarding pending')
     print('Dashboard: http://'+a.bind+':'+str(ports['DASH_PORT']))

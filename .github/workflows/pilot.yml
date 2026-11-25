@@ -26,6 +26,8 @@ jobs:
       - run: |
           mkdir -p /tmp/jobbi-pilot /tmp/jobbi-backups
           python3 scripts/preflight.py --data-root /tmp/jobbi-pilot --apps monitor --minimum-free-gib 1 --minimum-docker-free-gib 1
+          python3 scripts/setup-customer.py --name setup-preview --data-root /tmp/jobbi-pilot --backup-root /dev/shm --apps monitor --minimum-free-gib 1 --minimum-docker-free-gib 1
+          test ! -e /tmp/jobbi-pilot/setup-preview
           python3 scripts/install.py --name first --data-root /tmp/jobbi-pilot --base-port 18100 --apps monitor
           python3 scripts/install.py --name second --data-root /tmp/jobbi-pilot --base-port 18200 --apps monitor
           for port in 18100 18200; do

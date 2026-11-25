@@ -12,6 +12,7 @@ import sys
 from install import PINS
 from customer_patches import VERSION, migrate
 from restore import verified_archives
+from task_storage import initialize as initialize_task_storage
 
 ROOT=Path(__file__).resolve().parents[1]
 
@@ -94,6 +95,7 @@ def main():
     ctl=['bash',str(ROOT/'scripts/ctl.sh'),str(target)]
     subprocess.run([*ctl,'config','--quiet'],check=True)
     subprocess.run([*ctl,'create','--build','--force-recreate'],check=True)
+    initialize_task_storage(target)
     release['aio_commit']=a.to_commit
     (target/'release.json').write_text(json.dumps(release,indent=2)+'\n')
     (target/'upgrade.json').write_text(json.dumps({'source':str(i),'backup':str(snapshot),'from':a.from_commit,'to':a.to_commit,'state':'stopped-awaiting-validation'},indent=2)+'\n')

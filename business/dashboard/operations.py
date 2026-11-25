@@ -64,9 +64,9 @@ def plan(d):
     def cmd(*a):return shlex.join(a)
     p['commands']='\n'.join(['# Run ONLY on a dedicated customer Linux host, from the reviewed AIO checkout.',
        '# Verify actual mounts, hardware, disk health, backup drive and free ports first.',
-       cmd('python3','scripts/preflight.py','--data-root',root,'--backup-root',backup,'--apps',','.join(apps),'--minimum-free-gib',str(max(50,int(tb*1000**4/1024**3)))),
-       '# Continue only if preflight passes and capacity/RAID are confirmed.',
-       cmd('python3','scripts/install.py','--name',name,'--data-root',root,'--base-port',str(port),'--apps',','.join(apps),'--tz',tz),
+       '# Preview first: the setup command never formats disks. Confirm real capacity/RAID separately.',
+       cmd('python3','scripts/setup-customer.py','--name',name,'--data-root',root,'--backup-root',backup,'--base-port',str(port),'--apps',','.join(apps),'--tz',tz),
+       '# Add --apply to the setup command only after the customer host and disks are approved.',
        cmd('bash','scripts/verify.sh',instance),cmd('python3','scripts/onboard.py',instance),
        cmd('python3','scripts/diagnostics.py',instance), '# After account setup and customer consent for downtime:',
        cmd('python3','scripts/maintenance.py',instance,backup,'--run-backup')])
