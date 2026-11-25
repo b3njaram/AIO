@@ -24,22 +24,32 @@ def apply(instance,repo,version=VERSION):
         p.write_text("export function findAndroidRelease(){return {available:false};}\nexport async function androidLatest(){return {available:false,reason:'Use a compatible client or contact your server administrator for optional native builds.'};}\n")
     if version>=3 and repo=='movies':secure_movie_cookies(instance)
 
-    if version>=4 and repo=='navidrome':
-        # Navidrome v0.64.2 Playlist.Public uses json:"public,omitempty".
-        # Only normalize authenticated full playlist objects, not missing or minimal objects.
-        p=Path(instance)/'sources/navidrome/jobbi-music/server/index.js'
-        source=p.read_text()
-        anchor="  return data;\n}\nconst route = handler"
-        new="""  // Navidrome omits a false public flag in its full JSON playlist response.
+    if version>=4 and repo=='navidrome':normalize_playlist_visibility(instance)
+
+
+def normalize_playlist_visibility(instance):
+    # Navidrome v0.64.2 Playlist.Public uses json:"public,omitempty".
+    # Only normalize authenticated full playlist objects, not missing or minimal objects.
+    p=Path(instance)/'sources/navidrome/jobbi-music/server/index.js'
+    source=p.read_text()
+    anchor="  return data;\n}\nconst route = handler"
+    new="""  // Navidrome omits a false public flag in its full JSON playlist response.
   // Owner is present on full playlist objects and absent on minimal clients.
   const fullPlaylist = p => {
-    if(p && typeof p.id==='string' && typeof p.owner==='string' && p.owner.trim()
-       && !Object.hasOwn(p,'public')) p.public=false;
+if(p && typeof p.id==='string' && typeof p.owner==='string' && p.owner.trim()
+   && !Object.hasOwn(p,'public')) p.public=false;
   };
   if(name==='getPlaylist') fullPlaylist(data.playlist);
   if(name==='getPlaylists') for(const p of data.playlists?.playlist||[]) fullPlaylist(p);
   return data;
 }
 const route = handler"""
-        if source.count(anchor)!=1:raise ValueError('Unexpected pinned Subsonic response adapter')
-        p.write_text(source.replace(anchor,new))
+    if source.count(anchor)!=1:raise ValueError('Unexpected pinned Subsonic response adapter')
+    p.write_text(source.replace(anchor,new))
+
+
+def migrate(instance,pins,previous):
+    """Advance an already patched checkout without reapplying prior migrations."""
+    if previous not in (2,3,4):raise ValueError('Unsupported source migration')
+    if previous<3 and 'movies' in pins:secure_movie_cookies(instance)
+    if previous<4 and 'navidrome' in pins:normalize_playlist_visibility(instance)
