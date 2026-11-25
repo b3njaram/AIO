@@ -30,6 +30,8 @@ jobs:
           test ! -e /tmp/jobbi-pilot/setup-preview
           python3 scripts/install.py --name first --data-root /tmp/jobbi-pilot --base-port 18100 --apps monitor
           python3 scripts/install.py --name second --data-root /tmp/jobbi-pilot --base-port 18200 --apps monitor
+          python3 scripts/security-audit.py /tmp/jobbi-pilot/first
+          python3 scripts/security-audit.py /tmp/jobbi-pilot/second
           for port in 18100 18200; do
             curl --retry 20 --retry-all-errors --retry-delay 2 -fsS "http://127.0.0.1:$port/healthz"
           done
@@ -83,7 +85,7 @@ jobs:
           mkdir -p /tmp/jobbi-full
           python3 scripts/install.py --name full --data-root /tmp/jobbi-full --apps music,movies,photos,files,passwords,tasks,monitor
           for i in $(seq 1 45); do
-            if bash scripts/verify.sh /tmp/jobbi-full/full; then python3 scripts/test-tasks-pilot.py; python3 scripts/test-files-pilot.py; exit 0; fi
+            if bash scripts/verify.sh /tmp/jobbi-full/full; then python3 scripts/security-audit.py /tmp/jobbi-full/full; python3 scripts/test-tasks-pilot.py; python3 scripts/test-files-pilot.py; exit 0; fi
             sleep 10
           done
           exit 1

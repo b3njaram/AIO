@@ -29,3 +29,6 @@ Require passing unit tests of seed generation and guard rules, all three UI brow
 For RAID1 configurations, additionally verify actual array assembly after reboot, degraded operation, replacement and resynchronization, expansion and independent restore on disposable storage before offering these operations commercially. Storage Manager preview is not evidence of successful physical disk operations.
 
 The offline update trial must pass source-hold, isolated candidate startup, and rollback on disposable instances, and verify actual customer data and post-reboot service behavior before any commercial cutover. Never claim data-safe rollback if writes occurred on the candidate and were not reconciled.
+
+## Independent runtime isolation audit
+Run `python3 scripts/security-audit.py INSTANCE` against the running exact candidate. It checks expected services, actual loopback port mappings, container hardening, device access, project network membership, mounts, restart policy and registration/security environment flags without printing credentials. The full-stack and two-instance pilots must pass this check. A non-loopback DNS/LAN configuration is deliberately outside this audit and requires separate network qualification. This is not a vulnerability scan or an external TLS/ACL test.
