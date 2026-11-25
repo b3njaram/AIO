@@ -11,14 +11,20 @@ jobs:
       - run: python3 -m py_compile scripts/install.py scripts/connect-movies.py deploy/dashboard/server.py
       - run: for script in scripts/*.sh; do bash -n "$script"; done
       - run: docker compose -p jobbi-quote -f quote/compose.yaml config --quiet
-      - run: docker compose -p jobbi-quote -f quote/compose.yaml up -d --build && curl --retry 8 --retry-connrefused -fsS http://127.0.0.1:8780/ | grep -q 'Jobbi Home'
+      - run: |
+          docker compose -p jobbi-quote -f quote/compose.yaml up -d --build
+          curl --retry 10 --retry-all-errors --retry-delay 1 -fsS http://127.0.0.1:8780/ -o /tmp/jobbi-quote.html
+          grep -q 'Jobbi Home' /tmp/jobbi-quote.html
+          curl --retry 5 --retry-all-errors -fsS http://127.0.0.1:8780/app.js -o /tmp/jobbi-quote.js
+          node --check /tmp/jobbi-quote.js
       - run: docker compose -p jobbi-quote -f quote/compose.yaml down
         if: always()
       - run: |
           mkdir -p /tmp/jobbi-ci
           python3 scripts/install.py --name ci --data-root /tmp/jobbi-ci --apps monitor,remote --prepare-only
           bash scripts/ctl.sh /tmp/jobbi-ci/ci up -d --build dashboard
-          curl --retry 8 --retry-connrefused -fsS http://127.0.0.1:18080/healthz
+          curl --retry 10 --retry-all-errors --retry-delay 1 -fsS http://127.0.0.1:18080/healthz
           curl -fsS http://127.0.0.1:18080/api/config | grep -q 'Uptime Kuma'
-      - run: bash scripts/ctl.sh /tmp/jobbi-ci/ci down
+      - run: |
+          if test -f /tmp/jobbi-ci/ci/.env; then bash scripts/ctl.sh /tmp/jobbi-ci/ci down; fi
         if: always()
