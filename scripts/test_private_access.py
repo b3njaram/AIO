@@ -21,6 +21,12 @@ class Tests(unittest.TestCase):
         host='customer.example.ts.net';p=m.routes(self.env,self.config,host,19443)
         status={'TCP':{str(r['port']):{'HTTPS':True} for r in p.values()},'Web':{host+':'+str(r['port']):{'Handlers':{'/':{'Proxy':r['target']}}} for r in p.values()}}
         self.assertTrue(m.verify_config(status,p,host))
+        for extra in ({'TCP':{**status['TCP'],'443':{'HTTPS':True}}},
+                      {'Web':{**status['Web'],'other.ts.net:443':{}}},
+                      {'Foreground':{'session':{}}}, {'Services':{'other':{}}},
+                      {'UnknownConfig':True}):
+            with self.subTest(extra=extra), self.assertRaises(ValueError):
+                m.verify_config({**status,**extra},p,host)
         with self.assertRaises(ValueError):m.verify_config({**status,'AllowFunnel':{host+':19443':True}},p,host)
         with self.assertRaises(ValueError):m.verify_config({'TCP':status['TCP'],'Web':{}},p,host)
 if __name__=='__main__':unittest.main()

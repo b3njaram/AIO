@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Explicitly configured cold backups; no automatic upgrades or deletion."""
-import argparse,datetime as dt,fcntl,json,os,shutil,subprocess,sys
+import argparse,datetime as dt,fcntl,json,os,re,shutil,subprocess,sys
 from pathlib import Path
 from restore import verified_archives
 from diagnostics import inspect
@@ -14,7 +14,6 @@ def main():
     env=dict(x.split('=',1) for x in (i/'.env').read_text().splitlines() if '=' in x)
     if env.get('INSTANCE_DIR')!=str(i):p.error('Instance path mismatch')
     project=env.get('COMPOSE_PROJECT_NAME','')
-    import re
     if not re.fullmatch(r'jobbi-[a-z0-9-]+',project):p.error('Invalid project')
     with (i/'.maintenance.lock').open('a') as lock:
         fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
@@ -30,7 +29,7 @@ def main():
                 else:
                     try:verified_archives(next(iter(new)))
                     except (OSError,ValueError):alerts.append('New backup checksum verification failed')
-        candidates=sorted((x for x in d.glob(project+'-*') if x.is_dir() and not x.is_symlink() and (x/'SHA256SUMS').is_file()),key=lambda x:x.name,reverse=True)
+        candidates=sorted((x for x in d.glob(project+'-*') if re.fullmatch(re.escape(project)+r'-[0-9]{8}T[0-9]{6}Z',x.name) and x.is_dir() and not x.is_symlink() and (x/'SHA256SUMS').is_file()),key=lambda x:x.name,reverse=True)
         newest=None
         if candidates:
             try:
