@@ -1,0 +1,11 @@
+FROM python:3.13-alpine@sha256:9ef1a599f863231c3d91e941389bfdc4a2d6070557243d54df1a4e57015b960e
+WORKDIR /app
+RUN pip install --no-cache-dir 'reportlab==4.4.9'
+COPY --chmod=0644 records.py order.py /app/business/
+COPY --chmod=0755 dashboard/ /app/business/dashboard/
+COPY --chmod=0755 sourcing/ /app/business/sourcing/
+ENV HOME=/demo PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+USER 65534:65534
+EXPOSE 8791
+ENTRYPOINT ["python","-B","/app/business/dashboard/server.py","--port","8791","--preview-no-auth","--container-preview"]
+CMD ["--allow-origin","http://macmini2012:8791"]
