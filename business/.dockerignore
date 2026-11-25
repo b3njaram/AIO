@@ -16,3 +16,5 @@
 !sourcing/catalog.json
 !sourcing/verified.example.csv
 !dashboard/Dockerfile.preview
+
+!dashboard/customers.py

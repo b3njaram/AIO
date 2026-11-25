@@ -8,6 +8,7 @@ ROOT=Path(__file__).resolve().parents[2]
 sys.path[:0]=[str(ROOT/'business'),str(ROOT/'business/sourcing')]
 import records,order
 import operations as ops
+import customers
 import search as sourcing
 from retailers import links
 HOME=Path.home()/'.local/share/jobbi-business'
@@ -28,6 +29,7 @@ def db():
     d.executescript("""CREATE TABLE IF NOT EXISTS order_details(order_id TEXT PRIMARY KEY REFERENCES orders(id), label TEXT NOT NULL, stage TEXT NOT NULL, delivered TEXT, months INTEGER NOT NULL, hardware_condition TEXT NOT NULL, note TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS confirmed_offers(profile TEXT NOT NULL,target TEXT NOT NULL,part TEXT NOT NULL,url TEXT NOT NULL,payload TEXT NOT NULL,PRIMARY KEY(profile,target,part,url));""")
     ops.schema(d)
+    customers.schema(d)
     return d
 def validate_id(v):
     if not isinstance(v,str) or not re.fullmatch(ID_RE,v):raise ValueError('Invalid order or transaction ID')
@@ -154,6 +156,8 @@ def payment(d):
     return {'ok':True}
 def operations(d,action):
     with db() as conn:
+        if action in ('appliance','sharing','health-import'):
+            return {'appliance':customers.save,'sharing':customers.consent,'health-import':customers.ingest}[action](conn,d)
         if action=='component':
             ops.warranty(conn,d);return {'ok':True}
         if action=='installation-event':
@@ -230,6 +234,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 if profile not in PROFILES:raise ValueError('Invalid profile')
                 data=supplier_links(profile)
             elif u.path=='/api/orders':data=list_orders()
+            elif u.path=='/api/appliances':
+                with db() as conn:data=customers.rows(conn)
             elif u.path=='/api/cases':
                 with db() as conn:data=ops.cases(conn)
             elif u.path=='/api/plans':
@@ -247,7 +253,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not 0<length<=65536:raise ValueError('Invalid request size')
             data=json.loads(self.rfile.read(length))
             if not isinstance(data,dict):raise ValueError('Invalid payload')
-            routes={'/api/search':start_search,'/api/cost':costing,'/api/confirmed':confirmations,'/api/confirm':lambda d:confirmations(d,save=True),'/api/remove-offer':lambda d:confirmations(d,remove=True),'/api/order':lambda d:save_order(d,True),'/api/order-update':lambda d:save_order(d,False),'/api/payment':payment,'/api/plan':lambda d:operations(d,'plan'),'/api/case':lambda d:operations(d,'case'),'/api/component':lambda d:operations(d,'component'),'/api/installation-event':lambda d:operations(d,'installation-event'),'/api/handoff':lambda d:operations(d,'handoff'),'/api/document':lambda d:operations(d,'document')}
+            routes={'/api/appliance':lambda d:operations(d,'appliance'),'/api/sharing':lambda d:operations(d,'sharing'),'/api/health-import':lambda d:operations(d,'health-import'),'/api/search':start_search,'/api/cost':costing,'/api/confirmed':confirmations,'/api/confirm':lambda d:confirmations(d,save=True),'/api/remove-offer':lambda d:confirmations(d,remove=True),'/api/order':lambda d:save_order(d,True),'/api/order-update':lambda d:save_order(d,False),'/api/payment':payment,'/api/plan':lambda d:operations(d,'plan'),'/api/case':lambda d:operations(d,'case'),'/api/component':lambda d:operations(d,'component'),'/api/installation-event':lambda d:operations(d,'installation-event'),'/api/handoff':lambda d:operations(d,'handoff'),'/api/document':lambda d:operations(d,'document')}
             if self.server.preview and self.path=='/api/search':
                 self.send(403,{'error':'Live hardware search is disabled in the no-login demo.'});return
             fn=routes.get(self.path)

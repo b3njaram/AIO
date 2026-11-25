@@ -1,6 +1,51 @@
 'use strict';
 const spanish = new Map(`
 Demo only · no login · use test records|Solo demo · sin acceso por contraseña · usa registros de prueba
+Customers|Clientes
+Customer appliances|Servidores de clientes
+Private registry · customer-shared reports only|Registro privado · solo informes compartidos por clientes
+Register appliance|Registrar servidor
+Appliance ID|ID del servidor
+Appliance label|Nombre del servidor
+Save appliance|Guardar servidor
+Import shared report|Importar informe compartido
+Appliance|Servidor
+Customer health JSON|JSON de salud del cliente
+Import report|Importar informe
+Reports are manually provided, not live monitoring or proof of identity.|Los informes se entregan manualmente; no son monitoreo en vivo ni prueba de identidad.
+Registered|Registrados
+Reports need review|Informes por revisar
+Sharing enabled|Uso compartido habilitado
+No reported alerts|Sin alertas reportadas
+Not shared|No compartido
+No report|Sin informe
+Stale report|Informe desactualizado
+Needs review|Requiere revisión
+Storage free|Espacio libre
+Backup|Respaldo
+Report date|Fecha del informe
+Health details|Detalles de salud
+Temperature|Temperatura
+Alerts|Alertas
+Release|Versión
+Support ends|Fin del soporte
+Warranty ends|Fin de garantía
+Revoke sharing|Revocar permiso
+Record customer consent|Registrar consentimiento
+Revoke sharing and erase the stored health report?|¿Revocar el permiso y borrar el informe almacenado?
+Confirm the customer explicitly agreed to share health reports.|Confirma que el cliente aceptó compartir informes de salud.
+No registered appliances.|Sin servidores registrados.
+Appliance saved.|Servidor guardado.
+Health report imported.|Informe de salud importado.
+verified|Verificado
+stale|Vencido
+review|Revisar
+mount_unavailable|Disco no disponible
+not_verified|Sin verificar
+healthy|Saludable
+degraded|Degradado
+syncing|Sincronizando
+unknown|Desconocido
 Overview|Resumen
 WORKSPACE|ESPACIO DE TRABAJO
 What needs your attention today?|¿Qué necesita tu atención hoy?
