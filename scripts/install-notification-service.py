@@ -11,7 +11,10 @@ def units(i,user):
     name='jobbi-'+i.name+'-notifications'
     service='[Unit]\nDescription=Customer-approved maintenance notification check\nRequiresMountsFor='+str(i)+'\nConditionPathExists='+str(i/'.notification-config.json')+'\n[Service]\nType=oneshot\nUser='+user+'\nUMask=0077\nNoNewPrivileges=true\nExecStart='+python+' '+root+'/scripts/notifications.py '+str(i)+' check\n'
     timer='[Unit]\nDescription=Check maintenance notifications\n[Timer]\nOnBootSec=3min\nOnUnitActiveSec=15min\nUnit='+name+'.service\n[Install]\nWantedBy=timers.target\n'
-    return {name+'.service':service,name+'.timer':timer}
+    reporting=name.replace('-notifications','-reporting')
+    report_service=service.replace('Customer-approved maintenance notification check','Customer-approved private health reporting').replace('.notification-config.json','.health-reporting.json').replace('/scripts/notifications.py ','/scripts/health-reporting.py ').replace(' check\n',' send\n')
+    report_timer=timer.replace('Check maintenance notifications','Send approved private health report').replace(name+'.service',reporting+'.service')
+    return {name+'.service':service,name+'.timer':timer,reporting+'.service':report_service,reporting+'.timer':report_timer}
 def main():
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('instance',type=Path);p.add_argument('--operator',required=True);p.add_argument('--apply',action='store_true');a=p.parse_args()
     result=units(a.instance.resolve(),a.operator)
