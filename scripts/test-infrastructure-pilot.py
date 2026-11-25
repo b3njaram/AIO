@@ -16,7 +16,7 @@ from pathlib import Path
 
 
 def request(url,data=None,token=None,form=False,opener=None):
-    headers={}
+    headers={'Accept':'application/json'}
     if token:headers['Authorization']='Bearer '+token
     if data is not None:
         headers['Content-Type']='application/x-www-form-urlencoded' if form else 'application/json'
@@ -46,12 +46,17 @@ def vault(env,fixture,recover):
     email='owner@example.invalid'
     def registration(email):
         return {'email':email,'name':'Synthetic owner','masterPasswordHash':fixture['password'],'key':fixture['cipher']}
-    assert request(base+'/api/accounts/register',registration('other@example.invalid'))[0]==400
+    verify=base+'/identity/accounts/register/send-verification-email'
+    assert request(verify,{'email':'other@example.invalid'})[0]==400
     if not recover:
         admin=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
         assert request(base+'/admin/',{'token':env['VAULT_ADMIN_TOKEN']},form=True,opener=admin)[0]==200
         assert request(base+'/admin/invite',{'email':email},opener=admin)[0]==200
-        assert request(base+'/api/accounts/register',registration(email))[0]==200
+        code,verification=request(verify,{'email':email})
+        assert code==200 and isinstance(verification,str)
+        payload={**registration(email),'emailVerificationToken':verification,'kdf':0,'kdfIterations':600000}
+        code,_=request(base+'/identity/accounts/register/finish',payload)
+        assert code==200,'Registration HTTP '+str(code)
     code,login=request(base+'/identity/connect/token',{'grant_type':'password','client_id':'web','scope':'api offline_access','username':email,'password':fixture['password'],'deviceIdentifier':fixture['device'],'deviceName':'Disposable CI','deviceType':'9'},form=True)
     assert code==200,'Vault login HTTP '+str(code)
     token=login['access_token']
@@ -79,7 +84,7 @@ def monitor(env,fixture,recover):
         if not recover:assert client.call('setup',('pilot',fixture['password']))['ok']
         assert client.call('login',{'username':'pilot','password':fixture['password']})['ok']
         if not recover:
-            row=client.call('add',{'name':'Local dashboard','type':'http','url':'http://dashboard:8080/healthz','interval':60,'accepted_statuscodes':['200-299'],'notificationIDList':{},'active':False})
+            row=client.call('add',{'name':'Local dashboard','type':'http','url':'http://dashboard:8080/healthz','interval':60,'accepted_statuscodes':['200-299'],'notificationIDList':{},'active':False,'conditions':[],'kafkaProducerBrokers':[],'kafkaProducerSaslOptions':{},'rabbitmqNodes':[]})
             assert row['ok'],row.get('msg')
             fixture['monitor']=row['monitorID']
         row=client.call('getMonitor',fixture['monitor'])

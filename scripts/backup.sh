@@ -56,12 +56,12 @@ trap restart_on_exit EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 ctl stop "${RUNNING[@]}"
-docker run --rm --network none -v "$INSTANCE:/src:ro" -v "$OUT:/backup:rw" alpine:3.22 sh -c 'cd /src; set -- .env dashboard.json data; for p in release.json deployment onboarding.json image-inventory.json; do if test -e "$p"; then set -- "$@" "$p"; fi; done; tar czf /backup/instance.tar.gz "$@"'
+docker run --rm --network none -v "$INSTANCE:/src:ro" -v "$OUT:/backup:rw" alpine:3.22@sha256:49340b346798875b5592e5d420241f2f9cfba5f47e62ebb1446a1b34734e898f sh -c 'cd /src; set -- .env dashboard.json data; for p in release.json deployment onboarding.json image-inventory.json; do if test -e "$p"; then set -- "$@" "$p"; fi; done; tar czf /backup/instance.tar.gz "$@"'
 VOLUMES="$(docker volume ls -q --filter "label=com.docker.compose.project=$PROJECT")"
 while IFS= read -r volume; do
   [[ -n "$volume" ]] || continue
   [[ "$volume" == "$PROJECT"_* ]] || { echo "Unexpected volume"; exit 1; }
-  docker run --rm --network none -v "$volume:/src:ro" -v "$OUT:/backup:rw" alpine:3.22 sh -c 'tar czf "/backup/$1.tar.gz" -C /src .' sh "$volume"
+  docker run --rm --network none -v "$volume:/src:ro" -v "$OUT:/backup:rw" alpine:3.22@sha256:49340b346798875b5592e5d420241f2f9cfba5f47e62ebb1446a1b34734e898f sh -c 'tar czf "/backup/$1.tar.gz" -C /src .' sh "$volume"
 done <<< "$VOLUMES"
 resume_services
 (cd "$OUT" && sha256sum ./*.tar.gz > SHA256SUMS.tmp && sha256sum -c SHA256SUMS.tmp && mv SHA256SUMS.tmp SHA256SUMS)

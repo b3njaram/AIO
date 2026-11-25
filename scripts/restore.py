@@ -90,7 +90,7 @@ def main():
     for port in PORTS.values():reserve('127.0.0.1',a.base_port+port)
     os.umask(0o077);dest.mkdir()
     # Docker preserves original numeric ownership; archive already validated.
-    run('docker','run','--rm','--network','none','-v',str(backup)+':/backup:ro','-v',str(dest)+':/dst:rw','alpine:3.22','tar','xzf','/backup/instance.tar.gz','-C','/dst')
+    run('docker','run','--rm','--network','none','-v',str(backup)+':/backup:ro','-v',str(dest)+':/dst:rw','alpine:3.22@sha256:49340b346798875b5592e5d420241f2f9cfba5f47e62ebb1446a1b34734e898f','tar','xzf','/backup/instance.tar.gz','-C','/dst')
     # Rewrite only non-secret installation identity and network values.
     oldports={int(env[k]):a.base_port+n for k,n in PORTS.items() if k in env}
     env.update({'INSTANCE_DIR':str(dest),'COMPOSE_PROJECT_NAME':project,'BIND_IP':'127.0.0.1','MUSIC_HTTPS':'false',
@@ -136,7 +136,7 @@ def main():
     for suffix,path in volumes.items():
         volume=project+'_'+suffix
         if volume not in available:raise ValueError('Backup volume not defined in new project: '+suffix)
-        run('docker','run','--rm','--network','none','-v',str(backup)+':/backup:ro','-v',volume+':/dst:rw','alpine:3.22','sh','-c','find /dst -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +; tar xzf "/backup/$1" -C /dst','sh',path.name)
+        run('docker','run','--rm','--network','none','-v',str(backup)+':/backup:ro','-v',volume+':/dst:rw','alpine:3.22@sha256:49340b346798875b5592e5d420241f2f9cfba5f47e62ebb1446a1b34734e898f','sh','-c','find /dst -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +; tar xzf "/backup/$1" -C /dst','sh',path.name)
     print('Restored into stopped project: '+project)
     print('Inspect release, image versions, ports, credentials and domains. Then explicitly start with ctl.sh INSTANCE up -d.')
     print('Never expose a recovered copy while the original is serving users. Verify application data and customer ownership.')

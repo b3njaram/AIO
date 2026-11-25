@@ -13,7 +13,7 @@ services:
     security_opt: [no-new-privileges:true]
   navidrome:
     profiles: [music]
-    image: deluan/navidrome:0.58.0
+    image: deluan/navidrome:0.58.0@sha256:2ae037d464de9f802d047165a13b1c9dc2bdbb14920a317ae4aef1233adc0a3c
     user: "${OWNER_UID}:${OWNER_GID}"
     restart: unless-stopped
     environment: {ND_SCANSCHEDULE: 1h}
@@ -49,7 +49,7 @@ services:
     mem_limit: 768m
   jobbi-social-db:
     profiles: [music]
-    image: postgres:17-alpine
+    image: postgres:17-alpine@sha256:f9cf3e1f0066f0eb0c48707d864f0ac5941e9ff454a072077d97a4d278d07d73
     restart: unless-stopped
     environment:
       POSTGRES_DB: jobbi_social
@@ -63,7 +63,7 @@ services:
       retries: 20
   jobbi-storage-agent:
     profiles: [music]
-    image: node:22-alpine
+    image: node:22-alpine@sha256:1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d73bde88481a
     restart: unless-stopped
     network_mode: none
     user: "0:0"
@@ -80,7 +80,7 @@ services:
     mem_limit: 192m
   prowlarr:
     profiles: [movies]
-    image: lscr.io/linuxserver/prowlarr:latest
+    image: linuxserver/prowlarr:latest@sha256:2806c9b763810589c42157730d547c293639e55c7610e9f5069314854639ec48
     restart: unless-stopped
     environment:
       PUID: "${OWNER_UID}"
@@ -90,7 +90,7 @@ services:
     ports: ["127.0.0.1:${PROWLARR_PORT}:9696"]
   torrserver:
     profiles: [movies]
-    image: yourok/torrserver:latest
+    image: yourok/torrserver:latest@sha256:245c0f6f5e3b4923d19a77c5e6b847ea02dc93d8afce9e6da5bfc443e4360290
     restart: unless-stopped
     volumes: ["${INSTANCE_DIR}/data/torrserver:/opt/ts/config"]
   backend:
@@ -115,7 +115,7 @@ services:
     depends_on: [backend]
   immich-server:
     profiles: [photos]
-    image: ghcr.io/immich-app/immich-server:v3.4.2
+    image: ghcr.io/immich-app/immich-server:v3.4.2@sha256:fc880c1bf665b4aab1e74c15e56ab871225989cd546536e6b77e771869af06bd
     restart: unless-stopped
     environment:
       DB_HOSTNAME: immich-db
@@ -132,7 +132,7 @@ services:
     depends_on: [immich-db, immich-redis, immich-machine-learning]
   immich-machine-learning:
     profiles: [photos]
-    image: ghcr.io/immich-app/immich-machine-learning:v3.4.2
+    image: ghcr.io/immich-app/immich-machine-learning:v3.4.2@sha256:739405742a79bd7447227c553bb62ed5491aa36acf00bc667af7f9c93b6fae91
     restart: unless-stopped
     environment: {MACHINE_LEARNING_MODEL_REVISION: v2}
     volumes: [immich-models:/cache]
@@ -153,7 +153,7 @@ services:
     shm_size: 128mb
   nextcloud:
     profiles: [files]
-    image: nextcloud:32-apache
+    image: nextcloud:32-apache@sha256:7032779c2121b26919ad36dc7bcb68b94ef37c451bfede06926e8b03b5caa1fc
     restart: unless-stopped
     environment:
       POSTGRES_HOST: nextcloud-db
@@ -165,7 +165,7 @@ services:
     depends_on: [nextcloud-db]
   nextcloud-db:
     profiles: [files]
-    image: postgres:17-alpine
+    image: postgres:17-alpine@sha256:f9cf3e1f0066f0eb0c48707d864f0ac5941e9ff454a072077d97a4d278d07d73
     restart: unless-stopped
     environment:
       POSTGRES_DB: nextcloud
@@ -174,7 +174,7 @@ services:
     volumes: [nextcloud-db:/var/lib/postgresql/data]
   vaultwarden:
     profiles: [passwords]
-    image: vaultwarden/server:1.34.3
+    image: vaultwarden/server:1.37.5@sha256:4fe17f415f90087377d37c755e0ea3cf189dcc6794e49cdd2a9adbb4937d9e1f
     restart: unless-stopped
     environment:
       SIGNUPS_ALLOWED: "false"
@@ -184,7 +184,7 @@ services:
     ports: ["${BIND_IP}:${VAULT_PORT}:80"]
   vikunja:
     profiles: [tasks]
-    image: vikunja/vikunja:0.24.6
+    image: vikunja/vikunja:0.24.6@sha256:ed1f3ed467fecec0b57e9de7bc6607f8bbcbb23ffced6a81f5dfefc794cdbe3b
     restart: unless-stopped
     environment:
       VIKUNJA_SERVICE_PUBLICURL: ${TASK_URL}
@@ -200,7 +200,7 @@ services:
     depends_on: [vikunja-db]
   vikunja-db:
     profiles: [tasks]
-    image: postgres:17-alpine
+    image: postgres:17-alpine@sha256:f9cf3e1f0066f0eb0c48707d864f0ac5941e9ff454a072077d97a4d278d07d73
     restart: unless-stopped
     environment:
       POSTGRES_DB: vikunja
@@ -209,7 +209,7 @@ services:
     volumes: [vikunja-db:/var/lib/postgresql/data]
   pihole:
     profiles: [dns]
-    image: pihole/pihole:latest
+    image: pihole/pihole:2026.11.0@sha256:66c798d79a95c2691f280329c3611dba1746117c61c9f331907ca35a06a52778
     restart: unless-stopped
     environment:
       TZ: ${TZ}
@@ -222,7 +222,7 @@ services:
       - "${BIND_IP}:${DNS_LISTEN_PORT:-53}:53/udp"
   uptime-kuma:
     profiles: [monitor]
-    image: louislam/uptime-kuma:2
+    image: louislam/uptime-kuma:2.5.12@sha256:8e4b6bef96417ec98a35dc103c99cc64fc229a01e584e56d95d9004d2003c02a
     environment: {UPTIME_KUMA_DB_TYPE: sqlite}
     restart: unless-stopped
     volumes: ["${INSTANCE_DIR}/data/uptime:/app/data"]
