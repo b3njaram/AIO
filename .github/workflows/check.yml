@@ -15,6 +15,7 @@ jobs:
           docker compose -p jobbi-quote -f quote/compose.yaml up -d --build
           curl --retry 10 --retry-all-errors --retry-delay 1 -fsS http://127.0.0.1:8780/ -o /tmp/jobbi-quote.html
           grep -q 'Jobbi Home' /tmp/jobbi-quote.html
+          grep -q 'mailto:b3njaram06@gmail.com' /tmp/jobbi-quote.html
           curl --retry 5 --retry-all-errors -fsS http://127.0.0.1:8780/app.js -o /tmp/jobbi-quote.js
           node --check /tmp/jobbi-quote.js
       - run: docker compose -p jobbi-quote -f quote/compose.yaml down

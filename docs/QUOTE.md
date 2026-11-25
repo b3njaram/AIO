@@ -15,3 +15,5 @@ Future updates:
 Pricing is in quote/app.js. USD and MXN rates are illustrative; verify local actual rates, hardware supplier quotations, currency exchange, and local subscription prices before accepting orders. The 12% hardware markup is not net profit; tax, labor, warranty, payment fees and support costs must be budgeted separately. The quote is not a payment or ordering backend.
 
 Customers can download their service configuration as JSON; it contains no secrets or authoritative pricing. The installer accepts it via --quote.
+
+The consumer quote site uses cash-only wording, no mandatory subscription, an email contact button with the current estimate, browser/third-party client policy and no preselected subscription cancellations. Hardware and electricity prices remain illustrative, not live supplier offers. The email button opens the visitor's email client; no private dashboard, credentials, customer database, automatic submissions or payments are exposed. Custom capacity requests can still export their configuration and request a final quote.
