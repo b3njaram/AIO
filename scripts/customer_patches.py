@@ -1,8 +1,15 @@
 """Versioned AIO-only patches to pinned upstream customer checkouts."""
 from pathlib import Path
-VERSION=2
+VERSION=3
+def secure_movie_cookies(instance):
+    path=Path(instance)/'sources/movies/backend/auth.js'
+    old="httpOnly: true, sameSite: 'lax'"
+    source=path.read_text()
+    if source.count(old)!=2:raise ValueError('Unexpected pinned StreamHub cookie options')
+    path.write_text(source.replace(old,"secure: process.env.JOBBI_PRIVATE_HTTPS === 'true', "+old))
+
 def apply(instance,repo,version=VERSION):
-    if version not in (1,2):raise ValueError('Unsupported customer patch version')
+    if version not in (1,2,3):raise ValueError('Unsupported customer patch version')
     if repo=='movies':
         p=Path(instance)/'sources/movies/backend/db.js'
         old="INSERT INTO profiles (user_id, name, avatar, kids) VALUES (?, ?, 0, 0)"
@@ -15,3 +22,4 @@ def apply(instance,repo,version=VERSION):
         if 'export async function androidLatest(){' not in p.read_text():raise ValueError('Unexpected upstream Android release module')
         # No personal release feed or network request in the commercial edition.
         p.write_text("export function findAndroidRelease(){return {available:false};}\nexport async function androidLatest(){return {available:false,reason:'Use a compatible client or contact your server administrator for optional native builds.'};}\n")
+    if version>=3 and repo=='movies':secure_movie_cookies(instance)

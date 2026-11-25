@@ -1,6 +1,5 @@
 """Journal and reconcile the dedicated customer host's Tailscale Serve bindings."""
 import json
-import os
 import subprocess
 from pathlib import Path
 from private_origins import atomic_write
@@ -17,13 +16,16 @@ def verify_backends(instance, plan):
     if not ids:
         raise ValueError('No running customer containers')
     ports={}
+    running=set()
     for cid in ids:
         # Read only runtime bindings, service label, and the three nonsecret
         # security settings. Never print the container environment.
         obj=json.loads(subprocess.check_output(['docker','inspect',cid],text=True))[0]
         service=obj['Config']['Labels']['com.docker.compose.service']
+        running.add(service)
         env=dict(x.split('=',1) for x in obj['Config']['Env'] or [] if '=' in x)
         required={
+            'backend':{'JOBBI_PRIVATE_HTTPS':'true'},
             'jobbi-music':{'PUBLIC_HTTPS':'true','ENABLE_ACCOUNT_MANAGEMENT':'false'},
             'vaultwarden':{'SIGNUPS_ALLOWED':'false','DOMAIN':plan.get('passwords',{}).get('url')},
             'vikunja':{'VIKUNJA_SERVICE_ENABLEREGISTRATION':'false','VIKUNJA_SERVICE_PUBLICURL':plan.get('tasks',{}).get('url','')+'/'}
@@ -37,6 +39,8 @@ def verify_backends(instance, plan):
                 if bind['HostIp']!='127.0.0.1':
                     raise ValueError('Customer port is published outside loopback')
                 ports[int(bind['HostPort'])]=service
+    if 'movies' in plan and 'backend' not in running:
+        raise ValueError('Missing StreamHub backend')
     owners={'dashboard':'dashboard','music':'jobbi-music','navidrome':'navidrome','movies':'frontend','photos':'immich-server','files':'nextcloud','passwords':'vaultwarden','tasks':'vikunja','monitor':'uptime-kuma'}
     for app,row in plan.items():
         if ports.get(int(row['target'].rsplit(':',1)[1]))!=owners[app]:

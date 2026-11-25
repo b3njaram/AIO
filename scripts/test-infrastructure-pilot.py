@@ -31,13 +31,13 @@ def request(url,data=None,token=None,form=False,opener=None):
         return response.status,json.loads(body) if body and 'application/json' in response.headers.get('Content-Type','') else None
 
 
-def wait(fn):
+def wait(fn,label='service'):
     for _ in range(90):
         try:
             if fn():return
         except (OSError,ValueError):pass
         time.sleep(2)
-    raise RuntimeError('Service readiness deadline exceeded')
+    raise RuntimeError(label+' readiness deadline exceeded')
 
 
 def vault(env,fixture,recover):
@@ -95,14 +95,22 @@ def monitor(env,fixture,recover):
 
 def dns(instance,env,recover):
     base='http://127.0.0.1:'+env['DNS_WEB_PORT']+'/api'
-    wait(lambda:request(base+'/auth')[0]==200)
+    def api_ready():
+        try:
+            status,_=request(base+'/auth')
+            if status in (200,401):return True
+            print('Pi-hole authentication readiness HTTP',status,flush=True)
+        except OSError as exc:
+            print('Pi-hole connection readiness',type(exc).__name__,flush=True)
+        return False
+    wait(api_ready,'Pi-hole API')
     status,auth=request(base+'/auth',{'password':env['DNS_PASSWORD']})
-    assert status==200 and auth['session']['valid']
+    assert status==200 and auth['session']['valid'],'Pi-hole login HTTP '+str(status)
     name='jobbi-synthetic.example.test'
     if not recover:
         subprocess.run(['bash',str(Path(__file__).with_name('ctl.sh')),str(instance),'exec','-T','pihole','pihole','deny',name],check=True)
     lookup=['dig','+short','+time=2','+tries=1','@127.0.0.1','-p',env['DNS_LISTEN_PORT'],name,'A']
-    wait(lambda:subprocess.check_output(lookup,text=True).strip()=='0.0.0.0')
+    wait(lambda:subprocess.check_output(lookup,text=True).strip()=='0.0.0.0','Pi-hole blocked DNS response')
     assert subprocess.check_output([*lookup,'+tcp'],text=True).strip()=='0.0.0.0'
     print('PASS Pi-hole authenticated administration and persisted UDP/TCP blocking rule')
 

@@ -102,6 +102,7 @@ services:
       PROWLARR_API_KEY: ${PROWLARR_API_KEY:-}
       TORRSERVER_URL: http://torrserver:8090
       PORT: "4000"
+      JOBBI_PRIVATE_HTTPS: ${MOVIE_HTTPS:-false}
       JWT_SECRET: ${MOVIE_SECRET}
       DB_PATH: /app/data/streamhub.db
       TMDB_API_KEY: ${TMDB_API_KEY:-}

@@ -9,6 +9,7 @@ def main():
     p.add_argument('instance',type=Path)
     p.add_argument('--fixture',type=Path,required=True,help='Private CI credentials file')
     p.add_argument('--recover',action='store_true')
+    p.add_argument('--secure-cookie',action='store_true')
     a=p.parse_args()
     instance=a.instance.resolve(); env=dict(x.split('=',1) for x in (instance/'.env').read_text().splitlines() if '=' in x)
     if os.getenv('GITHUB_ACTIONS')!='true' or instance.parent!=Path('/tmp/jobbi-media') or instance.name not in ('source','recovered') or env.get('INSTANCE_DIR')!=str(instance) or env.get('BIND_IP')!='127.0.0.1':
@@ -17,6 +18,7 @@ def main():
     base='http://127.0.0.1:'+env['MOVIE_PORT']
     media=instance/'data/movies/media/Jobbi Pilot 2026.mp4'
     ctl=['bash',str(ROOT/'scripts/ctl.sh'),str(instance)]
+    if a.secure_cookie and not a.recover:p.error('Use the existing recovered fixture')
     if not a.recover:
         if a.fixture.exists() or media.exists():p.error('Existing fixture')
         username='pilot_'+secrets.token_hex(5); password=secrets.token_urlsafe(24)
@@ -27,7 +29,8 @@ def main():
         a.fixture.write_text(json.dumps({'username':username,'password':password,'sha256':hashlib.sha256(media.read_bytes()).hexdigest()}))
     f=json.loads(a.fixture.read_text())
     assert hashlib.sha256(media.read_bytes()).hexdigest()==f['sha256'],'Restored video differs'
-    opener=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+    jar=http.cookiejar.CookieJar()
+    opener=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
     def call(path,data=None,headers=None,status=200):
         h={'Origin':base,'Accept':'application/json',**(headers or {})}
         b=None
@@ -42,6 +45,12 @@ def main():
     call('/api/auth/me',status=401)
     login=js('/api/auth/login',{'username':f['username'],'password':f['password'],'remember':False})
     assert login['username']==f['username'] and login['isAdmin']
+    if a.secure_cookie:
+        session=next(c for c in jar if c.name=='sh_session')
+        assert session.secure and session.has_nonstandard_attr('HttpOnly') and session.get_nonstandard_attr('SameSite').lower()=='lax'
+        call('/api/auth/me',status=401)
+        print('PASS: private session cookie has Secure, HttpOnly and SameSite; cookie jar withheld it over HTTP')
+        return
     assert js('/api/auth/me')['username']==f['username']
     profiles=js('/api/profiles')['profiles'];profile=next(x for x in profiles if x['maxAge']>=18)
     js('/api/profiles/'+str(profile['id'])+'/activate',{'accountPassword':f['password']})

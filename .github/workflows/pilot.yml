@@ -122,6 +122,14 @@ jobs:
           done
           python3 scripts/test-movie-pilot.py /tmp/jobbi-media/recovered --fixture /tmp/jobbi-media-fixture.json --recover
           python3 scripts/test-movie-pilot.py /tmp/jobbi-media/source --fixture /tmp/jobbi-media-fixture.json --recover
+          sed -i 's/^MOVIE_HTTPS=false$/MOVIE_HTTPS=true/' /tmp/jobbi-media/recovered/.env
+          bash scripts/ctl.sh /tmp/jobbi-media/recovered up -d --no-deps --force-recreate backend
+          for i in $(seq 1 30); do
+            code="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18503/api/auth/me || true)"
+            if test "$code" = 401; then break; fi
+            sleep 2
+          done
+          python3 scripts/test-movie-pilot.py /tmp/jobbi-media/recovered --fixture /tmp/jobbi-media-fixture.json --recover --secure-cookie
       - if: always()
         run: |
           for n in source recovered; do

@@ -95,6 +95,7 @@ def main():
     # Output configuration proposals, never copy customer secrets or rewrite instance files.
     cfg={**config,'apps':[{**app,**({'url':plan[app['id']]['url']} if app['id'] in plan else {})} for app in config['apps']]}
     changes={}
+    if 'movies' in plan:changes['MOVIE_HTTPS']='true'
     if 'music' in plan:changes['MUSIC_HTTPS']='true'
     if 'passwords' in plan:changes['VAULT_DOMAIN']=plan['passwords']['url']
     if 'tasks' in plan:changes.update(TASK_URL=plan['tasks']['url']+'/',TASK_REGISTRATION='false')

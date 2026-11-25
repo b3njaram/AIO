@@ -75,7 +75,7 @@ def main():
         env['DNS_LISTEN_PORT']=str(a.base_port+11)
     if env.get('OWNER_UID')!=str(os.getuid()) or env.get('OWNER_GID')!=str(os.getgid()):p.error('Restore using the original installation UID/GID; manual ownership migration otherwise')
     version=release.get('customer_patch_version',0)
-    if version not in (0,1,2):p.error('Unknown customer patch version')
+    if version not in (0,1,2,3):p.error('Unknown customer patch version')
     pins=release.get('source_pins',{})
     if any(k not in ALLOWED_REPOS or not re.fullmatch('[0-9a-f]{40}',v) for k,v in pins.items()):p.error('Unsupported source pins')
     volumes={}
@@ -93,7 +93,7 @@ def main():
     run('docker','run','--rm','--network','none','-v',str(backup)+':/backup:ro','-v',str(dest)+':/dst:rw','alpine:3.22@sha256:49340b346798875b5592e5d420241f2f9cfba5f47e62ebb1446a1b34734e898f','tar','xzf','/backup/instance.tar.gz','-C','/dst')
     # Rewrite only non-secret installation identity and network values.
     oldports={int(env[k]):a.base_port+n for k,n in PORTS.items() if k in env}
-    env.update({'INSTANCE_DIR':str(dest),'COMPOSE_PROJECT_NAME':project,'BIND_IP':'127.0.0.1','MUSIC_HTTPS':'false',
+    env.update({'INSTANCE_DIR':str(dest),'COMPOSE_PROJECT_NAME':project,'BIND_IP':'127.0.0.1','MUSIC_HTTPS':'false','MOVIE_HTTPS':'false',
                 'VAULT_DOMAIN':'http://127.0.0.1:'+str(a.base_port+PORTS['VAULT_PORT']),
                 'TASK_REGISTRATION':'false','TASK_URL':'http://127.0.0.1:'+str(a.base_port+PORTS['TASK_PORT'])+'/'})
     env.update({k:str(a.base_port+n) for k,n in PORTS.items()})

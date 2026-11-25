@@ -10,7 +10,7 @@ import subprocess
 import sys
 
 from install import PINS
-from customer_patches import VERSION
+from customer_patches import VERSION, secure_movie_cookies
 from restore import verified_archives
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -29,7 +29,7 @@ def check_release(instance,old,new):
     release=json.loads((instance/'release.json').read_text())
     if release['aio_commit']!=old:
         raise ValueError('Installed release differs from expected source')
-    if release['customer_patch_version']!=VERSION or any(PINS.get(k)!=v for k,v in release['source_pins'].items()):
+    if release['customer_patch_version'] not in (2,VERSION) or any(PINS.get(k)!=v for k,v in release['source_pins'].items()):
         raise ValueError('This transition requires a reviewed source migration')
     frozen=instance/'deployment'
     names=git('ls-tree','-r','--name-only',old,'deploy').decode().splitlines()
@@ -83,7 +83,11 @@ def main():
         raise ValueError('Unexpected backup identity')
     verified_archives(snapshot)
     subprocess.run([sys.executable,str(ROOT/'scripts/restore.py'),str(snapshot),'--require-exact-images','--name',a.name,'--data-root',str(i.parent),'--base-port',str(a.base_port)],check=True)
+    if release['customer_patch_version']==2 and 'movies' in release['source_pins']:
+        secure_movie_cookies(target)
+    release['customer_patch_version']=VERSION
     # Prior deployment, pre-upgrade data, and original running services are retained.
+    if (target/'deployment.previous').exists():raise ValueError('Unexpected staged configuration')
     candidate=target/'deployment.next'
     shutil.copytree(ROOT/'deploy',candidate)
     (target/'deployment').rename(target/'deployment.previous')

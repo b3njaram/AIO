@@ -22,6 +22,13 @@ def run(*args):
     subprocess.run(args,check=True)
 def reserve(ip,port,kind=socket.SOCK_STREAM):
     with socket.socket(socket.AF_INET,kind) as s: s.bind((ip,port))
+def progress(instance,phase):
+    path=instance/'install-progress.json'
+    tmp=instance/'install-progress.tmp'
+    tmp.write_text(json.dumps({'phase':phase},indent=2)+'\n')
+    tmp.replace(path)
+    print('Installation:',phase,flush=True)
+
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--name',required=True)
@@ -80,6 +87,7 @@ def main():
         reserve(a.bind,a.local_dns_port or 53,socket.SOCK_DGRAM)
     os.umask(0o077)
     instance.mkdir()
+    progress(instance,"preparing instance")
     shutil.copytree(ROOT/'deploy',instance/'deployment')
     release={'aio_commit':subprocess.check_output(['git','-C',str(ROOT),'rev-parse','HEAD'],text=True).strip(),'customer_patch_version':VERSION,'source_pins':{k:v for k,v in PINS.items() if ('music' if k=='navidrome' else 'movies') in apps}}
     (instance/'release.json').write_text(json.dumps(release,indent=2)+'\n')
@@ -93,6 +101,7 @@ def main():
         folder.chmod(0o755)
     for repo,profile in [('navidrome','music'),('movies','movies')]:
         if profile in apps:
+            progress(instance,'fetching '+repo)
             target=instance/'sources'/repo
             # Upstream Dockerfiles COPY source files without chown. A private
             # process umask would make application JS unreadable by container users.
@@ -121,7 +130,7 @@ def main():
     cfg.chmod(0o644)
     env={'COMPOSE_PROJECT_NAME':project,'COMPOSE_PROFILES':','.join(sorted(apps-{'remote'})),
          'INSTANCE_DIR':str(instance),'BIND_IP':a.bind,'TZ':a.tz,'OWNER_UID':str(os.getuid()),'OWNER_GID':str(os.getgid()),
-         'MUSIC_ADMIN':a.music_admin,'MUSIC_HTTPS':'false','VAULT_DOMAIN':a.vault_url or 'http://'+a.bind+':'+str(ports['VAULT_PORT']),
+         'MUSIC_ADMIN':a.music_admin,'MUSIC_HTTPS':'false','MOVIE_HTTPS':'false','VAULT_DOMAIN':a.vault_url or 'http://'+a.bind+':'+str(ports['VAULT_PORT']),
          'TASK_REGISTRATION':'false','TASK_URL':a.task_url or 'http://'+a.bind+':'+str(ports['TASK_PORT'])+'/','PROWLARR_API_KEY':'','TMDB_API_KEY':''}
     for k in ('MUSIC_DB_PASSWORD','MOVIE_SECRET','IMMICH_DB_PASSWORD','CLOUD_DB_PASSWORD','VAULT_ADMIN_TOKEN','TASK_SECRET','TASK_DB_PASSWORD','DNS_PASSWORD'):
         env[k]=secrets.token_hex(32)
@@ -129,11 +138,15 @@ def main():
     env.update({k:str(v) for k,v in ports.items()})
     (instance/'.env').write_text(''.join(k+'='+v+'\n' for k,v in env.items()))
     cmd=['bash',str(ROOT/'scripts/ctl.sh'),str(instance)]
+    progress(instance,'checking Compose configuration')
     run(*cmd,'config','--quiet')
+    progress(instance,'prepared')
     print('Prepared:',instance,flush=True)
     if not a.prepare_only:
+        progress(instance,'building and starting services')
         run(*cmd,'up','-d','--build')
         run(*cmd,'ps')
+        progress(instance,'services started; onboarding pending')
     print('Dashboard: http://'+a.bind+':'+str(ports['DASH_PORT']))
     print('Complete docs/HANDOFF.md before exposing services or delivering to a customer.')
 if __name__=='__main__':
