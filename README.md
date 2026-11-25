@@ -39,3 +39,5 @@ Each instance has a separate project name, network, named volumes, bind mounts a
 Jobbi Music and StreamHub use specific upstream commit SHAs, fetched into each new customer instance. Several third-party images still use version-family or latest tags; freeze and verify image digests for production releases. Existing deployments are not auto-updated. Treat paid support as separate from indefinite use of installed software; external accounts and content rights remain the customer's responsibility.
 
 See upstream application licenses and distribution terms before shipping. Provide required notices and corresponding source where required. No copyrighted media or external account credentials are included.
+
+The quote site can export a non-secret `jobbi-home-config.json` (application IDs, hardware preferences, and support period). Pass `--quote /path/to/jobbi-home-config.json` to the installer; it uses the selected apps unless overridden with `--apps`. Hardware and commercial pricing remain subject to manual validation. Pi-hole selection requires an explicit LAN IP.

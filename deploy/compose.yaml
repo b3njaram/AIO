@@ -6,7 +6,7 @@ services:
     ports: ["${BIND_IP}:${DASH_PORT}:8080"]
     volumes:
       - ${INSTANCE_DIR}/dashboard.json:/app/config.json:ro
-      - ${INSTANCE_DIR}/data:/storage:ro
+      - ${INSTANCE_DIR}/data/.dashboard-metrics:/storage:ro
     read_only: true
     tmpfs: [/tmp]
     cap_drop: [ALL]
@@ -14,6 +14,7 @@ services:
   navidrome:
     profiles: [music]
     image: deluan/navidrome:0.58.0
+    user: "${OWNER_UID}:${OWNER_GID}"
     restart: unless-stopped
     environment: {ND_SCANSCHEDULE: 1h}
     volumes:

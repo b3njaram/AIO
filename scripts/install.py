@@ -27,7 +27,8 @@ def main():
     p.add_argument('--data-root',required=True)
     p.add_argument('--bind',default='127.0.0.1')
     p.add_argument('--base-port',type=int,default=18080)
-    p.add_argument('--apps',default=DEFAULT,help='Comma separated: '+','.join(k for k in APPS if k!='navidrome'))
+    p.add_argument('--quote',type=Path,help='Optional exported quote configuration; prices are never trusted')
+    p.add_argument('--apps',default=None,help='Comma separated: '+','.join(k for k in APPS if k!='navidrome'))
     p.add_argument('--music-admin',default='owner')
     p.add_argument('--vault-url',default='')
     p.add_argument('--task-url',default='')
@@ -40,7 +41,13 @@ def main():
     ip=ipaddress.IPv4Address(a.bind)
     if not (ip.is_loopback or any(ip in ipaddress.IPv4Network(n) for n in ('10.0.0.0/8','172.16.0.0/12','192.168.0.0/16','100.64.0.0/10'))): p.error('Use explicit loopback, LAN or Tailscale IPv4, never public or wildcard')
     if not 1024<=a.base_port<=65525: p.error('Invalid base port')
-    apps=set(filter(None,a.apps.split(',')))
+    selection=a.apps or DEFAULT
+    if a.quote:
+        q=json.loads(a.quote.read_text())
+        if q.get('schema')!=1 or not isinstance(q.get('apps'),list) or any(not isinstance(x,str) for x in q['apps']): p.error('Invalid quote configuration')
+        if a.apps is None: selection=','.join(q['apps'])
+        print('Quoted storage, mirroring and RAM require separate hardware validation; this script never formats disks.')
+    apps=set(filter(None,selection.split(',')))
     if apps-(set(APPS)-{'navidrome'}): p.error('Unknown app IDs')
     if 'dns' in apps and (ip.is_loopback or ip in ipaddress.IPv4Network('100.64.0.0/10')): p.error('Pi-hole requires an explicit LAN address; omit dns for now')
     parent=Path(a.data_root).expanduser().resolve()
@@ -70,7 +77,7 @@ def main():
     data.mkdir()
     data.chmod(0o755)
     (instance/'sources').mkdir()
-    for d in ('navidrome','music','movies','movies/media','prowlarr','torrserver','photos','vaultwarden','pihole','uptime'):
+    for d in ('navidrome','music','movies','movies/media','prowlarr','torrserver','photos','vaultwarden','pihole','uptime','.dashboard-metrics'):
         folder=data/d
         folder.mkdir(parents=True,exist_ok=True)
         folder.chmod(0o755)

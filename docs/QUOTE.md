@@ -13,3 +13,5 @@ Future updates:
     docker compose -p jobbi-quote -f quote/compose.yaml up -d --build
 
 Pricing is in quote/app.js. USD and MXN rates are illustrative; verify local actual rates, hardware supplier quotations, currency exchange, and local subscription prices before accepting orders. The 12% hardware markup is not net profit; tax, labor, warranty, payment fees and support costs must be budgeted separately. The quote is not a payment or ordering backend.
+
+Customers can download their service configuration as JSON; it contains no secrets or authoritative pricing. The installer accepts it via --quote.
