@@ -46,7 +46,12 @@ def music(env,instance,fixture,recover):
         check(request(nav,'/auth/createAdmin','POST',{'username':'other-pilot','password':secrets.token_urlsafe(24)})[0]==403,'Second initial admin creation not denied')
     check(hashlib.sha256(songfile.read_bytes()).hexdigest()==fixture['music_sha'],'Audio file changed')
     opener=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
-    check(request(base,'/api/search?q=Jobbi')[0]==401,'Anonymous music API available')
+    # Compose starts the music API after its database. Navidrome readiness alone
+    # does not guarantee that this separate HTTP listener can accept requests.
+    def anonymous_status():
+        status,_=request(base,'/api/search?q=Jobbi')
+        return status if status<500 else None
+    check(wait(anonymous_status)==401,'Anonymous music search did not return HTTP 401')
     login=js(base,'/api/login','POST',{'username':user,'password':pw},{'Origin':base},opener)
     check(login.get('admin') is True,'Expected customer admin')
     h={'Origin':base,'X-CSRF-Token':login['csrfToken']}

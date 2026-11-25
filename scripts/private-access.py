@@ -37,14 +37,15 @@ def existing_conflicts(status,ports):
         raise ValueError('Existing Serve/Funnel configuration found; use a dedicated customer host or review manually. No reset is performed.')
 def verify_config(status,planned,host):
     if not isinstance(status,dict):raise ValueError('Unrecognized Serve status')
+    if set(status)-{'TCP','Web','AllowFunnel','Foreground','Services','ETag'}:
+        raise ValueError('Unrecognized Serve status fields')
+    if status.get('Foreground') or status.get('Services'):
+        raise ValueError('Unexpected additional Serve configuration')
     if any(status.get('AllowFunnel',{}).values()):raise ValueError('Public Funnel is enabled; stop and review')
-    tcp=status.get('TCP') or {};web=status.get('Web') or {}
-    for r in planned.values():
-        entry=tcp.get(str(r['port'])) or {}
-        if entry.get('HTTPS') is not True:raise ValueError('HTTPS listener missing on '+str(r['port']))
-        handlers=(web.get(host+':'+str(r['port'])) or {}).get('Handlers') or {}
-        if set(handlers)!={'/'} or handlers['/'].get('Proxy')!=r['target']:
-            raise ValueError('Unexpected Serve target on '+str(r['port']))
+    expected_tcp={str(r['port']):{'HTTPS':True} for r in planned.values()}
+    expected_web={host+':'+str(r['port']):{'Handlers':{'/':{'Proxy':r['target']}}} for r in planned.values()}
+    if status.get('TCP')!=expected_tcp or status.get('Web')!=expected_web:
+        raise ValueError('Actual Serve listeners or handlers differ from the private access plan')
     return True
 def commands(planned):
     return {'enable':[shlex.join(['sudo','tailscale','serve','--bg','--https='+str(r['port']),r['target']]) for r in planned.values()],

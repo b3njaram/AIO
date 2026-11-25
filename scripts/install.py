@@ -64,8 +64,9 @@ def main():
     run('docker','info','--format','{{.ServerVersion}}')
     run('docker','compose','version')
     project='jobbi-'+a.name
-    if subprocess.check_output(['docker','ps','-a','--filter','label=com.docker.compose.project='+project,'--format','{{.ID}}'],text=True).strip(): p.error('Project already exists')
-    if subprocess.check_output(['docker','volume','ls','-q','--filter','label=com.docker.compose.project='+project],text=True).strip(): p.error('Project volumes already exist')
+    for resource,command in [('containers',['ps','-a']),('volumes',['volume','ls']),('networks',['network','ls'])]:
+        existing=subprocess.check_output(['docker',*command,'-q','--filter','label=com.docker.compose.project='+project],text=True)
+        if existing.strip():p.error('Project '+resource+' already exist')
     ports={k:a.base_port+v for k,v in PORTS.items()}
     active={'DASH_PORT'}|{APPS[x][3] for x in apps if APPS[x][3]}
     if 'music' in apps: active.add('NAV_PORT')

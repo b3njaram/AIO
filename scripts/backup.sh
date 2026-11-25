@@ -7,6 +7,9 @@ INSTANCE="$(realpath "$1")"; DEST="$(realpath "$2")"
 umask 077
 PROJECT="$(sed -n 's/^COMPOSE_PROJECT_NAME=//p' "$INSTANCE/.env")"
 [[ "$PROJECT" =~ ^jobbi-[a-z0-9-]+$ ]] || exit 1
+# Serialize direct and scheduled backups before inspecting or stopping services.
+exec {backup_lock}>"$INSTANCE/.backup.lock"
+flock -n "$backup_lock" || { echo 'Backup already running for this instance' >&2; exit 1; }
 OUT="$DEST/$PROJECT-$(date -u +%Y%m%dT%H%M%SZ)"
 mkdir "$OUT"
 # Preserve the actual running/stopped image identities, not merely mutable tags.
@@ -27,12 +30,12 @@ restart_on_exit(){
 }
 trap restart_on_exit EXIT
 ctl stop "${RUNNING[@]}"
-docker run --rm -v "$INSTANCE:/src:ro" -v "$OUT:/backup:rw" alpine:3.22 sh -c 'cd /src; set -- .env dashboard.json data; for p in release.json deployment onboarding.json image-inventory.json; do if test -e "$p"; then set -- "$@" "$p"; fi; done; tar czf /backup/instance.tar.gz "$@"'
+docker run --rm --network none -v "$INSTANCE:/src:ro" -v "$OUT:/backup:rw" alpine:3.22 sh -c 'cd /src; set -- .env dashboard.json data; for p in release.json deployment onboarding.json image-inventory.json; do if test -e "$p"; then set -- "$@" "$p"; fi; done; tar czf /backup/instance.tar.gz "$@"'
 VOLUMES="$(docker volume ls -q --filter "label=com.docker.compose.project=$PROJECT")"
 while IFS= read -r volume; do
   [[ -n "$volume" ]] || continue
   [[ "$volume" == "$PROJECT"_* ]] || { echo "Unexpected volume"; exit 1; }
-  docker run --rm -v "$volume:/src:ro" -v "$OUT:/backup:rw" alpine:3.22 sh -c 'tar czf "/backup/$1.tar.gz" -C /src .' sh "$volume"
+  docker run --rm --network none -v "$volume:/src:ro" -v "$OUT:/backup:rw" alpine:3.22 sh -c 'tar czf "/backup/$1.tar.gz" -C /src .' sh "$volume"
 done <<< "$VOLUMES"
-(cd "$OUT" && sha256sum ./*.tar.gz > SHA256SUMS && sha256sum -c SHA256SUMS)
+(cd "$OUT" && sha256sum ./*.tar.gz > SHA256SUMS.tmp && sha256sum -c SHA256SUMS.tmp && mv SHA256SUMS.tmp SHA256SUMS)
 echo "Backup: $OUT (contains secrets; encrypt and test restoration on separate host)"
