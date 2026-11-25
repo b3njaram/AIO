@@ -6,7 +6,7 @@ from restore import verified_archives
 from diagnostics import inspect
 ROOT=Path(__file__).resolve().parents[1]
 def main():
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('instance',type=Path);p.add_argument('destination',type=Path);p.add_argument('--minimum-free-gib',type=int,default=50);p.add_argument('--max-backup-age-days',type=int,default=8);p.add_argument('--run-backup',action='store_true',help='Explicit consent to interrupt only this instance');a=p.parse_args()
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('instance',type=Path);p.add_argument('destination',type=Path);p.add_argument('--minimum-free-gib',type=int,default=50);p.add_argument('--max-backup-age-days',type=int,default=8);p.add_argument('--run-backup',action='store_true',help='Explicit consent to interrupt only this instance');p.add_argument('--smart-device',action='append',default=[]);a=p.parse_args()
     i=a.instance.resolve();d=a.destination.resolve()
     if a.minimum_free_gib<1 or a.max_backup_age_days<1 or not d.is_dir() or i==d or i in d.parents or d in i.parents: p.error('Use separate existing backup directory and positive limits')
     if i.stat().st_dev==d.stat().st_dev:p.error('Backup destination must be on a separate mounted filesystem')
@@ -39,7 +39,7 @@ def main():
                 if age.days>=a.max_backup_age_days:alerts.append('Verified backup older than configured limit')
             except (OSError,ValueError):alerts.append('Latest backup failed integrity check')
         else:alerts.append('No completed backup')
-        diag=inspect(i);alerts+=diag['alerts']
+        diag=inspect(i,a.smart_device);alerts+=diag['alerts']
         state={'time':dt.datetime.now(dt.timezone.utc).isoformat(),'verified_backup':newest,'alerts':alerts,'diagnostics':diag,'retention':'manual; never deletes backups','updates':'manual approval required'}
         tmp=i/'maintenance.tmp';tmp.write_text(json.dumps(state,indent=2)+'\n');tmp.chmod(0o600);tmp.replace(i/'maintenance.json')
         print(json.dumps(state,indent=2));return bool(alerts)

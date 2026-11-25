@@ -5,7 +5,7 @@ Release scope is the customer-owned x86-64 Linux appliance, browser-first, cash 
 ## Evidence required
 
 - AIO static checks: quote HTTP and assets under private checkout permissions; dashboard smoke.
-- Customer pilot checks: full-stack startup; two project isolation; monitoring backup restore; authenticated StreamHub generated media login, byte range and full transfer, logout, recovery; task owner and closed registration checks; optional native feed disabled.
+- Customer pilot checks: full-stack startup; two project isolation; monitoring backup restore; authenticated StreamHub generated media login, byte range and full transfer, logout, recovery; task owner and closed registration checks; optional native feed disabled; Nextcloud WebDAV upload, retrieval, anonymous denial and restart persistence.
 - Owner dashboard browser checks: synthetic hardware verification, landed BOM, costing, order, cash, installation plan, support, handoff and persistence.
 - Review dependency and image versions, exact release manifest, customer source patch version and private port bindings. No unattended upgrades.
 - Validate every selected service's actual login, upload/playback and recovery using authorized test data. HTTP-only checks do not count as functional acceptance.

@@ -20,6 +20,7 @@ jobs:
       - run: python3 -m unittest discover -s business/sourcing -p 'test_*.py'
       - run: python3 business/sourcing/search.py --offline --output /tmp/jobbi-sourcing-ci
       - run: python3 -m py_compile scripts/*.py business/dashboard/server.py
+      - run: python3 -m unittest discover -s scripts -p 'test_*.py'
       - run: node --check business/dashboard/app.js
       - run: python3 -m unittest discover -s business/dashboard -p 'test_*.py'
       - run: |
@@ -79,7 +80,7 @@ jobs:
           mkdir -p /tmp/jobbi-full
           python3 scripts/install.py --name full --data-root /tmp/jobbi-full --apps music,movies,photos,files,passwords,tasks,monitor
           for i in $(seq 1 45); do
-            if bash scripts/verify.sh /tmp/jobbi-full/full; then python3 scripts/test-tasks-pilot.py; exit 0; fi
+            if bash scripts/verify.sh /tmp/jobbi-full/full; then python3 scripts/test-tasks-pilot.py; python3 scripts/test-files-pilot.py; exit 0; fi
             sleep 10
           done
           exit 1
