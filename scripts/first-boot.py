@@ -22,12 +22,25 @@ def main():
         if target.stat().st_uid!=user.pw_uid or target.stat().st_mode&0o077:raise ValueError('Review existing customer directory ownership and privacy')
         roots.append(target)
     if roots[0].stat().st_dev==roots[1].stat().st_dev:raise ValueError('Separate mounted filesystems required')
-    if subprocess.check_output(['docker','ps','-aq'],text=True).strip():raise ValueError('Existing containers detected; inspect interrupted provisioning manually')
-    if 'remote' in cfg['apps'].split(','):run('bash',str(ROOT/'scripts/customer-remote.sh'))
-    run('usermod','-aG','docker',user.pw_name)
-    run(sys.executable,str(ROOT/'scripts/boot-guard.py'),str(roots[0]),'--apply')
+    instance=roots[0]/cfg['name']
+    existing=subprocess.check_output(['docker','ps','-aq'],text=True).split()
     env={**os.environ,'GIT_CONFIG_COUNT':'1','GIT_CONFIG_KEY_0':'safe.directory','GIT_CONFIG_VALUE_0':str(ROOT),'HOME':user.pw_dir}
-    run('runuser','-u',user.pw_name,'--',sys.executable,str(ROOT/'scripts/setup-customer.py'),'--name',cfg['name'],'--data-root',str(roots[0]),'--backup-root',str(roots[1]),'--apps',cfg['apps'],'--tz',cfg.get('tz','America/Ciudad_Juarez'),'--base-port',str(cfg.get('base_port',18080)),'--defer-health-to-first-boot','--apply',env=env)
+    if existing or instance.exists():
+        # Only resume the post-install health setup after a verified completed
+        # install at the same pinned release. Never recreate partial data.
+        release=json.loads((instance/'release.json').read_text())
+        progress=json.loads((instance/'install-progress.json').read_text())
+        values=dict(x.split('=',1) for x in (instance/'.env').read_text().splitlines() if '=' in x)
+        project='jobbi-'+cfg['name']
+        own=subprocess.check_output(['docker','ps','-aq','--filter','label=com.docker.compose.project='+project],text=True).split()
+        if (not existing or set(existing)!=set(own) or release.get('aio_commit')!=cfg['commit'] or progress.get('phase')!='services started; onboarding pending' or values.get('INSTANCE_DIR')!=str(instance) or values.get('COMPOSE_PROJECT_NAME')!=project or values.get('OWNER_UID')!=str(user.pw_uid)):
+            raise ValueError('Existing or partial installation detected; inspect without overwriting')
+        run('runuser','-u',user.pw_name,'--','bash',str(ROOT/'scripts/verify.sh'),str(instance),env=env)
+    else:
+        if 'remote' in cfg['apps'].split(','):run('bash',str(ROOT/'scripts/customer-remote.sh'))
+        run('usermod','-aG','docker',user.pw_name)
+        run(sys.executable,str(ROOT/'scripts/boot-guard.py'),str(roots[0]),'--apply')
+        run('runuser','-u',user.pw_name,'--',sys.executable,str(ROOT/'scripts/setup-customer.py'),'--name',cfg['name'],'--data-root',str(roots[0]),'--backup-root',str(roots[1]),'--apps',cfg['apps'],'--tz',cfg.get('tz','America/Ciudad_Juarez'),'--base-port',str(cfg.get('base_port',18080)),'--defer-health-to-first-boot','--apply',env=env)
     # Only stable by-id aliases for whole disks backing the explicitly approved
     # filesystems. Do not auto-select USB devices, other disks or partitions.
     devices=set()

@@ -1,0 +1,14 @@
+name: Ubuntu installation ISO build
+on:
+  workflow_dispatch:
+  push:
+    paths: ['scripts/make-install-usb.py','scripts/iso-pilot.sh','.github/workflows/appliance-iso.yml']
+jobs:
+  iso:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[iso-pilot]')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends xorriso
+      - run: bash scripts/iso-pilot.sh

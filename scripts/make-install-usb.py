@@ -57,6 +57,10 @@ WantedBy=multi-user.target
     files=[file('/etc/jobbi/install.json',json.dumps(settings,indent=2),'0600'),file('/usr/local/sbin/jobbi-first-boot',boot,'0700'),file('/etc/systemd/system/jobbi-first-boot.service',service),file('/etc/systemd/system/srv-jobbi\\x2ddata.mount',mount_unit(a.data_uuid,'/srv/jobbi-data')),file('/etc/systemd/system/mnt-jobbi\\x2dbackup.mount',mount_unit(a.backup_uuid,'/mnt/jobbi-backup'))]
     # Literal backslash in the escaped mount unit name; JSON serializes safely.
     return {'autoinstall':{'version':1,'interactive-sections':['storage'],'identity':{'hostname':a.name,'username':a.operator,'password':password_hash},'ssh':{'install-server':True,'allow-pw':False,'authorized-keys':[a.ssh_key]},'packages':['docker.io','docker-compose-v2','git','python3','curl','smartmontools','util-linux','python3-socketio'],'user-data':{'write_files':files,'runcmd':[['systemctl','daemon-reload'],['systemctl','enable','--now','docker'],['systemctl','enable','srv-jobbi\\x2ddata.mount','mnt-jobbi\\x2dbackup.mount'],['systemctl','enable','jobbi-first-boot.service'],['systemctl','start','--no-block','jobbi-first-boot.service']]}}}
+def remaster_iso(source,config_file,output):
+    if output.exists():raise ValueError('Refuse to overwrite an existing ISO')
+    subprocess.run(['xorriso','-indev',str(source),'-outdev',str(output),'-map',str(config_file),'/autoinstall.yaml','-boot_image','any','replay','-commit','-end'],check=True)
+    output.chmod(0o600)
 def main():
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--name');p.add_argument('--profile',type=Path,help='Non-secret installation profile exported by the private dashboard');p.add_argument('--quote',type=Path,help='Customer quote export for app selection');p.add_argument('--operator',default='jobbi');p.add_argument('--commit',required=True);p.add_argument('--data-uuid',required=True);p.add_argument('--backup-uuid',required=True);p.add_argument('--apps');p.add_argument('--tz');p.add_argument('--base-port',type=int);p.add_argument('--weekly-backup',action='store_true',help='Customer approved weekly cold backup downtime');p.add_argument('--ssh-key-file',type=Path,required=True);p.add_argument('--out',type=Path,required=True);p.add_argument('--ubuntu-iso',type=Path);p.add_argument('--iso-sha256');a=p.parse_args()
     if a.profile and a.quote:p.error('Choose one configuration source')
@@ -93,8 +97,7 @@ def main():
     (a.out/'README.txt').write_text('Customer-specific private seed. Boot the official Ubuntu Server 24.04 installer, select only the approved OS disk interactively, preserve the prepared data and backup filesystems, and inspect the first-boot service. The seed contains the local password hash; do not share or commit. Delete securely when no longer needed.\n')
     if a.ubuntu_iso:
         output=a.out/'jobbi-ubuntu-server.iso'
-        subprocess.run(['xorriso','-indev',str(a.ubuntu_iso),'-outdev',str(output),'-map',str(a.out/'autoinstall.yaml'),'/autoinstall.yaml','-boot_image','any','replay','-commit','-end'],check=True)
-        output.chmod(0o600)
+        remaster_iso(a.ubuntu_iso,a.out/'autoinstall.yaml',output)
     print('Private installer seed created at',a.out)
     print('Review disk selection interactively; do not erase data/backup UUIDs. Never distribute this customer-specific seed or password hash.')
 if __name__=='__main__':
