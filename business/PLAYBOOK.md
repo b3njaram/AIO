@@ -45,3 +45,5 @@ Suggested launch channels: personal referrals, local small-business and family n
 Legal seller and invoicing setup deferred, but applicable obligations must be confirmed before sales; supplier agreements and verified hardware; approval of drafted warranty/return terms; service address and support hours; travel charges, support cap and price floor. Cash-only is decided. Official email verified in CONTACT.md. Review terms with appropriate advisers before taking orders. No registration, payment account, or real sales transaction is created by this repository.
 
 See SOURCING.md, WARRANTY-RETURNS.md, CASH-SALES.md, CONTACT.md and the blank trackers. The proposed warranty is separate from optional support.
+
+Native app-store distribution and paid developer membership are explicitly not launch gates. Use the browser and verified compatible third-party clients in docs/CLIENTS.md. Third-party app costs, features and availability are separate from Jobbi support.

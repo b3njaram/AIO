@@ -34,3 +34,5 @@ Customer acknowledgment / Aceptación:
 Installer / Instalador:
 
 Never record passwords or recovery codes in this form. Sign only after customer understands limitations. Customer acceptance does not waive mandatory rights.
+
+- [ ] Verify selected browser and any promised compatible third-party client on customer's device. Official Jobbi native distribution is optional and not a delivery requirement.

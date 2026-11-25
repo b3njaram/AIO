@@ -11,3 +11,5 @@ Fill in privately at handoff / Completar de forma privada al entregar:
 - Backup destination and schedule / Destino y frecuencia:
 - Support contact and end date / Contacto y fin de soporte:
 - Order ID / Folio:
+
+EN: For compatible music clients use your own Navidrome HTTPS address, not the Jobbi Music web address. See docs/CLIENTS.md. ES: Para clientes de música compatibles utiliza la dirección HTTPS de tu Navidrome, no la del sitio Jobbi Music. Consulta docs/CLIENTS.md. Third-party apps may cost extra / Algunas apps de terceros pueden tener costo.

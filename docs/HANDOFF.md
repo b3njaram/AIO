@@ -60,3 +60,5 @@ Use only your own trusted cold backups; checksums detect corruption, not malicio
     bash scripts/verify.sh /path/to/mounted/data/recovery1
 
 The original remains untouched. Keep recovered copy loopback-only; never run it against the original production hostname. DNS restores, archives with bind-tree symlinks, external mounts, different UID/GID and legacy backups without a deployment snapshot need manual recovery. Some application volume layouts may contain unsupported links. Image tags are not all immutable; store compatible images separately and validate real application restore. This is a pilot, not a disaster-recovery guarantee.
+
+For the browser-first and optional native client policy, see CLIENTS.md. Use private HTTPS endpoints on the customer's own network. No official Jobbi native app signing or distribution is planned.

@@ -11,3 +11,7 @@ Replace the example with the customer's actual validated HTTPS origin. The tool 
 Review upstream workflow files for the supported Gradle/JDK/Android SDK and Xcode/XcodeGen versions. Android release builds need your controlled signing key and verified distribution. iOS requires a suitable Apple distribution program, valid certificates/provisioning and compatible bundle ID; an unsigned IPA or free-account sideload is not a lifetime commercial distribution method. CarPlay requires applicable entitlement approval. Do not share signing secrets or customer credentials. Do not advertise App Store or Google Play availability before approval.
 
 Test both native builds on real devices: login against the customer's HTTPS origin, switch between two test server accounts, ensure cookies/downloads/favorites/history do not cross servers, verify offline cold start, playback/seek, Android Auto and CarPlay where eligible. Confirm public personal hostname is never contacted by a commercial default. Check update mechanism and disable personal release references before shipping. No APK or IPA is certified or signed by this change. The web client remains the initial supported option until tests pass.
+
+## Owner decision
+
+Official signing and app-store deployment are not planned. Native source remains optional; see CLIENTS.md for the supported browser and compatible third-party client plan. Do not promise unsigned APK/IPA installation or paid developer account services.

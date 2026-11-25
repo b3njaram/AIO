@@ -92,3 +92,36 @@ jobs:
           if test -f /tmp/jobbi-full/full/.env; then
             bash scripts/ctl.sh /tmp/jobbi-full/full down -v
           fi
+
+  media-recovery:
+    if: (github.event_name == 'workflow_dispatch' && inputs.full_stack) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[full-pilot]'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          mkdir -p /tmp/jobbi-media /tmp/jobbi-media-backups
+          python3 scripts/install.py --name source --data-root /tmp/jobbi-media --base-port 18400 --apps movies
+          for i in $(seq 1 30); do
+            if bash scripts/verify.sh /tmp/jobbi-media/source; then break; fi
+            sleep 3
+          done
+          python3 scripts/test-movie-pilot.py /tmp/jobbi-media/source --fixture /tmp/jobbi-media-fixture.json
+          bash scripts/backup.sh /tmp/jobbi-media/source /tmp/jobbi-media-backups
+          BACKUP="$(find /tmp/jobbi-media-backups -mindepth 1 -maxdepth 1 -type d | head -1)"
+          python3 scripts/restore.py "$BACKUP" --data-root /tmp/jobbi-media --name recovered --base-port 18500
+          bash scripts/ctl.sh /tmp/jobbi-media/recovered up -d
+          for i in $(seq 1 30); do
+            if bash scripts/verify.sh /tmp/jobbi-media/recovered; then break; fi
+            sleep 3
+          done
+          python3 scripts/test-movie-pilot.py /tmp/jobbi-media/recovered --fixture /tmp/jobbi-media-fixture.json --recover
+          python3 scripts/test-movie-pilot.py /tmp/jobbi-media/source --fixture /tmp/jobbi-media-fixture.json --recover
+      - if: always()
+        run: |
+          for n in source recovered; do
+            if test -f "/tmp/jobbi-media/$n/.env"; then
+              bash scripts/ctl.sh "/tmp/jobbi-media/$n" down -v
+            fi
+          done
+          rm -f /tmp/jobbi-media-fixture.json
