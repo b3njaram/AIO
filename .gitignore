@@ -1,0 +1,6 @@
+.env
+.env.*
+!.env.example
+instances/
+upstream/
+__pycache__/

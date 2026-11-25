@@ -1,3 +1,41 @@
-# Jobbi Home Server AIO
+# Jobbi Home Server — AIO
 
-Commercial deployment and quotation tooling. Initial repository bootstrap.
+Own your cloud. Stop renting it.
+
+This repository separates the public quote site from customer deployments. It is a **pilot release**, not a certified production appliance. No changes to the existing Jobbi Music or StreamHub repositories or servers are required.
+
+## Public quotation website
+
+On a Linux Docker host:
+
+    git clone https://github.com/b3njaram/AIO.git ~/docker/jobbi-aio
+    cd ~/docker/jobbi-aio
+    docker compose -p jobbi-quote -f quote/compose.yaml up -d --build
+    curl -fsS http://127.0.0.1:8780/ | head
+
+Set QUOTE_PORT or QUOTE_BIND in the environment if needed. The default is loopback port 8780. Switch ONLY the quote.jobbisoft.com.mx Cloudflare route after verifying the new page; retain the previous origin for rollback. If hosted by Cloudflare Pages, migrate the existing custom-domain association to the intended tunnel or deploy quote/ directly to Pages. See docs/QUOTE.md. No other hostname needs to change.
+
+## Customer server
+
+Recommended starting target: dedicated x86-64 Linux host or VM, Docker Engine + Compose v2, Git, Python 3, Bash, curl, 16 GB RAM for the full stack, and SSD for Docker databases. NAS-specific support and ARM compatibility are not yet validated. Format/mirror drives outside this installer. Confirm the mounted filesystem before installing.
+
+    mkdir -p ~/jobbi-customers
+    python3 scripts/install.py --name family1 --data-root ~/jobbi-customers --base-port 18080 --bind 127.0.0.1
+    bash scripts/verify.sh ~/jobbi-customers/family1
+
+Default applications: Jobbi Music/Navidrome, StreamHub, Immich, Nextcloud, Vaultwarden, Vikunja, Uptime Kuma and Tailscale instructions. Add Pi-hole with --apps and an explicit LAN bind only after checking DNS port 53. No Ollama. Choose a subset with --apps music,movies,photos,files,monitor,remote. Use --prepare-only to generate files and fetch code without starting services.
+
+The dashboard at http://127.0.0.1:18080 lists selected services, HTTP reachability and filesystem usage. No Docker socket, no unified login, no public dashboard exposure. See docs/HANDOFF.md for account onboarding, media paths, HTTPS, backups and acceptance checks.
+
+Each instance has a separate project name, network, named volumes, bind mounts and generated secrets. The host OS, Docker daemon, CPU, RAM, disks and power remain shared; use separate customer-owned systems or VMs for strong isolation. Existing project or port conflicts stop installation. Do not run down -v.
+
+## Repository layout
+
+- quote/: bilingual, regional quote/savings calculator, Docker image and compose.
+- deploy/: commercial customer stack, dashboard and monitoring.
+- scripts/: new-instance provisioning, instance control, StreamHub account creation, backup, status verification.
+- docs/: deployment and handoff.
+
+Jobbi Music and StreamHub use specific upstream commit SHAs, fetched into each new customer instance. Several third-party images still use version-family or latest tags; freeze and verify image digests for production releases. Existing deployments are not auto-updated. Treat paid support as separate from indefinite use of installed software; external accounts and content rights remain the customer's responsibility.
+
+See upstream application licenses and distribution terms before shipping. Provide required notices and corresponding source where required. No copyrighted media or external account credentials are included.

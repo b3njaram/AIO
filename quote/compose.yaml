@@ -1,0 +1,7 @@
+services:
+  quote:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "${QUOTE_BIND:-127.0.0.1}:${QUOTE_PORT:-8780}:80"
+    security_opt: [no-new-privileges:true]

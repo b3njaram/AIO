@@ -1,0 +1,24 @@
+name: AIO checks
+on: [push, pull_request]
+jobs:
+  static:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node --check quote/app.js
+      - run: python3 -m py_compile scripts/install.py deploy/dashboard/server.py
+      - run: for script in scripts/*.sh; do bash -n "$script"; done
+      - run: docker compose -p jobbi-quote -f quote/compose.yaml config --quiet
+      - run: docker compose -p jobbi-quote -f quote/compose.yaml up -d --build && curl --retry 8 --retry-connrefused -fsS http://127.0.0.1:8780/ | grep -q 'Jobbi Home'
+      - run: docker compose -p jobbi-quote -f quote/compose.yaml down
+        if: always()
+      - run: |
+          mkdir -p /tmp/jobbi-ci
+          python3 scripts/install.py --name ci --data-root /tmp/jobbi-ci --apps monitor,remote --prepare-only
+          bash scripts/ctl.sh /tmp/jobbi-ci/ci up -d --build dashboard
+          curl --retry 8 --retry-connrefused -fsS http://127.0.0.1:18080/healthz
+          curl -fsS http://127.0.0.1:18080/api/config | grep -q 'Uptime Kuma'
+      - run: bash scripts/ctl.sh /tmp/jobbi-ci/ci down
+        if: always()

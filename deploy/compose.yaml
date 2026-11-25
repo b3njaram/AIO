@@ -1,0 +1,236 @@
+# AIO customer stack. Per-project networks and volumes; no fixed names.
+services:
+  dashboard:
+    build: ./dashboard
+    restart: unless-stopped
+    ports: ["${BIND_IP}:${DASH_PORT}:8080"]
+    volumes:
+      - ${INSTANCE_DIR}/dashboard.json:/app/config.json:ro
+      - ${INSTANCE_DIR}/data:/storage:ro
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+  navidrome:
+    profiles: [music]
+    image: deluan/navidrome:0.58.0
+    restart: unless-stopped
+    environment: {ND_SCANSCHEDULE: 1h}
+    volumes:
+      - ${INSTANCE_DIR}/data/navidrome:/data
+      - ${INSTANCE_DIR}/data/music:/music:ro
+    ports: ["${BIND_IP}:${NAV_PORT}:4533"]
+  jobbi-music:
+    profiles: [music]
+    build: ${INSTANCE_DIR}/sources/navidrome/jobbi-music
+    restart: unless-stopped
+    ports: ["${BIND_IP}:${MUSIC_PORT}:3131"]
+    environment:
+      PORT: "3131"
+      NODE_ENV: production
+      PUBLIC_HTTPS: ${MUSIC_HTTPS:-false}
+      NAVIDROME_URL: http://navidrome:4533
+      ADMIN_USERS: ${MUSIC_ADMIN}
+      ENABLE_ACCOUNT_MANAGEMENT: "false"
+      DOWNLOADER_URL: ""
+      SLSKD_URL: ""
+      INVIDIOUS_URL: disabled
+      INVIDIOUS_BACKUPS: ""
+      SOCIAL_DATABASE_URL: postgresql://jobbi_social:${MUSIC_DB_PASSWORD}@jobbi-social-db:5432/jobbi_social
+    depends_on:
+      jobbi-social-db: {condition: service_healthy}
+      navidrome: {condition: service_started}
+    volumes: [jobbi-stats:/run/jobbi-stats:ro]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 768m
+  jobbi-social-db:
+    profiles: [music]
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: jobbi_social
+      POSTGRES_USER: jobbi_social
+      POSTGRES_PASSWORD: ${MUSIC_DB_PASSWORD}
+    volumes: [jobbi-db:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U jobbi_social -d jobbi_social"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  jobbi-storage-agent:
+    profiles: [music]
+    image: node:22-alpine
+    restart: unless-stopped
+    network_mode: none
+    user: "0:0"
+    command: [node, /agent/storage-agent.mjs]
+    environment: {MUSIC_ROOT: /music, STORAGE_OUTPUT: /stats/storage.json, STORAGE_INTERVAL_MS: "1800000"}
+    volumes:
+      - ${INSTANCE_DIR}/data/music:/music:ro
+      - ${INSTANCE_DIR}/sources/navidrome/jobbi-music/server/storage-agent.js:/agent/storage-agent.mjs:ro
+      - jobbi-stats:/stats:rw
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 192m
+  prowlarr:
+    profiles: [movies]
+    image: lscr.io/linuxserver/prowlarr:latest
+    restart: unless-stopped
+    environment:
+      PUID: "${OWNER_UID}"
+      PGID: "${OWNER_GID}"
+      TZ: ${TZ}
+    volumes: ["${INSTANCE_DIR}/data/prowlarr:/config"]
+    ports: ["127.0.0.1:${PROWLARR_PORT}:9696"]
+  torrserver:
+    profiles: [movies]
+    image: yourok/torrserver:latest
+    restart: unless-stopped
+    volumes: ["${INSTANCE_DIR}/data/torrserver:/opt/ts/config"]
+  backend:
+    profiles: [movies]
+    build: ${INSTANCE_DIR}/sources/movies/backend
+    restart: unless-stopped
+    environment:
+      PROWLARR_URL: http://prowlarr:9696
+      PROWLARR_API_KEY: ${PROWLARR_API_KEY:-}
+      TORRSERVER_URL: http://torrserver:8090
+      PORT: "4000"
+      JWT_SECRET: ${MOVIE_SECRET}
+      DB_PATH: /app/data/streamhub.db
+      TMDB_API_KEY: ${TMDB_API_KEY:-}
+    volumes: ["${INSTANCE_DIR}/data/movies:/app/data"]
+    depends_on: [prowlarr, torrserver]
+  frontend:
+    profiles: [movies]
+    build: ${INSTANCE_DIR}/sources/movies/frontend
+    restart: unless-stopped
+    ports: ["${BIND_IP}:${MOVIE_PORT}:80"]
+    depends_on: [backend]
+  immich-server:
+    profiles: [photos]
+    image: ghcr.io/immich-app/immich-server:v3.4.2
+    restart: unless-stopped
+    environment:
+      DB_HOSTNAME: immich-db
+      DB_USERNAME: postgres
+      DB_DATABASE_NAME: immich
+      DB_PASSWORD: ${IMMICH_DB_PASSWORD}
+      REDIS_HOSTNAME: immich-redis
+      IMMICH_MACHINE_LEARNING_URL: http://immich-machine-learning:3003
+      TZ: ${TZ}
+    volumes:
+      - ${INSTANCE_DIR}/data/photos:/data
+      - /etc/localtime:/etc/localtime:ro
+    ports: ["${BIND_IP}:${PHOTO_PORT}:2283"]
+    depends_on: [immich-db, immich-redis, immich-machine-learning]
+  immich-machine-learning:
+    profiles: [photos]
+    image: ghcr.io/immich-app/immich-machine-learning:v3.4.2
+    restart: unless-stopped
+    environment: {MACHINE_LEARNING_MODEL_REVISION: v2}
+    volumes: [immich-models:/cache]
+  immich-redis:
+    profiles: [photos]
+    image: docker.io/valkey/valkey:9@sha256:418652cfb58ef879d4978c33553735d7147016032d5aefaa14c828e611eb9dfd
+    restart: unless-stopped
+  immich-db:
+    profiles: [photos]
+    image: ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0@sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${IMMICH_DB_PASSWORD}
+      POSTGRES_USER: postgres
+      POSTGRES_DB: immich
+      POSTGRES_INITDB_ARGS: --data-checksums
+    volumes: [immich-db:/var/lib/postgresql/data]
+    shm_size: 128mb
+  nextcloud:
+    profiles: [files]
+    image: nextcloud:32-apache
+    restart: unless-stopped
+    environment:
+      POSTGRES_HOST: nextcloud-db
+      POSTGRES_DB: nextcloud
+      POSTGRES_USER: nextcloud
+      POSTGRES_PASSWORD: ${CLOUD_DB_PASSWORD}
+    volumes: [nextcloud-app:/var/www/html]
+    ports: ["${BIND_IP}:${CLOUD_PORT}:80"]
+    depends_on: [nextcloud-db]
+  nextcloud-db:
+    profiles: [files]
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: nextcloud
+      POSTGRES_USER: nextcloud
+      POSTGRES_PASSWORD: ${CLOUD_DB_PASSWORD}
+    volumes: [nextcloud-db:/var/lib/postgresql/data]
+  vaultwarden:
+    profiles: [passwords]
+    image: vaultwarden/server:1.34.3
+    restart: unless-stopped
+    environment:
+      SIGNUPS_ALLOWED: "false"
+      ADMIN_TOKEN: ${VAULT_ADMIN_TOKEN}
+      DOMAIN: ${VAULT_DOMAIN}
+    volumes: ["${INSTANCE_DIR}/data/vaultwarden:/data"]
+    ports: ["${BIND_IP}:${VAULT_PORT}:80"]
+  vikunja:
+    profiles: [tasks]
+    image: vikunja/vikunja:0.24.6
+    restart: unless-stopped
+    environment:
+      VIKUNJA_SERVICE_PUBLICURL: ${TASK_URL}
+      VIKUNJA_SERVICE_JWTSECRET: ${TASK_SECRET}
+      VIKUNJA_SERVICE_ENABLEREGISTRATION: "true"
+      VIKUNJA_DATABASE_TYPE: postgres
+      VIKUNJA_DATABASE_HOST: vikunja-db
+      VIKUNJA_DATABASE_DATABASE: vikunja
+      VIKUNJA_DATABASE_USER: vikunja
+      VIKUNJA_DATABASE_PASSWORD: ${TASK_DB_PASSWORD}
+    volumes: [vikunja-files:/app/vikunja/files]
+    ports: ["${BIND_IP}:${TASK_PORT}:3456"]
+    depends_on: [vikunja-db]
+  vikunja-db:
+    profiles: [tasks]
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: vikunja
+      POSTGRES_USER: vikunja
+      POSTGRES_PASSWORD: ${TASK_DB_PASSWORD}
+    volumes: [vikunja-db:/var/lib/postgresql/data]
+  pihole:
+    profiles: [dns]
+    image: pihole/pihole:latest
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ}
+      FTLCONF_webserver_api_password: ${DNS_PASSWORD}
+      FTLCONF_dns_listeningMode: ALL
+    volumes: ["${INSTANCE_DIR}/data/pihole:/etc/pihole"]
+    ports:
+      - "${BIND_IP}:${DNS_WEB_PORT}:80"
+      - "${BIND_IP}:53:53/tcp"
+      - "${BIND_IP}:53:53/udp"
+  uptime-kuma:
+    profiles: [monitor]
+    image: louislam/uptime-kuma:2
+    restart: unless-stopped
+    volumes: ["${INSTANCE_DIR}/data/uptime:/app/data"]
+    ports: ["${BIND_IP}:${MONITOR_PORT}:3001"]
+volumes:
+  jobbi-db: {}
+  jobbi-stats: {}
+  immich-db: {}
+  immich-models: {}
+  nextcloud-app: {}
+  nextcloud-db: {}
+  vikunja-db: {}
+  vikunja-files: {}
