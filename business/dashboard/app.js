@@ -67,9 +67,9 @@ $('payment').onsubmit=attempt(async e=>{e.preventDefault();await api('payment',f
 let planResult=null;
 function downloadText(name,text,mime='text/plain'){const url=URL.createObjectURL(new Blob([text],{type:mime}));const a=el('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
 for(const [id,label] of Object.entries({music:'Music',movies:'Movies',photos:'Photos',files:'Files',passwords:'Passwords',tasks:'Tasks',monitor:'Monitoring',remote:'Remote access'})){const l=el('label');const c=el('input');c.type='checkbox';c.name='apps';c.value=id;c.checked=true;l.append(c,document.createTextNode(label));$('planApps').append(l)}
-function refreshOperations(){const choices=orders.map(o=>[o.id,o.id+' · '+(o.label||o.market)]);for(const [id,optional] of [['planForm',true],['caseForm',false],['handoffForm',false],['documentForm',false]]){const s=$(id).elements.order_id;const prev=s.value;opts(s,[...(optional?[['','No saved order']]:[]),...choices]);if([...s.options].some(x=>x.value===prev))s.value=prev}
+function refreshOperations(){const choices=orders.map(o=>[o.id,o.id+' · '+(o.label||o.market)]);for(const [id,optional] of [['planForm',true],['caseForm',false],['handoffForm',false],['documentForm',false],['componentForm',false],['eventForm',false]]){const s=$(id).elements.order_id;const prev=s.value;opts(s,[...(optional?[['','No saved order']]:[]),...choices]);if([...s.options].some(x=>x.value===prev))s.value=prev}
 refreshReceiptChoices();
-$('reminders').replaceChildren();for(const o of orders){if(o.stage!=='delivered')continue;for(const [k,label] of [['support_end','Support'],['warranty_end','Hardware warranty'],['installation_warranty_end','Installation warranty']]){if(!o[k])continue;const days=Math.ceil((Date.parse(o[k])-Date.parse(iso()))/86400000);if(days<=30&&days>=0)$('reminders').append(el('p',o.id+' · '+label+' ends in '+days+' days ('+o[k]+')'))}}if(!$('reminders').children.length)$('reminders').append(el('p','No recorded expiry in the next 30 days.'))}
+$('reminders').replaceChildren();for(const o of orders){if(o.stage!=='delivered')continue;for(const [k,label] of [['support_end','Support'],['warranty_end','Hardware warranty'],['installation_warranty_end','Installation warranty']]){if(!o[k])continue;const days=Math.ceil((Date.parse(o[k])-Date.parse(iso()))/86400000);if(days<=30&&days>=0)$('reminders').append(el('p',o.id+' · '+label+' ends in '+days+' days ('+o[k]+')'))}}renderInstallRecords();if(!$('reminders').children.length)$('reminders').append(el('p','No recorded expiry in the next 30 days.'))}
 $('planForm').onsubmit=attempt(async e=>{e.preventDefault();const d=formdata('planForm');d.apps=[...$('planApps').querySelectorAll('input:checked')].map(x=>x.value);d.mirror=e.target.elements.mirror.checked;planResult=await api('plan',d);$('planOutput').textContent=planResult.note+'\n\n'+planResult.commands;$('downloadPlan').disabled=false;await loadPlans();notice('Plan generated; review and execute only on the customer host.')});
 $('downloadPlan').onclick=()=>{if(planResult)downloadText(planResult.name+'-installation.txt',planResult.note+'\n\n'+planResult.commands)};
 async function loadPlans(){const arr=await api('plans');$('savedPlans').replaceChildren();for(const x of arr){const p=el('p');p.append(document.createTextNode(x.order_id+' · '+x.plan.name+' · '+x.plan.tb+' TB '),button('View plan',()=>{planResult=x.plan;$('planOutput').textContent=x.plan.note+'\n\n'+x.plan.commands;$('downloadPlan').disabled=false}));$('savedPlans').append(p)}}
@@ -94,3 +94,27 @@ $('documentForm').onsubmit=attempt(async event=>{
   const bytes=Uint8Array.from(atob(response.pdf),character=>character.charCodeAt(0));
   downloadText(data.order_id+'-'+data.kind+'-'+data.lang+'.pdf',bytes,'application/pdf');
 });
+
+function renderInstallRecords(){
+  $('componentList').replaceChildren();
+  $('eventList').replaceChildren();
+  for(const order of orders){
+    for(const row of order.components){
+      const label=order.id+' · '+row.component+' · '+row.provider+' · '+row.expires;
+      $('componentList').append(el('p',label));
+      const days=(Date.parse(row.expires)-Date.parse(iso()))/86400000;
+      if(days>=0&&days<=30)$('reminders').append(el('p',label+' · '+days+' days / días'));
+    }
+    for(const row of order.installation_events){
+      $('eventList').append(el('p',[order.id,row.recorded,row.step,row.result,row.note].filter(Boolean).join(' · ')));
+    }
+  }
+}
+for(const [id,endpoint] of [['componentForm','component'],['eventForm','installation-event']]){
+  $(id).onsubmit=attempt(async event=>{
+    event.preventDefault();
+    await api(endpoint,formdata(id));
+    await loadOrders();
+    notice('Saved / Guardado');
+  });
+}

@@ -125,6 +125,8 @@ def list_orders():
                 if x['hardware_condition']=='new':x['warranty_end']=plus_months(day,12).isoformat()
                 elif x['hardware_condition']=='refurbished':x['warranty_end']=(day+dt.timedelta(days=90)).isoformat()
             x['transactions']=[dict(y) for y in conn.execute('SELECT id,kind,amount,recorded FROM cash WHERE order_id=? ORDER BY recorded,rowid',(x['id'],))]
+            x['components']=[dict(y) for y in conn.execute('SELECT component,provider,expires FROM component_warranties WHERE order_id=? ORDER BY expires,component',(x['id'],))]
+            x['installation_events']=[dict(y) for y in conn.execute('SELECT step,result,note,recorded FROM installation_events WHERE order_id=? ORDER BY id DESC',(x['id'],))]
             out.append(x)
         return out
 def save_order(d,new):
@@ -152,6 +154,10 @@ def payment(d):
     return {'ok':True}
 def operations(d,action):
     with db() as conn:
+        if action=='component':
+            ops.warranty(conn,d);return {'ok':True}
+        if action=='installation-event':
+            ops.installation_event(conn,d);return {'ok':True}
         if action=='case':
             ops.save_case(conn,d);return {'ok':True}
         if action=='plan':
@@ -220,7 +226,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not 0<length<=65536:raise ValueError('Invalid request size')
             data=json.loads(self.rfile.read(length))
             if not isinstance(data,dict):raise ValueError('Invalid payload')
-            routes={'/api/search':start_search,'/api/cost':costing,'/api/confirmed':confirmations,'/api/confirm':lambda d:confirmations(d,save=True),'/api/remove-offer':lambda d:confirmations(d,remove=True),'/api/order':lambda d:save_order(d,True),'/api/order-update':lambda d:save_order(d,False),'/api/payment':payment,'/api/plan':lambda d:operations(d,'plan'),'/api/case':lambda d:operations(d,'case'),'/api/handoff':lambda d:operations(d,'handoff'),'/api/document':lambda d:operations(d,'document')}
+            routes={'/api/search':start_search,'/api/cost':costing,'/api/confirmed':confirmations,'/api/confirm':lambda d:confirmations(d,save=True),'/api/remove-offer':lambda d:confirmations(d,remove=True),'/api/order':lambda d:save_order(d,True),'/api/order-update':lambda d:save_order(d,False),'/api/payment':payment,'/api/plan':lambda d:operations(d,'plan'),'/api/case':lambda d:operations(d,'case'),'/api/component':lambda d:operations(d,'component'),'/api/installation-event':lambda d:operations(d,'installation-event'),'/api/handoff':lambda d:operations(d,'handoff'),'/api/document':lambda d:operations(d,'document')}
             fn=routes.get(self.path)
             if fn is None:self.send(404,{'error':'Not found'});return
             self.send(200,fn(data))

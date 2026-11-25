@@ -54,7 +54,11 @@ def render(order,plan,kind,lang,transaction,handoff):
             line(t('Requested applications','Aplicaciones solicitadas')+' · '+', '.join(plan['apps']))
         line(t('Payment in cash. Maintenance is optional. Confirm equipment, availability and written component warranty before accepting.',
                'Pago en efectivo. El mantenimiento es opcional. Confirme equipo, disponibilidad y garantía escrita por componente antes de aceptar.'))
+        for part in order.get('components',[]):
+            line(part['component']+' · '+part['provider']+' · '+part['expires'])
     else:
+        for event in order.get('installation_events',[]):
+            line(' · '.join([event['recorded'],event['step'],event['result'],event['note']]))
         line(t('Record actual results at delivery','Registre los resultados reales en la entrega'),'Heading2')
         for item in (t('Hardware and storage','Equipo y almacenamiento'),t('Private HTTPS and accounts','HTTPS privado y cuentas'),t('Application checks','Pruebas de aplicaciones'),t('Independent backup and restore','Respaldo independiente y restauración'),t('Restart and access','Reinicio y acceso')):
             line(item+'   ______________________________________')
