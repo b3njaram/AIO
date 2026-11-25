@@ -16,5 +16,7 @@ jobs:
       - run: python -m pip install 'playwright==1.58.0' 'reportlab==4.4.9'
       - run: python -m playwright install --with-deps chromium
       - run: python business/dashboard/browser-pilot.py
-      - run: python quote/browser-pilot.py
-      - run: python deploy/dashboard/browser-pilot.py
+      - if: success() || failure()
+        run: python quote/browser-pilot.py
+      - if: success() || failure()
+        run: python deploy/dashboard/browser-pilot.py
