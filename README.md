@@ -50,4 +50,4 @@ Run `python3 scripts/preflight.py --data-root /path/to/mounted/data --apps music
 
 ## Private procurement
 
-[Jobbi Hardware Finder](business/sourcing/README.md) searches US/MX suppliers from one command, screens exact parts, exports a private HTML report and an editable review CSV, and selects a complete confirmed landed-cost BOM. No purchases are automated; optional search API credentials are required for live offers. The public quotation site is unchanged.
+[Jobbi Hardware Finder](business/sourcing/README.md) searches US/MX suppliers from one command, screens exact parts, exports a private HTML report and an editable review CSV, and selects a complete confirmed landed-cost BOM. No purchases are automated; optional eBay credentials and the pinned DealCompare checkout provide live eBay leads; prepared retailer links and explicitly authorized structured-data collection cover other suppliers without paid search. The public quotation site is unchanged.
