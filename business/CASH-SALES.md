@@ -10,3 +10,15 @@ Owner direction: accept cash only, USD for US sales and MXN for Mexican sales. N
 6. Keep ledger and customer details outside GitHub; use an encrypted private location. Do not put any real order, serial, contact or payment record in this public repository. Never collect payment-card data.
 
 For quotes use business/order.py with cash payment fee zero and explicit overhead for cash handling, travel, returns and warranty. Any tax collected is not revenue. For payments above thresholds or cross-border movements, verify applicable reporting and legal obligations; do not split payments to avoid reporting.
+
+## Optional private ledger
+
+Run from AIO on a trusted Linux machine. The default database is outside Git and created with restricted file permissions. Keep an encrypted backup. Use either the ledger or your private spreadsheet as the primary record, not both independently. Examples use fictional IDs and amounts:
+
+    python3 business/records.py open DEMO001 MX 6500
+    python3 business/records.py record TX001 DEMO001 deposit 4000
+    python3 business/records.py record TX002 DEMO001 balance 2500
+    python3 business/records.py show DEMO001
+    python3 business/records.py totals
+
+A refund is a separate entry; order cancellation or changes to the agreed total require a separate documented amendment. No accounting, tax, receipt issuance, inventory control, or customer data collection is automated. Cash totals are not profit. For actual sales retain all legally required records.
