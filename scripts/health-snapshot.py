@@ -38,7 +38,7 @@ def summarize(instance,dest,expected,devices=(),check_updates=False):
     recovery={'state':'idle'}
     try:
         r=json.loads((instance/'recovery-state.json').read_text());state=r.get('state')
-        if state in ('preparing','candidate_ready','trial_reachable','review_required','rolled_back'):recovery={'state':state}
+        if state in ('preparing','candidate_ready','trial_reachable','review_required','rolled_back','accepted','candidate_accepted'):recovery={'state':state}
     except (OSError,ValueError):pass
     smart=diag['smart'] if isinstance(diag['smart'],list) else []
     # Keep raw diagnostics private. Provide only safe health categories, not hardware IDs.

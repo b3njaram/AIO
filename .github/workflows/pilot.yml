@@ -266,7 +266,16 @@ jobs:
           sleep 2
           python3 scripts/recovery-center.py stage "${recover[@]}" --base-port 19400 --to-commit "$(git rev-parse HEAD)" --apply
           test -z "$(bash scripts/ctl.sh /tmp/jobbi-upgrade/original ps -q --status running)"
+          if bash scripts/ctl.sh /tmp/jobbi-upgrade/original up -d; then echo 'Held source unexpectedly allowed startup'; exit 1; fi
           python3 scripts/recovery-center.py start-trial "${recover[@]}" --apply
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          i=Path('/tmp/jobbi-upgrade/original');t=i.parent/'held';u=json.loads((t/'upgrade.json').read_text())
+          a={'schema':1,'source':str(i),'candidate':str(t),'from':u['from'],'to':u['to'],'apps':{'monitor':'passed'},'customer_approved':True,'data_verified':True,'backup_restore_verified':True,'private_access_verified':True,'maintenance_verified':True}
+          Path('/tmp/jobbi-upgrade/acceptance.json').write_text(json.dumps(a))
+          PY
+          python3 scripts/recovery-center.py accept-trial "${recover[@]}" --acceptance /tmp/jobbi-upgrade/acceptance.json --apply
           python3 scripts/recovery-center.py rollback "${recover[@]}" --confirm-no-candidate-writes --apply
           test -z "$(bash scripts/ctl.sh /tmp/jobbi-upgrade/held ps -q --status running)"
           curl --retry 20 --retry-all-errors --retry-delay 1 -fsS http://127.0.0.1:19200/healthz
@@ -274,6 +283,8 @@ jobs:
         run: |
           for n in original trial held; do
             if test -f "/tmp/jobbi-upgrade/$n/.env"; then
+              # Disposable CI only: remove hold to permit fixture teardown.
+              rm -f "/tmp/jobbi-upgrade/$n/.upgrade-hold.json"
               bash scripts/ctl.sh "/tmp/jobbi-upgrade/$n" down -v
             fi
           done

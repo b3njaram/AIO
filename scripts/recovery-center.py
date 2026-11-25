@@ -59,8 +59,19 @@ def record(i,state):
         json.dump({'state':state,'at':dt.datetime.now(dt.timezone.utc).isoformat()},out)
         out.flush();os.fsync(out.fileno())
     os.replace(tmp,i/'recovery-state.json')
+def approval(i,t,u,path):
+    """Require an explicit, exact trial acceptance record, not HTTP reachability."""
+    if path.is_symlink() or not path.is_file() or path.stat().st_size>32768:raise ValueError('Provide a private regular acceptance JSON file')
+    d=json.loads(path.read_text())
+    keys={'schema','source','candidate','from','to','apps','customer_approved','data_verified','backup_restore_verified','private_access_verified','maintenance_verified'}
+    if not isinstance(d,dict) or set(d)!=keys or d['schema']!=1 or any(d[k] is not True for k in ('customer_approved','data_verified','backup_restore_verified','private_access_verified','maintenance_verified')):
+        raise ValueError('Every acceptance gate must be explicitly confirmed')
+    if (d['source'],d['candidate'],d['from'],d['to'])!=(str(i),str(t),u['from'],u['to']):raise ValueError('Acceptance refers to another trial')
+    apps={a['id'] for a in json.loads((t/'dashboard.json').read_text())['apps']}
+    if not isinstance(d['apps'],dict) or set(d['apps'])!=apps or any(v!='passed' for v in d['apps'].values()):raise ValueError('Require functional acceptance of each selected application')
+    return d
 def main():
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('action',choices=['catalog','verify','retention','restore','stage','start-trial','rollback']);p.add_argument('instance',type=Path);p.add_argument('backup_root',type=Path);p.add_argument('--mount-id',required=True);p.add_argument('--minimum-free-gib',type=int,default=50);p.add_argument('--keep',type=int,default=3);p.add_argument('--days',type=int,default=30);p.add_argument('--backup');p.add_argument('--candidate');p.add_argument('--base-port',type=int);p.add_argument('--to-commit');p.add_argument('--apply',action='store_true');p.add_argument('--confirm-no-candidate-writes',action='store_true',help='Acknowledge trial has no customer writes, or these were separately reconciled');a=p.parse_args()
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('action',choices=['catalog','verify','retention','restore','stage','start-trial','accept-trial','rollback']);p.add_argument('instance',type=Path);p.add_argument('backup_root',type=Path);p.add_argument('--mount-id',required=True);p.add_argument('--minimum-free-gib',type=int,default=50);p.add_argument('--keep',type=int,default=3);p.add_argument('--days',type=int,default=30);p.add_argument('--backup');p.add_argument('--candidate');p.add_argument('--base-port',type=int);p.add_argument('--to-commit');p.add_argument('--acceptance',type=Path,help='Private exact trial acceptance JSON');p.add_argument('--apply',action='store_true');p.add_argument('--confirm-no-candidate-writes',action='store_true',help='Acknowledge trial has no customer writes, or these were separately reconciled');a=p.parse_args()
     i=a.instance.resolve();b=a.backup_root.resolve();e=env(i);independent(i,b,a.mount_id)
     if a.action=='catalog':
         print(json.dumps([{'name':x.name,'completed_manifest':True,'integrity':'not_checked'} for x in candidates(i,b)],indent=2));return
@@ -101,6 +112,7 @@ def main():
     if a.action=='start-trial':
         if not t or not t.is_dir():p.error('Specify staged candidate')
         related(i,t,h)
+        if (i/'recovery-state.json').exists() and json.loads((i/'recovery-state.json').read_text()).get('state')=='candidate_accepted':p.error('Candidate already accepted; no further trial startup')
         if running(i) or (i/'.backup-running-services').exists():p.error('Source is not safely held offline')
         if any((t/n).exists() for n in ('.private-serve.json','.upgrade-hold.json')):p.error('Candidate must remain isolated')
         print('Start isolated candidate, not a production cutover. Verify all selected apps with read-only/sample data.')
@@ -111,6 +123,19 @@ def main():
                 record(i,'trial_reachable');print('Reachability only; functional acceptance still pending.');return
             time.sleep(5)
         record(i,'review_required');raise ValueError('Candidate did not become reachable; original remains held')
+    if a.action=='accept-trial':
+        if not t or not t.is_dir() or not a.acceptance:p.error('Provide candidate and private acceptance record')
+        u=related(i,t,h);approval(i,t,u,a.acceptance)
+        if running(i) or (i/'.backup-running-services').exists():p.error('Original must remain held and stopped')
+        if not running(t):p.error('Candidate is not running')
+        if json.loads((i/'recovery-state.json').read_text()).get('state')!='trial_reachable':p.error('Complete the isolated trial first')
+        print('Approval records the validated candidate as accepted. Original remains held. No route, timer or disk changes are performed.')
+        if not a.apply:return
+        # The acceptance record stays private. It is an operator attestation,
+        # not automatic proof of functional, physical or network tests.
+        record(t,'accepted');record(i,'candidate_accepted')
+        print('Candidate accepted. Keep the original stopped; supervise private route and maintenance handoff. Reconcile writes before any rollback.')
+        return
     if a.action=='rollback':
         if not t:p.error('Provide candidate name even when staging was interrupted')
         if t.exists():related(i,t,h)
@@ -122,9 +147,10 @@ def main():
             run(*ctl(t,'stop'))
             if running(t):p.error('Candidate remains running')
         if (i/'.backup-running-services').exists():p.error('Reconcile interrupted backup journal first')
-        run(*ctl(i,'start',*h['services']))
+        run(*ctl(i,'--resume-held','start',*h['services']))
         if not set(h['services'])<=running(i):p.error('Original services not all running; hold retained')
         (i/'.upgrade-hold.json').unlink();record(i,'rolled_back')
+        if t.exists():record(t,'rolled_back')
         print('Original restarted; verify functional acceptance. Candidate and archive retained.')
 if __name__=='__main__':
     try:main()

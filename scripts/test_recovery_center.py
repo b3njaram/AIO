@@ -23,4 +23,16 @@ class Tests(unittest.TestCase):
             i=Path(tmp)
             with patch.object(m,'candidates',return_value=[i/str(n) for n in range(4)]),patch.object(m,'verified',side_effect=ValueError('bad checksum')):
                 with self.assertRaisesRegex(ValueError,'bad checksum'):m.retention(i,i,3,30)
+    def test_exact_acceptance(self):
+        import json
+        with tempfile.TemporaryDirectory() as tmp:
+            p=Path(tmp);i=p/'original';t=p/'candidate';i.mkdir();t.mkdir()
+            (t/'dashboard.json').write_text('{"apps":[{"id":"music"},{"id":"monitor"}]}')
+            d={'schema':1,'source':str(i),'candidate':str(t),'from':'a'*40,'to':'b'*40,'apps':{'music':'passed','monitor':'passed'},'customer_approved':True,'data_verified':True,'backup_restore_verified':True,'private_access_verified':True,'maintenance_verified':True}
+            file=p/'acceptance.json';file.write_text(json.dumps(d));u={'from':'a'*40,'to':'b'*40}
+            self.assertEqual(m.approval(i,t,u,file),d)
+            for changes in ({'apps':{'music':'passed'}},{'customer_approved':False},{'to':'c'*40}):
+                file.write_text(json.dumps({**d,**changes}))
+                with self.assertRaises(ValueError):m.approval(i,t,u,file)
 if __name__=='__main__':unittest.main()
+
