@@ -13,6 +13,4 @@ jobs:
       - run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils cloud-image-utils e2fsprogs openssh-client xorriso
-          # CI-only access to KVM; the VM script also supports software emulation.
-          if test -c /dev/kvm && command -v setfacl >/dev/null; then sudo setfacl -m "u:$(id -un):rw" /dev/kvm || true; fi
       - run: bash scripts/vm-pilot.sh

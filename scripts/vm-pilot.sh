@@ -41,17 +41,9 @@ Path('user-data').write_text('#cloud-config\n'+json.dumps(data))
 Path('meta-data').write_text('instance-id: jobbi-vm-pilot\nlocal-hostname: vmhome\n')
 PY
 cloud-localds seed.iso user-data meta-data
-# KVM when available; software emulation otherwise.
+# Hosted CI has no reliable nested KVM. Deterministic software emulation.
 accel=(-accel tcg,thread=multi -cpu max)
-if [[ -r /dev/kvm && -w /dev/kvm ]]; then
-  # Device permissions alone do not establish nested virtualization support.
-  set +e
-  timeout 3 qemu-system-x86_64 -accel kvm -cpu host -S -display none -nodefaults >/dev/null 2>&1
-  kvm_status=$?
-  set -e
-  if [[ "$kvm_status" == 124 ]]; then accel=(-accel kvm -cpu host); fi
-fi
-echo "VM acceleration: ${accel[*]}"
+echo 'VM acceleration: TCG (software emulation)'
 start(){
   local extra=()
   if [[ "${1:-with-data}" == with-data ]]; then extra=(-drive file=data.img,format=raw,if=virtio); fi
