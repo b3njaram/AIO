@@ -20,3 +20,5 @@ The timer runs every 15 minutes; the sender connects only to verified tailnet ad
     python3 scripts/health-reporting.py INSTANCE disable --apply
 
 Revoke reporting credential in Customers; revoke sharing to erase the currently stored report as well. Earlier private business backups may retain previous reports according to the agreed retention policy. Rotate credentials at expiry. Never interpret a missing report as proof the server is offline. Actual cross-tailnet ACL/TLS checks remain unperformed; do not expose the admin dashboard to customers to enable this feature.
+
+For an optional persistent owner-side service, preview `python3 business/dashboard/install-health-receiver-service.py --cert CERT --key KEY`, then add `--apply` after approval. It uses an owner systemd user service, not an interactive terminal. If the owner explicitly enables systemd user lingering, it can survive logout and reboot. Stop/revoke service with `systemctl --user disable --now jobbi-health-receiver.service`; this does not alter customer tokens. Verify the real receiver identity and customer ACL; no service is installed automatically.

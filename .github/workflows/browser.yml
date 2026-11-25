@@ -14,6 +14,8 @@ jobs:
         with: {python-version: '3.12'}
       - run: python -m pip install 'playwright==1.58.0' 'reportlab==4.4.9'
       - run: python -m playwright install --with-deps chromium
+      - run: python -m unittest discover -s business/dashboard -p 'test_customers.py' -v
+      - run: python -m unittest discover -s business/dashboard -p 'test_health_receiver.py' -v
       - run: python business/dashboard/browser-pilot.py
       - if: success() || failure()
         run: python quote/browser-pilot.py

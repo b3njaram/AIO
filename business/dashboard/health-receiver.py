@@ -33,7 +33,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.send(200)
 def main():
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--cert',required=True,type=Path);p.add_argument('--key',required=True,type=Path);p.add_argument('--port',type=int,default=17993);p.add_argument('--apply',action='store_true');a=p.parse_args()
-    if os.geteuid()==0 or not 1024<=a.port<=65535 or a.port in (8790,8791):p.error('Non-root owner and separate private port required')
+    if os.geteuid()==0 or a.port!=17993:p.error('Non-root owner and dedicated port 17993 required')
     host,ip=support.identity(json.loads(subprocess.check_output(['tailscale','status','--json'],text=True,timeout=15)))
     ctx=support.tls_context(a.cert.absolute(),a.key.absolute(),host)
     # The real owner registry only, never the demo database.
