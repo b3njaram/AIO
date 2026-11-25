@@ -1,6 +1,6 @@
 # Private JobbiSoft business dashboard
 
-Uses the same eBay credentials, DealCompare virtualenv, saved reports and cash.sqlite3 as the CLI. No paid services. Never expose it through Cloudflare or public reverse proxy. Loopback only with generated password and same-origin POST protection. Use SSH forwarding over your private Tailscale connection; this version intentionally does not offer direct LAN binding.
+Uses the same eBay credentials, DealCompare virtualenv, saved reports and cash.sqlite3 as the CLI. No paid services. Never expose it through Cloudflare or public reverse proxy. Loopback only with generated password and same-origin POST protection. Use SSH forwarding or an explicitly allowed private Tailscale Serve origin. The server never listens on LAN or public interfaces.
 
 On your server from AIO:
 
@@ -12,7 +12,7 @@ Keep the password private. Browser username is owner. From your personal compute
 
     ssh -N -L 8790:127.0.0.1:8790 osvaldoramirez@macmini2012
 
-Open http://127.0.0.1:8790 and sign in. Keep both terminals open. Forward the same local port because Host and Origin checks require it. Use a trusted personal computer. No direct public or Tailscale Serve reverse proxy in this version. For persistent operation install the optional user systemd service below.
+Open http://127.0.0.1:8790 and sign in. Keep both terminals open. Forward the same local port because Host and Origin checks require it. Use a trusted personal computer. Never configure a public reverse proxy. For private Serve, see below. For persistent operation install the optional user systemd service below.
 
     bash business/dashboard/install-service.sh
     systemctl --user status jobbi-business
@@ -42,3 +42,16 @@ Uses a new private directory, verifies the copied bytes and SQLite integrity and
 ### Customer PDF documents
 
 Install the distribution package `python3-reportlab` for the dashboard interpreter. In Support & handoff, choose the saved order, English or Spanish, and the document type. Receipts require the specific recorded payment or refund. The acceptance form leaves findings and signatures for the customer and technician. PDFs are generated in memory and downloaded by the authenticated owner.
+
+## Private Tailscale preview (no SSH forwarding)
+
+Keep the backend on 127.0.0.1 and explicitly allow the browser origin. For the isolated preview on port 8791:
+
+    HOME="$HOME/.jobbi-preview" "$HOME/.jobbi-preview/venv/bin/python" business/dashboard/server.py --port 8791 --allow-origin http://macmini2012:8791
+
+In another terminal on the owner host, first inspect `tailscale serve status` and `tailscale funnel status`. Use unused preview ports only. Do not reset unrelated routes or enable Funnel. If the preview ports are not already configured, run:
+
+    sudo tailscale serve --bg --http=8791 http://127.0.0.1:8791
+    sudo tailscale serve --bg --http=8781 http://127.0.0.1:8781
+
+The second route needs the quote preview listening on 127.0.0.1:8781. On a permitted tailnet device visit http://macmini2012:8791 or http://macmini2012:8781. MagicDNS and tailnet ACL access must be enabled. Add the exact full .ts.net browser origin with a second --allow-origin if needed. HTTPS Serve is preferable for actual private financial records (use the exact https://name.tailnet.ts.net origin and matching HTTPS listener). HTTP preview traffic is carried through the encrypted Tailscale connection, but the browser does not consider the page an HTTPS secure context. Basic authentication and exact Host/Origin matching remain enforced; no forwarded headers are trusted. If a proxy rewrites Host, access fails closed. Restrict tailnet ACLs to owner devices. Never publish the business dashboard through Funnel or Cloudflare.

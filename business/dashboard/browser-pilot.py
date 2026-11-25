@@ -1,5 +1,5 @@
 """Run from CI with Playwright. All records and reports are synthetic and temporary."""
-import json,os,secrets,subprocess,sys,tempfile,time,urllib.request,base64
+import json,os,secrets,subprocess,sys,tempfile,time,urllib.request,urllib.error,base64
 from pathlib import Path
 from playwright.sync_api import sync_playwright,expect
 ROOT=Path(__file__).resolve().parents[2]
@@ -14,7 +14,7 @@ def main():
         reports.mkdir(parents=True)
         offers={'offers':[{'market':'US','part':'computer','supplier':'eBay','title':'Dell OptiPlex 7060 MT i5 16GB 256GB SSD','price':'150','shipping':'20','condition':'Used','currency':'USD','decision':'candidate','reason':'Check hardware','url':'https://www.ebay.com/itm/123456789','notes':'Synthetic fixture'}],'coverage':[['Fixture','No live data']],'bom':[]}
         (reports/'offers.json').write_text(json.dumps(offers))
-        proc=subprocess.Popen([sys.executable,str(ROOT/'business/dashboard/server.py'),'--port','18790'],env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)
+        proc=subprocess.Popen([sys.executable,str(ROOT/'business/dashboard/server.py'),'--port','18790','--allow-origin','http://macmini2012:18790','--allow-origin','https://macmini2012.demo.ts.net'],env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)
         base='http://127.0.0.1:18790'
         try:
             auth='Basic '+base64.b64encode(('owner:'+password).encode()).decode()
@@ -24,6 +24,25 @@ def main():
                     with urllib.request.urlopen(urllib.request.Request(base+'/api/init',headers={'Authorization':auth}),timeout=2):break
                 except OSError:time.sleep(.25)
             else:raise RuntimeError('Dashboard not reachable')
+            def status(host,origin=None,authorized=True):
+                headers={'Host':host}
+                if authorized:headers['Authorization']=auth
+                method='GET' if origin is None else 'POST'
+                if origin is not None:headers.update({'Origin':origin,'Content-Type':'application/json','X-Jobbi-Request':'1'})
+                req=urllib.request.Request(base+('/api/init' if origin is None else '/api/nonexistent'),headers=headers,method=method,data=None if origin is None else b'{}')
+                try:
+                    with urllib.request.urlopen(req,timeout=5) as response:return response.status
+                except urllib.error.HTTPError as error:return error.code
+            assert status('macmini2012:18790')==200
+            assert status('macmini2012.demo.ts.net')==200
+            assert status('macmini2012:18790',authorized=False)==401
+            assert status('unapproved.example')==403
+            assert status('macmini2012:18790','http://macmini2012:18790')==404
+            assert status('macmini2012.demo.ts.net','https://macmini2012.demo.ts.net')==404
+            assert status('macmini2012:18790','http://127.0.0.1:18790')==403
+            assert status('127.0.0.1:18790','http://macmini2012:18790')==403
+            assert status('macmini2012:18790','https://evil.example')==403
+            assert status('macmini2012.demo.ts.net','http://macmini2012.demo.ts.net')==403
             with sync_playwright() as playwright:
                 browser=playwright.chromium.launch()
                 page=browser.new_page(http_credentials={'username':'owner','password':password},accept_downloads=True)

@@ -177,6 +177,26 @@ def operations(d,action):
                 return {'pdf':base64.b64encode(pdf).decode('ascii')}
             return {'text':ops.handoff(o,json.loads(row[0]) if row else None,d.get('lang','en'))}
     raise ValueError('Invalid operation')
+def permitted_origins(port, extra=()):
+    """Explicit browser origins for a loopback-only private reverse proxy.
+    Never trust forwarded host or origin headers.
+    """
+    origins={f'http://localhost:{port}',f'http://127.0.0.1:{port}'}
+    for value in extra:
+        u=urlsplit(value)
+        host=u.hostname or ''
+        if (u.scheme not in ('http','https') or not host or u.username is not None
+                or u.password is not None or u.path or u.query or u.fragment
+                or not re.fullmatch(r'[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*',host)
+                or not ('.' not in host or host.endswith('.ts.net'))
+                or u.netloc != host+((':'+str(u.port)) if u.port is not None else '')
+                or (u.port is not None and not 1<=u.port<=65535)
+                or value != u.scheme+'://'+u.netloc
+                or (u.port == (80 if u.scheme=='http' else 443))):
+            raise ValueError('Use an exact private hostname origin, e.g. http://macmini2012:8791 or https://device.tailnet.ts.net (no path or default port)')
+        origins.add(value)
+    return {urlsplit(o).netloc: {x for x in origins if urlsplit(x).netloc==urlsplit(o).netloc} for o in origins}
+
 class Handler(http.server.BaseHTTPRequestHandler):
     def log_message(self,*args):pass
     def send(self,status,data,mime='application/json; charset=utf-8'):
@@ -186,9 +206,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         for k,v in {'Content-Type':mime,'Content-Length':str(len(data)),'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY','Referrer-Policy':'no-referrer','Content-Security-Policy':"default-src 'none'; script-src 'self'; style-src 'self'; img-src https://i.ebayimg.com; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"}.items():self.send_header(k,v)
         self.end_headers();self.wfile.write(data)
     def auth(self):
-        host=self.headers.get('Host','')
-        if host not in ('localhost:'+str(self.server.server_port),'127.0.0.1:'+str(self.server.server_port)):
-            self.send(403,{'error':'Use localhost via SSH tunnel'});return False
+        hosts=self.headers.get_all('Host',[])
+        if len(hosts)!=1 or hosts[0] not in self.server.allowed_origins:
+            self.send(403,{'error':'Unapproved private dashboard hostname'});return False
         expected='Basic '+base64.b64encode(('owner:'+self.server.password).encode()).decode()
         if not hmac.compare_digest(self.headers.get('Authorization',''),expected):
             self.send(401,{'error':'Authentication required'});return False
@@ -219,7 +239,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         if not self.auth():return
         # Same-origin JSON only; no CORS and no cross-site form requests.
-        if self.headers.get('X-Jobbi-Request')!='1' or self.headers.get('Origin') not in ('http://localhost:'+str(self.server.server_port),'http://127.0.0.1:'+str(self.server.server_port)) or self.headers.get('Content-Type','').split(';')[0]!='application/json':
+        if self.headers.get('X-Jobbi-Request')!='1' or len(self.headers.get_all('Origin',[]))!=1 or self.headers.get('Origin') not in self.server.allowed_origins[self.headers['Host']] or self.headers.get('Content-Type','').split(';')[0]!='application/json':
             self.send(403,{'error':'Same-origin request required'});return
         try:
             length=int(self.headers.get('Content-Length','0'))
@@ -233,8 +253,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         except (ValueError,KeyError,TypeError,ArithmeticError,argparse.ArgumentTypeError,sqlite3.IntegrityError) as e:self.send(400,{'error':str(e)[:300]})
         except (OSError,sqlite3.Error):self.send(500,{'error':'Local storage operation failed'})
 def main():
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--port',type=int,default=8790);p.add_argument('--init',action='store_true');a=p.parse_args()
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--port',type=int,default=8790);p.add_argument('--init',action='store_true');p.add_argument('--allow-origin',action='append',default=[],help='Exact private Tailscale browser origin; repeat for additional names');a=p.parse_args()
     if not 1024<=a.port<=65535:p.error('Invalid port')
+    try:allowed=permitted_origins(a.port,a.allow_origin)
+    except ValueError as e:p.error(str(e))
     os.umask(0o077);HOME.mkdir(parents=True,exist_ok=True);CONFIG.mkdir(parents=True,exist_ok=True)
     token=CONFIG/'dashboard-password'
     if a.init:
@@ -245,6 +267,6 @@ def main():
     password=private_file(token).read_text().strip()
     if len(password)<32:p.error('Invalid dashboard password')
     with db():pass
-    server=http.server.ThreadingHTTPServer(('127.0.0.1',a.port),Handler);server.password=password
+    server=http.server.ThreadingHTTPServer(('127.0.0.1',a.port),Handler);server.password=password;server.allowed_origins=allowed
     print('Private dashboard on http://127.0.0.1:'+str(a.port),flush=True);server.serve_forever()
 if __name__=='__main__':main()
