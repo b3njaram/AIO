@@ -13,6 +13,10 @@ flock -n "$backup_lock" || { echo 'Backup already running for this instance' >&2
 ctl(){ bash "$ROOT/scripts/ctl.sh" "$INSTANCE" "$@"; }
 JOURNAL="$INSTANCE/.backup-running-services"
 resume_services(){
+  if [[ -e "$INSTANCE/.upgrade-hold.json" ]]; then
+    echo "Upgrade hold exists; refusing to resume source automatically" >&2
+    return 1
+  fi
   local -a services
   mapfile -t services < "$JOURNAL"
   (( ${#services[@]} )) || return 1

@@ -14,3 +14,5 @@ The creation plan requires two distinct empty whole disks with stable identities
 Unit tests cover topology and refusal rules. Real mdadm assembly, replacement, synchronization and filesystem growth remain qualification requirements; never perform a live fault drill on a customer's only data copy.
 
 Replacement and expansion reject overlapping OS/Docker/backup block-device ancestry. The current planner is intentionally limited to an array dedicated to application data, not Docker's own root filesystem. Verify hardware RAID or unusual controller configurations separately.
+
+The `Disposable RAID1 replacement and expansion` workflow is restricted to hosted CI and creates four new file-backed loop devices, never selecting host disks. It verifies degraded reads, two member replacements, synchronization, ext4 growth, unchanged filesystem UUID and byte-identical sample data. Runner kernel support for loop/md devices is required; a failed or unavailable runner is not a successful test. This is not physical hardware qualification.
