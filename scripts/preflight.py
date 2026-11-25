@@ -9,10 +9,11 @@ def main():
     p.add_argument('--data-root',required=True,type=Path)
     p.add_argument('--apps',default='music,movies,photos,files,passwords,tasks,monitor,remote')
     p.add_argument('--minimum-free-gib',type=float,default=50)
+    p.add_argument('--minimum-docker-free-gib',type=float,default=20)
     a=p.parse_args()
     apps=set(filter(None,a.apps.split(',')))
     if apps-set('music movies photos files passwords tasks dns monitor remote'.split()): p.error('Unknown app')
-    if a.minimum_free_gib<0: p.error('Invalid free-space target')
+    if a.minimum_free_gib<0 or a.minimum_docker_free_gib<0: p.error('Invalid free-space target')
     root=a.data_root.expanduser().resolve()
     if not root.is_dir(): p.error('Create/mount intended data root first')
     errors=[]; warnings=[]
@@ -33,7 +34,7 @@ def main():
         cmd('docker','compose','version')
         if Path(docker_root).is_dir():
             docker_free=gib(shutil.disk_usage(docker_root).free)
-            if docker_free<20: errors.append('Docker filesystem below 20 GiB free')
+            if docker_free<a.minimum_docker_free_gib: errors.append('Docker filesystem below configured free-space target')
         else: warnings.append('Docker data filesystem not locally inspectable')
     except (OSError,subprocess.CalledProcessError): errors.append('Docker daemon or Compose unavailable')
     if not root.is_mount(): warnings.append('Data root is not itself a mount point; verify intended disk and reboot persistence')
