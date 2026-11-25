@@ -64,3 +64,5 @@ The original remains untouched. Keep recovered copy loopback-only; never run it 
 For the browser-first and optional native client policy, see CLIENTS.md. Use private HTTPS endpoints on the customer's own network. No official Jobbi native app signing or distribution is planned.
 
 Commercial source patch version 2 disables the personal native Android release feed. Existing instances are not automatically patched; release.json determines the patch version used in recovery. No change is made to the upstream personal repositories.
+
+For an operator-guided private HTTPS plan and per-port Tailscale Serve verification, see PRIVATE-ACCESS.md. Use the customer-owned tailnet and do not enable Funnel.
