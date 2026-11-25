@@ -48,3 +48,6 @@ The scan at `0166293a` reported 2,366 high/critical/unknown package findings acr
 Physical qualification is deferred at the project owner's request so later development can proceed. This is a development assumption, not evidence of passing physical tests or authorization to sell. Retain physical, private-network, software security and commercial blockers explicitly. No stable commercial release until the actual gates are satisfied.
 
 The scan at `85bcc327` confirmed zero high/critical/unknown findings in the hardened Jobbi Music, StreamHub backend, storage-agent and dashboard images. Total findings fell from 2,366 to 2,313; remaining findings are in third-party images and still block commercial approval. Phase 6 development proceeds while this remediation and physical testing are deferred; no release gate has been waived.
+
+## Phases 7–10
+Performance planning and isolated encode probe: PERFORMANCE.md. Optional local UPS monitoring and native shutdown qualification: POWER.md. Bilingual handoff drafts: DELIVERY.md. Commercial readiness evidence: COMMERCIAL-LAUNCH.md. These are development tools, not hardware or legal certifications. Physical qualification remains deferred, and commercial approval remains false until actual evidence is reviewed.
