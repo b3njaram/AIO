@@ -46,6 +46,13 @@ def main():
         else:raise AssertionError('Restored Nextcloud content unavailable')
         assert request('GET',authorized=False)[0]==401
         return
+    # Exercise exact origin application and rollback before local WebDAV checks.
+    import nextcloud_origin
+    original=nextcloud_origin.read(instance)
+    nextcloud_origin.prepare(instance,'https://fixture.example.ts.net:19448')
+    nextcloud_origin.verify(instance,'https://fixture.example.ts.net:19448')
+    nextcloud_origin.rollback(instance)
+    assert nextcloud_origin.read(instance)==original
     assert request('GET',authorized=False)[0]==401,'Anonymous access should be denied'
     assert request('PUT',payload)[0] in (201,204),'WebDAV upload failed'
     assert request('GET')==(200,payload),'WebDAV retrieval differs'

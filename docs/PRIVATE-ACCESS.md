@@ -39,3 +39,7 @@ The local operator needs permission to manage Tailscale Serve. The tool checks r
     python3 scripts/private-access.py INSTANCE --rollback-origins
 
 Recreate the same app containers after restoring origin files. Configuration changes made after preparation are reported for manual reconciliation. Confirm TLS, session cookies, login and access denial from actual client devices.
+
+## Guided apply / rollback
+
+After customer-owned Tailscale enrollment, verified first-run accounts, customer-approved ACLs and the intended Vaultwarden invitation, run `python3 scripts/finish-private-access.py INSTANCE` to preview. Add --apply to journal the origins, set exact Nextcloud trusted host and HTTPS canonical URLs, recreate affected app containers, configure the expected Serve routes and verify them. On failure it attempts scoped rollback; use --rollback for a deliberate reversal. Existing custom Nextcloud trusted proxy settings require manual review; the wizard never trusts broad proxy networks. Test actual device TLS, ACL denial and application login separately. First boot installs the official signed Tailscale package for the remote profile but does not enroll the machine or enable Funnel. The customer retains account and ACL control.

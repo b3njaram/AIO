@@ -50,7 +50,7 @@ def create(instance,app,user,email,pw):
     elif app=='photos':
         url=base('PHOTO_PORT');login=lambda:request(url,'/api/auth/login',{'email':email,'password':pw})
         code,body=login()
-        if code!=200:
+        if code not in (200,201):
             code,_=request(url,'/api/auth/admin-sign-up',{'email':email,'password':pw,'name':user})
             require(code in (200,201),'Photo owner creation refused; existing account was not changed')
             code,body=login()
@@ -84,6 +84,20 @@ db.transaction(()=>{
             require(cmd('exec','-T','vikunja','/app/vikunja/vikunja','user','create','--username',user,'--email',email,'--password',pw)==0,'Task owner creation refused; existing account unchanged')
             code,body=login()
         require(code==200 and bool(body.get('token')),'Task login not confirmed')
+    elif app=='monitor':
+        try:import socketio
+        except ImportError:raise ValueError('Install python3-socketio on the dedicated Ubuntu appliance')
+        client=socketio.Client(reconnection=False,request_timeout=10)
+        try:
+            client.connect(base('MONITOR_PORT'),transports=['polling'],wait_timeout=15)
+            login=lambda:client.call('login',{'username':user,'password':pw},timeout=20)
+            result=login()
+            if not result.get('ok'):
+                require(client.call('setup',(user,pw),timeout=20).get('ok'),'Monitor setup refused; existing account unchanged')
+                result=login()
+            require(result.get('ok'),'Monitor owner login not confirmed')
+        finally:
+            if client.connected:client.disconnect()
     elif app=='files':
         url=base('CLOUD_PORT');code,info=request(url,'/status.php')
         require(code==200 and isinstance(info.get('installed'),bool),'Nextcloud status unknown')
@@ -96,13 +110,32 @@ db.transaction(()=>{
             with LOCAL.open(q,timeout=20) as r:require(r.status==207,'Nextcloud WebDAV authentication not confirmed')
         except urllib.error.HTTPError as e:raise ValueError('Nextcloud WebDAV authentication refused (HTTP '+str(e.code)+')') from None
     else:raise ValueError('Use the app native setup for this service')
+def invite_vault(instance,email):
+    """Send only the intended customer invitation; native client creates encryption keys."""
+    import urllib.parse
+    env=env_for(instance)
+    require('passwords' in env['COMPOSE_PROFILES'].split(','),'Vaultwarden is not installed')
+    require(re.fullmatch(r'[^@\s]+@[^@\s]+\.[^@\s]+',email),'Invalid owner email')
+    ctl=['bash',str(ROOT/'scripts/ctl.sh'),str(instance)]
+    cid=subprocess.check_output(ctl+['ps','-q','vaultwarden'],text=True).strip()
+    require(bool(cid),'Vaultwarden not running')
+    obj=json.loads(subprocess.check_output(['docker','inspect',cid],text=True))[0]
+    actual=dict(x.split('=',1) for x in obj['Config']['Env'] if '=' in x)
+    require(actual.get('SIGNUPS_ALLOWED')=='false','Vaultwarden public registration not disabled')
+    require(actual.get('ADMIN_TOKEN')==env['VAULT_ADMIN_TOKEN'],'Vaultwarden admin token differs; review locally')
+    base='http://127.0.0.1:'+env['VAULT_PORT']
+    admin=urllib.request.build_opener(urllib.request.ProxyHandler({}),urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+    req=urllib.request.Request(base+'/admin/',data=urllib.parse.urlencode({'token':env['VAULT_ADMIN_TOKEN']}).encode(),headers={'Content-Type':'application/x-www-form-urlencoded','Origin':base})
+    with admin.open(req,timeout=20) as r:require(r.status==200,'Vaultwarden admin login not confirmed')
+    code,_=request(base,'/admin/invite',{'email':email},admin)
+    require(code==200,'Vaultwarden invitation refused; inspect the existing owner invitation locally')
 def main():
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('instance',type=Path);p.add_argument('--username',default='owner');p.add_argument('--email',required=True);p.add_argument('--apps',default='music,movies,photos,files,tasks');p.add_argument('--apply',action='store_true');a=p.parse_args()
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('instance',type=Path);p.add_argument('--username',default='owner');p.add_argument('--email',required=True);p.add_argument('--apps',default='music,movies,photos,files,tasks,monitor');p.add_argument('--invite-vault',action='store_true',help='Explicitly invite this customer email; customer creates master password in native client');p.add_argument('--apply',action='store_true');a=p.parse_args()
     i=a.instance.resolve();env=env_for(i)
     selected=[x for x in a.apps.split(',') if x in env['COMPOSE_PROFILES'].split(',')]
-    require(all(x in ('music','movies','photos','files','tasks') for x in selected),'Unsupported automated app')
+    require(all(x in ('music','movies','photos','files','tasks','monitor') for x in selected),'Unsupported automated app')
     print('Selected accounts:',', '.join(selected))
-    print('Vaultwarden, Uptime Kuma and customer Tailscale enrollment remain native setup steps. Passwords are prompted separately; trusted Docker admins may see CLI arguments transiently.')
+    print('Vaultwarden master-password creation and customer Tailscale enrollment remain native setup steps. Passwords are prompted separately; trusted Docker admins may see CLI arguments transiently.')
     if not a.apply:return
     if not sys.stdin.isatty():p.error('Use a trusted interactive terminal; passwords must not be echoed or piped')
     import os,fcntl
@@ -112,6 +145,9 @@ def main():
         for app in selected:
             create(i,app,a.username,a.email,password(app))
             print(app+': owner login verified; functional acceptance still pending.')
+        if a.invite_vault:
+            invite_vault(i,a.email)
+            print('Vaultwarden owner invited. Finish encryption setup in the native HTTPS client.')
     print('Run onboard.py for remaining setup and actual acceptance; no automatic confirmation is recorded.')
 if __name__=='__main__':
     try:main()

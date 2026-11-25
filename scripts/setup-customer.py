@@ -15,6 +15,8 @@ def args():
     p.add_argument('--tz',default='America/Ciudad_Juarez')
     p.add_argument('--minimum-free-gib',type=int,default=50)
     p.add_argument('--minimum-docker-free-gib',type=int,default=20)
+    p.add_argument('--defer-health-to-first-boot',action='store_true',help=argparse.SUPPRESS)
+    p.add_argument('--weekly-backup',action='store_true',help='Customer approved weekly cold-backup interruption')
     p.add_argument('--apply',action='store_true',help='Confirm dedicated host and reviewed storage, then provision the customer stack')
     return p.parse_args()
 def plan(a):
@@ -59,6 +61,8 @@ def main():
     if subprocess.run(['docker','info','--format','{{.ServerVersion}}'],check=False).returncode:
         raise ValueError('Docker access required. On this dedicated host only, grant the operator Docker access with sudo usermod -aG docker "$USER", then log out/in and rerun. Docker access is root-equivalent.')
     run(pre)
+    if not a.defer_health_to_first_boot and 'remote' in install[-1].split(',') and not shutil.which('tailscale'):
+        run(['sudo','bash',str(ROOT/'scripts/customer-remote.sh')])
     # First boot already installs this guard. Manual guided installs require an
     # explicit dedicated-host guard before provisioning customer containers.
     guard=Path('/etc/systemd/system/docker.service.d/90-jobbi-storage.conf')
@@ -74,6 +78,9 @@ def main():
         if attempt<11:time.sleep(15)
     else:raise ValueError('Services not all reachable. Existing customer instance retained; inspect ctl.sh INSTANCE ps -a and logs.')
     run(onboard)
+    if not a.defer_health_to_first_boot:
+        import pwd
+        run(['sudo',sys.executable,str(ROOT/'scripts/install-health-service.py'),str(instance),str(a.backup_root.expanduser().resolve()),'--operator',pwd.getpwuid(os.getuid()).pw_name,'--check-updates',*(['--weekly-backup'] if a.weekly_backup else []),'--apply'])
     print('Services installed; customer onboarding and functional acceptance remain pending.')
     print('Local dashboard: http://127.0.0.1:'+str(a.base_port))
     print('Next: docs/HANDOFF.md, docs/PRIVATE-ACCESS.md, then independent backup and reboot/restore acceptance.')

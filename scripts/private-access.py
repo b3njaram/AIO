@@ -4,6 +4,7 @@ import argparse,fcntl,ipaddress,json,re,shlex,subprocess,sys
 from pathlib import Path
 from private_origins import prepare,rollback
 from private_routes import manage
+import nextcloud_origin
 ROOT=Path(__file__).resolve().parents[1]
 APP_PORTS={'dashboard':'DASH_PORT','music':'MUSIC_PORT','navidrome':'NAV_PORT','movies':'MOVIE_PORT','photos':'PHOTO_PORT','files':'CLOUD_PORT','passwords':'VAULT_PORT','tasks':'TASK_PORT','monitor':'MONITOR_PORT'}
 def output(*args):
@@ -69,6 +70,7 @@ def main():
         fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
     if a.rollback_origins:
         existing_conflicts(json.loads(output('tailscale','serve','status','--json')),set())
+        nextcloud_origin.rollback(i)
         rollback(i)
         print('Previous files restored. Recreate the dashboard and affected services on this instance.')
         return
@@ -89,6 +91,7 @@ def main():
     status=json.loads(output('tailscale','serve','status','--json'))
     if a.verify:
         verify_config(status,plan,host)
+        if 'files' in plan:nextcloud_origin.verify(i,plan['files']['url'])
         print(json.dumps({'verified_serve_config':True,'urls':{k:v['url'] for k,v in plan.items()},'note':'Configuration check only. Verify TLS and app login from customer device, ACL denial from unauthorized account, and no public access.'},indent=2));return
     existing_conflicts(status,{x['port'] for x in plan.values()})
     c=commands(plan)
@@ -102,11 +105,13 @@ def main():
     if a.enable_routes:
         if any(env.get(k)!=v for k,v in changes.items()) or cfg!=config:
             p.error('Prepare app origins before enabling routes')
+        if 'files' in plan:nextcloud_origin.verify(i,plan['files']['url'])
         manage(i,plan,host,False,verify_config,existing_conflicts)
         print('Private Serve configuration verified. Test TLS and ACLs from independent devices.')
         return
     if a.prepare_origins:
         prepare(i,cfg,changes)
+        if 'files' in plan:nextcloud_origin.prepare(i,plan['files']['url'])
         print('Saved previous configuration and prepared private origins. Recreate dashboard and affected services before enabling Serve.')
     print(json.dumps({'host':host,'routes':plan,'proposed_env_changes':changes,'proposed_dashboard_config':cfg,'enable_commands':c['enable'],'disable_commands':c['disable'],'note':'Preview only. Confirm Vaultwarden signups are closed and the intended owner invitation before serving; finish its acceptance after HTTPS. Configure app origins and verify ACLs before enabling routes. Never enable Funnel. Do not run on owner infrastructure.'},indent=2))
 if __name__=='__main__':

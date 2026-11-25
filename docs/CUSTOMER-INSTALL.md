@@ -48,3 +48,5 @@ The USB generator accepts --weekly-backup only after the customer explicitly app
 ## Validate before distribution
 
 The `Headless Ubuntu first-boot VM` GitHub workflow tests the exact generated installed-system payload using a disposable cloud-image VM and sparse file-backed drives. Its tests do not replace physical USB/UEFI verification. Run the actual custom ISO through Subiquity and the physical hardware acceptance process separately. See HARDWARE-QUALIFICATION.md.
+
+The local account wizard also supports Uptime Kuma using the Ubuntu python3-socketio package, and --invite-vault sends an explicit invitation to the intended customer address; the native client must create its own master password and encryption keys. For remote installs, the signed Tailscale package is installed without enrollment. Once the owner enrolls their own tailnet and approves ACLs, finish-private-access.py previews or applies the journaled private HTTPS setup. Manual guided installs also enable a health timer and interrupted-backup resume service without an interactive login; add --weekly-backup only with customer approval.

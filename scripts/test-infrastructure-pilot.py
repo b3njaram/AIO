@@ -13,6 +13,9 @@ import urllib.parse
 import urllib.request
 import uuid
 from pathlib import Path
+import importlib.util
+spec=importlib.util.spec_from_file_location('account_setup',Path(__file__).with_name('setup-accounts.py'))
+account_setup=importlib.util.module_from_spec(spec);spec.loader.exec_module(account_setup)
 
 
 def request(url,data=None,token=None,form=False,opener=None):
@@ -40,7 +43,7 @@ def wait(fn,label='service'):
     raise RuntimeError(label+' readiness deadline exceeded')
 
 
-def vault(env,fixture,recover):
+def vault(instance,env,fixture,recover):
     base='http://127.0.0.1:'+env['VAULT_PORT']
     wait(lambda:request(base+'/alive')[0]==200)
     email='owner@example.invalid'
@@ -49,9 +52,7 @@ def vault(env,fixture,recover):
     verify=base+'/identity/accounts/register/send-verification-email'
     assert request(verify,{'email':'other@example.invalid'})[0]==400
     if not recover:
-        admin=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
-        assert request(base+'/admin/',{'token':env['VAULT_ADMIN_TOKEN']},form=True,opener=admin)[0]==200
-        assert request(base+'/admin/invite',{'email':email},opener=admin)[0]==200
+        account_setup.invite_vault(instance,email)
         code,verification=request(verify,{'email':email})
         assert code==200 and isinstance(verification,str)
         payload={**registration(email),'emailVerificationToken':verification,'kdf':0,'kdfIterations':600000}
@@ -71,9 +72,12 @@ def vault(env,fixture,recover):
     print('PASS Vaultwarden owner login, closed signup, private encrypted folder bytes')
 
 
-def monitor(env,fixture,recover):
+def monitor(instance,env,fixture,recover):
     import socketio
     base='http://127.0.0.1:'+env['MONITOR_PORT']
+    if not recover:
+        wait(lambda:request(base+'/')[0]==200,'Kuma UI')
+        account_setup.create(instance,'monitor','pilot','pilot@example.invalid',fixture['password'])
     client=socketio.Client(reconnection=False)
     def connect():
         try:client.connect(base,transports=['polling']);return True
@@ -81,7 +85,6 @@ def monitor(env,fixture,recover):
     wait(connect)
     try:
         assert client.call('getMonitorList')['ok'] is False
-        if not recover:assert client.call('setup',('pilot',fixture['password']))['ok']
         assert client.call('login',{'username':'pilot','password':fixture['password']})['ok']
         if not recover:
             row=client.call('add',{'name':'Local dashboard','type':'http','url':'http://dashboard:8080/healthz','interval':60,'accepted_statuscodes':['200-299'],'notificationIDList':{},'active':False,'conditions':[],'kafkaProducerBrokers':[],'kafkaProducerSaslOptions':{},'rabbitmqNodes':[]})
@@ -127,8 +130,8 @@ def main():
     else:
         encoded=lambda n:base64.b64encode(secrets.token_bytes(n)).decode()
         fixture={'password':secrets.token_urlsafe(32),'device':str(uuid.uuid4()),'cipher':'2.'+'|'.join(encoded(n) for n in (16,32,32))}
-    vault(env,fixture,recover)
-    monitor(env,fixture,recover)
+    vault(instance,env,fixture,recover)
+    monitor(instance,env,fixture,recover)
     dns(instance,env,recover)
     if not recover:
         with os.fdopen(os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600),'w') as out:json.dump(fixture,out)
