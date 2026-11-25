@@ -130,3 +130,36 @@ jobs:
             fi
           done
           rm -f /tmp/jobbi-media-fixture.json
+
+  library-recovery:
+    if: (github.event_name == 'workflow_dispatch' && inputs.full_stack) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[full-pilot]'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          command -v ffmpeg || (sudo apt-get update && sudo apt-get install -y ffmpeg)
+          mkdir -p /tmp/jobbi-library /tmp/jobbi-library-backups
+          python3 scripts/install.py --name source --data-root /tmp/jobbi-library --base-port 18600 --apps music,photos
+          python3 scripts/test-library-pilot.py /tmp/jobbi-library/source
+          bash scripts/backup.sh /tmp/jobbi-library/source /tmp/jobbi-library-backups
+          BACKUP="$(find /tmp/jobbi-library-backups -mindepth 1 -maxdepth 1 -type d | head -1)"
+          python3 scripts/restore.py "$BACKUP" --data-root /tmp/jobbi-library --name recovered --base-port 18700
+          bash scripts/ctl.sh /tmp/jobbi-library/recovered up -d
+          python3 scripts/test-library-pilot.py /tmp/jobbi-library/recovered --recover
+          python3 scripts/test-library-pilot.py /tmp/jobbi-library/source --recover
+      - if: failure()
+        run: |
+          for n in source recovered; do
+            if test -f "/tmp/jobbi-library/$n/.env"; then
+              bash scripts/ctl.sh "/tmp/jobbi-library/$n" ps -a
+            fi
+          done
+      - if: always()
+        run: |
+          for n in source recovered; do
+            if test -f "/tmp/jobbi-library/$n/.env"; then
+              bash scripts/ctl.sh "/tmp/jobbi-library/$n" down -v
+            fi
+          done
+          rm -f /tmp/jobbi-library-fixture.json

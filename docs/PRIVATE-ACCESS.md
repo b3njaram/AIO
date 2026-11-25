@@ -5,7 +5,7 @@ Do not use the owner's personal Tailscale account, Cloudflare tunnel, DNS or pub
 Official documentation: https://tailscale.com/docs/reference/tailscale-cli/serve and https://tailscale.com/docs/features/tailscale-serve.
 
 ## Preview, never automatically expose
-Install using loopback binds; complete local onboarding via SSH tunnel first. On the customer host:
+Install using loopback binds; complete local onboarding via SSH tunnel first, except remote access and Vaultwarden's HTTPS-dependent acceptance. Before enabling the password route, verify signups are disabled and the owner invitation is intended; complete its login/recovery checks after HTTPS. On the customer host:
 
     python3 scripts/private-access.py INSTANCE
 

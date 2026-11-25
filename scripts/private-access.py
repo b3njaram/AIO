@@ -59,10 +59,10 @@ def main():
     host=hostname(state['Self']['DNSName'])
     plan=routes(env,config,host,a.https_base)
     # Manual onboarding confirmations must exist before even generating exposure instructions.
-    selected={x['id'] for x in config['apps']}-{'remote'}
+    selected={x['id'] for x in config['apps']}-{'remote','passwords'}
     onboard=i/'onboarding.json'
     done=json.loads(onboard.read_text()) if onboard.is_file() else {}
-    if not selected<=set(done):p.error('Complete local setup and mark all selected applications in onboard.py first')
+    if not selected<=set(done):p.error('Complete local setup and mark all selected applications except remote and Vaultwarden (which needs HTTPS) first')
     status=json.loads(output('tailscale','serve','status','--json'))
     if a.verify:
         verify_config(status,plan,host)
@@ -75,7 +75,7 @@ def main():
     if 'music' in plan:changes['MUSIC_HTTPS']='true'
     if 'passwords' in plan:changes['VAULT_DOMAIN']=plan['passwords']['url']
     if 'tasks' in plan:changes.update(TASK_URL=plan['tasks']['url']+'/',TASK_REGISTRATION='false')
-    print(json.dumps({'host':host,'routes':plan,'proposed_env_changes':changes,'proposed_dashboard_config':cfg,'enable_commands':c['enable'],'disable_commands':c['disable'],'note':'Preview only. Configure app origins and verify ACLs before enabling routes. Never enable Funnel. Do not run on owner infrastructure.'},indent=2))
+    print(json.dumps({'host':host,'routes':plan,'proposed_env_changes':changes,'proposed_dashboard_config':cfg,'enable_commands':c['enable'],'disable_commands':c['disable'],'note':'Preview only. Confirm Vaultwarden signups are closed and the intended owner invitation before serving; finish its acceptance after HTTPS. Configure app origins and verify ACLs before enabling routes. Never enable Funnel. Do not run on owner infrastructure.'},indent=2))
 if __name__=='__main__':
     try:main()
     except (OSError,ValueError,KeyError,TypeError,subprocess.CalledProcessError,subprocess.TimeoutExpired) as e:sys.exit('Private access plan stopped: '+str(e))
