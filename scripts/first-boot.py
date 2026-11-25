@@ -27,7 +27,7 @@ def main():
     run('usermod','-aG','docker',user.pw_name)
     run(sys.executable,str(ROOT/'scripts/boot-guard.py'),str(roots[0]),'--apply')
     env={**os.environ,'GIT_CONFIG_COUNT':'1','GIT_CONFIG_KEY_0':'safe.directory','GIT_CONFIG_VALUE_0':str(ROOT),'HOME':user.pw_dir}
-    run('runuser','-u',user.pw_name,'--',sys.executable,str(ROOT/'scripts/setup-customer.py'),'--name',cfg['name'],'--data-root',str(roots[0]),'--backup-root',str(roots[1]),'--apps',cfg['apps'],'--defer-health-to-first-boot','--apply',env=env)
+    run('runuser','-u',user.pw_name,'--',sys.executable,str(ROOT/'scripts/setup-customer.py'),'--name',cfg['name'],'--data-root',str(roots[0]),'--backup-root',str(roots[1]),'--apps',cfg['apps'],'--tz',cfg.get('tz','America/Ciudad_Juarez'),'--base-port',str(cfg.get('base_port',18080)),'--defer-health-to-first-boot','--apply',env=env)
     # Only stable by-id aliases for whole disks backing the explicitly approved
     # filesystems. Do not auto-select USB devices, other disks or partitions.
     devices=set()

@@ -3,12 +3,15 @@
 import argparse,getpass,hashlib,json,os,re,shlex,subprocess,sys
 from pathlib import Path
 from install import DEFAULT,APPS
+ROOT=Path(__file__).resolve().parents[1]
 def validate(a):
     if not re.fullmatch(r'[a-z][a-z0-9-]{0,30}',a.name) or not re.fullmatch(r'[a-z_][a-z0-9_-]{0,30}',a.operator):raise ValueError('Invalid host or operator name')
     if a.operator=='root' or not re.fullmatch('[a-f0-9]{40}',a.commit):raise ValueError('Use nonroot operator and reviewed full commit')
     for u in (a.data_uuid,a.backup_uuid):
         if not re.fullmatch(r'[A-Za-z0-9-]{8,80}',u):raise ValueError('Provide existing formatted filesystem UUID')
     if a.data_uuid==a.backup_uuid:raise ValueError('Independent filesystems required')
+    if not re.fullmatch(r'[A-Za-z0-9_+/-]+',getattr(a,'tz','America/Ciudad_Juarez')):raise ValueError('Invalid timezone')
+    if not 1024<=getattr(a,'base_port',18080)<=65525:raise ValueError('Invalid base port')
     apps=list(dict.fromkeys(a.apps.split(',')))
     if not apps or any(x not in set(APPS)-{'dns','navidrome'} for x in apps) or apps==['remote']:raise ValueError('Select core apps; DNS is separate')
     return apps
@@ -17,7 +20,7 @@ def mount_unit(uuid,path):
 def config(a,password_hash):
     apps=validate(a)
     # UUIDs refer to existing volumes; no storage layout or wipe instructions.
-    settings={'name':a.name,'operator':a.operator,'commit':a.commit,'data_uuid':a.data_uuid,'backup_uuid':a.backup_uuid,'apps':','.join(apps),'weekly_backup':getattr(a,'weekly_backup',False)}
+    settings={'name':a.name,'operator':a.operator,'commit':a.commit,'data_uuid':a.data_uuid,'backup_uuid':a.backup_uuid,'apps':','.join(apps),'weekly_backup':getattr(a,'weekly_backup',False),'tz':getattr(a,'tz','America/Ciudad_Juarez'),'base_port':getattr(a,'base_port',18080)}
     # First boot does not rely on a graphical login. Pin checkout before executing.
     boot='''#!/bin/bash
 set -euo pipefail
@@ -55,7 +58,20 @@ WantedBy=multi-user.target
     # Literal backslash in the escaped mount unit name; JSON serializes safely.
     return {'autoinstall':{'version':1,'interactive-sections':['storage'],'identity':{'hostname':a.name,'username':a.operator,'password':password_hash},'ssh':{'install-server':True,'allow-pw':False,'authorized-keys':[a.ssh_key]},'packages':['docker.io','docker-compose-v2','git','python3','curl','smartmontools','util-linux','python3-socketio'],'user-data':{'write_files':files,'runcmd':[['systemctl','daemon-reload'],['systemctl','enable','--now','docker'],['systemctl','enable','srv-jobbi\\x2ddata.mount','mnt-jobbi\\x2dbackup.mount'],['systemctl','enable','jobbi-first-boot.service'],['systemctl','start','--no-block','jobbi-first-boot.service']]}}}
 def main():
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--name',required=True);p.add_argument('--operator',default='jobbi');p.add_argument('--commit',required=True);p.add_argument('--data-uuid',required=True);p.add_argument('--backup-uuid',required=True);p.add_argument('--apps',default=DEFAULT);p.add_argument('--weekly-backup',action='store_true',help='Customer approved weekly cold backup downtime');p.add_argument('--ssh-key-file',type=Path,required=True);p.add_argument('--out',type=Path,required=True);p.add_argument('--ubuntu-iso',type=Path);p.add_argument('--iso-sha256');a=p.parse_args()
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--name');p.add_argument('--profile',type=Path,help='Non-secret installation profile exported by the private dashboard');p.add_argument('--quote',type=Path,help='Customer quote export for app selection');p.add_argument('--operator',default='jobbi');p.add_argument('--commit',required=True);p.add_argument('--data-uuid',required=True);p.add_argument('--backup-uuid',required=True);p.add_argument('--apps');p.add_argument('--tz');p.add_argument('--base-port',type=int);p.add_argument('--weekly-backup',action='store_true',help='Customer approved weekly cold backup downtime');p.add_argument('--ssh-key-file',type=Path,required=True);p.add_argument('--out',type=Path,required=True);p.add_argument('--ubuntu-iso',type=Path);p.add_argument('--iso-sha256');a=p.parse_args()
+    if a.profile and a.quote:p.error('Choose one configuration source')
+    profile={}
+    if a.profile:
+        profile=json.loads(a.profile.read_text())
+        if profile.get('schema')!=1 or profile.get('kind')!='jobbi-install-profile':p.error('Invalid installation profile')
+    elif a.quote:
+        profile=json.loads(a.quote.read_text())
+        if profile.get('schema')!=1:p.error('Invalid quote')
+    if (a.profile or a.quote) and (not isinstance(profile.get('apps'),list) or any(not isinstance(x,str) for x in profile['apps'])):p.error('Invalid profile app list')
+    a.name=a.name or profile.get('name','home')
+    a.apps=a.apps or (','.join(profile['apps']) if profile else DEFAULT)
+    a.tz=a.tz or profile.get('tz','America/Ciudad_Juarez')
+    a.base_port=a.base_port or profile.get('base_port',18080)
     validate(a)
     a.ssh_key=a.ssh_key_file.read_text().strip()
     if '\n' in a.ssh_key or not re.fullmatch(r'(?:ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp256) [A-Za-z0-9+/=]+(?: [^\r\n]+)?',a.ssh_key):p.error('Use a single authorized public SSH key')
@@ -63,7 +79,9 @@ def main():
         if not a.iso_sha256 or not re.fullmatch('[a-fA-F0-9]{64}',a.iso_sha256) or not a.ubuntu_iso.is_file():p.error('Provide a regular official ISO and verified SHA256')
         with a.ubuntu_iso.open('rb') as stream:digest=hashlib.file_digest(stream,'sha256').hexdigest()
         if digest!=a.iso_sha256.lower():p.error('ISO checksum mismatch')
-    if a.out.exists():p.error('Use a new private output directory')
+    a.out=a.out.expanduser().resolve()
+    if a.out.exists() or a.out==ROOT or ROOT in a.out.parents:p.error('Use a new private directory outside Git')
+    if not sys.stdin.isatty():p.error('Use a trusted interactive terminal for the operator password')
     pw=getpass.getpass('New local operator password (12+ characters): ')
     if len(pw)<12 or '\n' in pw or pw!=getpass.getpass('Confirm: '):p.error('Password mismatch or too short')
     hashed=subprocess.check_output(['openssl','passwd','-6','-stdin'],input=pw+'\n',text=True).strip();del pw
@@ -72,6 +90,7 @@ def main():
     (a.out/'user-data').write_text('#cloud-config\n'+raw)
     (a.out/'meta-data').write_text('instance-id: jobbi-'+a.name+'\nlocal-hostname: '+a.name+'\n')
     (a.out/'autoinstall.yaml').write_text(raw)
+    (a.out/'README.txt').write_text('Customer-specific private seed. Boot the official Ubuntu Server 24.04 installer, select only the approved OS disk interactively, preserve the prepared data and backup filesystems, and inspect the first-boot service. The seed contains the local password hash; do not share or commit. Delete securely when no longer needed.\n')
     if a.ubuntu_iso:
         output=a.out/'jobbi-ubuntu-server.iso'
         subprocess.run(['xorriso','-indev',str(a.ubuntu_iso),'-outdev',str(output),'-map',str(a.out/'autoinstall.yaml'),'/autoinstall.yaml','-boot_image','any','replay','-commit','-end'],check=True)

@@ -84,6 +84,10 @@ def main():
                 q=page.locator('#planForm');select(q,'order_id','DEMO-1');fill(q,'name','demo1')
                 q.get_by_role('button',name='Generate installation plan').click()
                 expect(page.locator('#planOutput')).to_contain_text('--name demo1')
+                with page.expect_download() as d:page.locator('#downloadProfile').click()
+                profile=json.loads(Path(d.value.path()).read_text())
+                assert profile['kind']=='jobbi-install-profile' and profile['name']=='demo1' and profile['base_port']==18080 and 'apps' in profile
+                assert 'order_id' not in profile and 'note' not in profile
                 page.locator('#eventPanel > summary').click()
                 event=page.locator('#eventForm')
                 select(event,'step','storage');select(event,'result','passed');fill(event,'note','Verified synthetic mount')

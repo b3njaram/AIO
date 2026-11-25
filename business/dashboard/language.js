@@ -135,6 +135,7 @@ Time zone|Zona horaria
 Mirrored disks requested|Se solicitaron discos en espejo
 Generate installation plan|Generar plan de instalación
 Download plan|Descargar plan
+Export USB profile|Exportar perfil USB
 Support, warranty & maintenance|Soporte, garantías y mantenimiento
 Case ID|Folio del caso
 support|soporte
