@@ -13,6 +13,13 @@ class Tests(unittest.TestCase):
         self.assertEqual(m.private_url('https://notify.demo.ts.net/fixture-topic'),'https://notify.demo.ts.net/fixture-topic')
         for x in ('http://notify.demo.ts.net/fixture-topic','https://example.com/fixture-topic','https://notify.demo.ts.net:8080/fixture-topic','https://user@notify.demo.ts.net/fixture-topic','https://notify.demo.ts.net/fixture-topic?token=x'):
             with self.assertRaises(ValueError):m.private_url(x)
+    def test_public_address_refused(self):
+        self.assertTrue(m.tailnet_address('100.100.1.2'))
+        self.assertFalse(m.tailnet_address('192.168.1.2'))
+        conn=m.PrivateHTTPS('notify.demo.ts.net',443)
+        with patch.object(m.socket,'getaddrinfo',return_value=[(2,1,6,'',('8.8.8.8',443))]),patch.object(m.socket,'create_connection') as connect:
+            with self.assertRaises(ValueError):conn.connect()
+            connect.assert_not_called()
     def test_consent_and_dedup(self):
         with tempfile.TemporaryDirectory() as tmp,patch.object(m.os,'geteuid',return_value=1000):
             i=Path(tmp);send=Mock()

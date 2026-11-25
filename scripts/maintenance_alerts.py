@@ -1,5 +1,5 @@
 """Sanitized local alerts and optional customer-owned private HTTPS delivery."""
-import datetime as dt,json,math,os,re,stat,tempfile,urllib.request,urllib.parse
+import datetime as dt,json,math,os,re,stat,tempfile,urllib.parse,http.client,ssl,socket,ipaddress
 from pathlib import Path
 CODES={'storage_low','system_disk_low','temperature_high','drive_failed','drive_review','raid_degraded','backup_overdue','backup_unverified','backup_missing','services_review','health_stale','update_available','recovery_review'}
 def now():return dt.datetime.now(dt.timezone.utc)
@@ -42,17 +42,30 @@ def atomic(p,obj):
         try:
             json.dump(obj,out);out.flush();os.fsync(out.fileno());os.fchmod(out.fileno(),0o600);os.replace(tmp,p)
         finally:tmp.unlink(missing_ok=True)
-class NoRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self,*args,**kwargs):raise ValueError('Notification redirect refused')
+def tailnet_address(value):
+    addr=ipaddress.ip_address(value)
+    return addr in ipaddress.ip_network('100.64.0.0/10') or addr in ipaddress.ip_network('fd7a:115c:a1e0::/48')
+class PrivateHTTPS(http.client.HTTPSConnection):
+    def connect(self):
+        # Pin to a tailnet address; TLS verifies the original hostname.
+        addresses=socket.getaddrinfo(self.host,self.port,type=socket.SOCK_STREAM)
+        if not addresses or any(not tailnet_address(x[4][0]) for x in addresses):raise ValueError('Notification destination is not private tailnet addressing')
+        raw=socket.create_connection((addresses[0][4][0],self.port),self.timeout)
+        try:self.sock=self._context.wrap_socket(raw,server_hostname=self.host)
+        except BaseException:raw.close();raise
 def deliver(url,token,codes):
     private_url(url)
     if not isinstance(token,str) or not re.fullmatch(r'[A-Za-z0-9_.~-]{16,512}',token):raise ValueError('Private notification token required')
     # Only fixed categories, never paths, disk IDs, usernames, addresses or logs.
     if any(c not in CODES for c in codes):raise ValueError('Invalid alert category')
     payload=('JobbiSoft Home maintenance: '+(', '.join(codes) if codes else 'previous alerts cleared')).encode()
-    request=urllib.request.Request(url,data=payload,headers={'Authorization':'Bearer '+token,'Content-Type':'text/plain; charset=utf-8','Title':'JobbiSoft Home'})
-    with urllib.request.build_opener(urllib.request.ProxyHandler({}),NoRedirect()).open(request,timeout=10) as response:
-        if not 200<=response.status<300:raise ValueError('Notification not accepted')
+    u=urllib.parse.urlsplit(url)
+    conn=PrivateHTTPS(u.hostname,443,timeout=10,context=ssl.create_default_context())
+    try:
+        conn.request('POST',u.path,body=payload,headers={'Authorization':'Bearer '+token,'Content-Type':'text/plain; charset=utf-8','Title':'JobbiSoft Home'})
+        with conn.getresponse() as response:
+            if not 200<=response.status<300:raise ValueError('Notification not accepted')
+    finally:conn.close()
 def process(instance,snapshot,send=deliver):
     """Local alerts always work. External delivery is explicit and unprivileged."""
     import fcntl
@@ -80,4 +93,4 @@ def process(instance,snapshot,send=deliver):
             send(cfg['url'],cfg['token'],codes)
             atomic(state,{'active':codes,'at':stamp.isoformat()})
             return {**result,'delivery':'sent'}
-        except (OSError,ValueError,KeyError,TypeError):return {**result,'delivery':'review'}
+        except (OSError,ValueError,KeyError,TypeError,http.client.HTTPException):return {**result,'delivery':'review'}

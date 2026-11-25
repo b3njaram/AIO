@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Configure customer-owned ntfy-compatible private notification delivery."""
-import argparse,getpass,json,os,sys
+import argparse,getpass,json,os,sys,fcntl
 from pathlib import Path
 from maintenance_alerts import private_url,atomic,process,private_read
 def main():
@@ -18,13 +18,19 @@ def main():
         token=getpass.getpass('Private notification access token: ')
         import re
         if not re.fullmatch(r'[A-Za-z0-9_.~-]{16,512}',token):p.error('Invalid access token')
-        atomic(config,{'url':a.url,'token':token,'enabled':True});state.unlink(missing_ok=True)
+        with (i/'.notification.lock').open('a') as lock:
+            fcntl.flock(lock,fcntl.LOCK_EX)
+            atomic(config,{'url':a.url,'token':token,'enabled':True});state.unlink(missing_ok=True)
         print('Enabled. Verify the private destination and its access controls.')
     elif a.action=='disable':
         if not a.apply:print('Preview: add --apply to erase local notification credentials');return
-        config.unlink(missing_ok=True);state.unlink(missing_ok=True);print('Disabled; revoke the token on the destination too.')
+        with (i/'.notification.lock').open('a') as lock:
+            fcntl.flock(lock,fcntl.LOCK_EX)
+            config.unlink(missing_ok=True);state.unlink(missing_ok=True)
+        print('Disabled; revoke the token on the destination too.')
     else:
-        s=json.loads((i/'data/.dashboard-metrics/health.json').read_text())
+        try:s=json.loads((i/'data/.dashboard-metrics/health.json').read_text())
+        except (OSError,ValueError):s={}
         print(json.dumps(process(i,s),indent=2))
 if __name__=='__main__':
     try:main()
