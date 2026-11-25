@@ -25,6 +25,7 @@ def main():
                 expect(page.locator('#apps')).to_be_visible()
                 page.locator('[data-app="dns"]').check()
                 page.locator('#next').click()
+                page.locator('#subscriptionChoices > summary').click()
                 expect(page.locator('#subs')).to_be_visible()
                 page.locator('#subs input[type=checkbox]').first.check()
                 page.locator('#support').select_option('12')

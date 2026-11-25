@@ -1,9 +1,9 @@
 name: Owner dashboard browser checks
 on:
   push:
-    paths: ['business/**','quote/**','.github/workflows/browser.yml']
+    paths: ['business/**','quote/**','deploy/dashboard/**','.github/workflows/browser.yml']
   pull_request:
-    paths: ['business/**','quote/**','.github/workflows/browser.yml']
+    paths: ['business/**','quote/**','deploy/dashboard/**','.github/workflows/browser.yml']
   workflow_dispatch:
 jobs:
   browser:
@@ -17,3 +17,4 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       - run: python business/dashboard/browser-pilot.py
       - run: python quote/browser-pilot.py
+      - run: python deploy/dashboard/browser-pilot.py

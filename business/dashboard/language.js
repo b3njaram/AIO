@@ -10,6 +10,8 @@ Plan customer servers|Planea servidores de clientes
 Review open cases|Revisa casos abiertos
 Generate customer PDFs|Genera documentos PDF
 Upcoming renewals|Próximos vencimientos
+Recent cash transactions|Movimientos de efectivo recientes
+No cash transactions yet.|Aún no hay movimientos de efectivo.
 Active orders|Pedidos activos
 Installations in progress|Instalaciones en curso
 Open support cases|Casos abiertos

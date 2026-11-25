@@ -1,0 +1,32 @@
+"""Test the customer launcher with disposable status/config fixtures."""
+from pathlib import Path
+from playwright.sync_api import sync_playwright,expect
+import json
+def main():
+    html=Path(__file__).with_name('index.html').read_text()
+    with sync_playwright() as pw:
+        browser=pw.chromium.launch()
+        for width in (1280,390):
+            page=browser.new_page(viewport={'width':width,'height':800},reduced_motion='reduce')
+            errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
+            page.route('http://jobbi.test/',lambda route:route.fulfill(content_type='text/html',body=html))
+            page.route('**/api/config',lambda route:route.fulfill(json={'name':'Jobbi Home · Demo','apps':[{'id':'music','name':'Jobbi Music','en':'Personal music','es':'Música personal','port':18081},{'id':'passwords','name':'Vaultwarden','en':'Password manager','es':'Gestor de contraseñas','url':'https://demo.example.ts.net:19449','note':'HTTPS required','noteEs':'Requiere HTTPS'},{'id':'remote','name':'Tailscale','en':'Private access','es':'Acceso privado'}]}))
+            page.route('**/api/status',lambda route:route.fulfill(json={'disk':{'free':4000000000,'total':8000000000,'used':4000000000},'apps':[{'id':'music','state':'reachable'},{'id':'passwords','state':'unavailable'},{'id':'remote','state':'manual'}]}))
+            page.goto('http://jobbi.test/')
+            expect(page.locator('#apps .app')).to_have_count(3)
+            expect(page.locator('#apps .badge').first).to_contain_text('Reachable')
+            expect(page.locator('#statusPage')).to_be_hidden()
+            expect(page.locator('#apps a').nth(1)).to_have_attribute('href','https://demo.example.ts.net:19449')
+            page.locator('#statusTab').click()
+            expect(page.locator('#disk')).to_have_text('4.0 GB free of 8.0 GB')
+            expect(page.locator('#meter')).to_have_attribute('value','50')
+            page.locator('#lang').click()
+            expect(page.locator('#statusLabel')).to_have_text('Estado del servidor')
+            page.locator('#appsTab').click()
+            expect(page.locator('#apps .badge').first).to_contain_text('Disponible')
+            assert page.evaluate('document.documentElement.scrollWidth<=window.innerWidth+1')
+            assert not errors,errors
+            page.close()
+        browser.close()
+    print('PASS: customer app launcher, private URLs, separate status page, Spanish and mobile layout')
+if __name__=='__main__':main()

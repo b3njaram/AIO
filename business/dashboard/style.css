@@ -49,3 +49,11 @@ button{transition:transform .15s,background .15s,border-color .15s}button:active
 @keyframes enter{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 @media(max-width:800px){main{display:block;padding:16px}header h1{margin:3px 0}nav{position:static;flex-direction:row;overflow-x:auto;flex-wrap:nowrap;gap:5px;margin:15px 0;padding-bottom:7px}nav button{flex-shrink:0;white-space:nowrap;font-size:.85rem;padding:9px 12px}#status{margin-bottom:10px}section{margin-top:14px}.quick-actions{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+
+nav button::before{content:none!important}.nav-icon{flex-shrink:0;width:21px;height:21px;display:grid;place-items:center}
+.nav-icon svg{display:block;width:20px;height:20px}.quick-actions .nav-icon svg{width:24px;height:24px}
+.offer-visual svg{width:54px;height:54px}
+#recentPayments{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:8px 18px}
+.recent-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 14px;padding:12px 0;border-bottom:1px solid var(--line)}
+.recent-row:last-child{border:0}.recent-row small{grid-column:1/-1}
+@media(max-width:520px){nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));overflow:visible;gap:4px}nav button{white-space:normal;min-height:42px;line-height:1.2;padding:8px}.nav-icon{width:18px;height:18px}.nav-icon svg{width:18px;height:18px}}
