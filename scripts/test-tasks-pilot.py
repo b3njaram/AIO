@@ -28,7 +28,7 @@ def main():
         except (OSError,ValueError):pass
         time.sleep(2)
     else:raise AssertionError('Vikunja API unavailable after 180s; last HTTP status: '+last_status)
-    assert info.get('registration_enabled') is False, 'Registration not closed'
+    assert info.get('auth',{}).get('local',{}).get('registration_enabled') is False, 'Registration not closed or unknown API schema'
     code,_=request('/register','POST',{'username':user,'password':pw,'email':email})
     assert code in (400,403,404,405),f'Registration unexpectedly returned {code}'
     if recover:

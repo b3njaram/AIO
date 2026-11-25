@@ -17,7 +17,7 @@ Set QUOTE_PORT or QUOTE_BIND in the environment if needed. The default is loopba
 
 ## Customer server
 
-For a dedicated headless Ubuntu Server 24.04 LTS x86-64 appliance, see [guided installation](docs/CUSTOMER-INSTALL.md). The new `scripts/setup-customer.py` previews by default and orchestrates package installation, preflight, provisioning, reachability and onboarding with `--apply`. Keep the customer stack loopback-only until account setup and private HTTPS are verified. Never execute the customer installer on the owner production host.
+For a dedicated headless Ubuntu Server 24.04 LTS x86-64 appliance (including customer-specific USB seed generation), see [guided installation](docs/CUSTOMER-INSTALL.md). The new `scripts/setup-customer.py` previews by default and orchestrates package installation, preflight, provisioning, reachability and onboarding with `--apply`. Keep the customer stack loopback-only until account setup and private HTTPS are verified. Never execute the customer installer on the owner production host.
 
 Recommended starting target: dedicated x86-64 Linux host or VM, Docker Engine + Compose v2, Git, Python 3, Bash, curl, 16 GB RAM for the full stack, and SSD for Docker databases. NAS-specific support and ARM compatibility are not yet validated. Format/mirror drives outside this installer. Confirm the mounted filesystem before installing.
 
