@@ -50,3 +50,29 @@ For optional failure notification, add `--failure-unit your-notifier.service` to
 
 ## Storage Manager
 See [STORAGE.md](STORAGE.md) for read-only RAID1 status and technician disk preparation, replacement and expansion plans. No web endpoint executes disk operations.
+
+## Recovery Center: supervised offline trial
+
+The new recovery-center.py provides a technician catalog of completed manifests, explicit checksum and identity verification, strict stopped restore, staged update and rollback. Capture the approved backup filesystem fingerprint from backup_mount.mount_identity; the tool refuses mount substitution and a backup sharing the Docker filesystem. Use a dedicated customer host only.
+
+    python3 -c 'import sys;sys.path.insert(0,"scripts");from backup_mount import mount_identity;print(mount_identity(sys.argv[1]))' BACKUP_ROOT
+
+    python3 scripts/recovery-center.py catalog INSTANCE BACKUP_ROOT --mount-id FINGERPRINT
+    python3 scripts/recovery-center.py verify INSTANCE BACKUP_ROOT --mount-id FINGERPRINT --backup EXACT_DIRECTORY_NAME
+    python3 scripts/recovery-center.py restore INSTANCE BACKUP_ROOT --mount-id FINGERPRINT --backup EXACT_DIRECTORY_NAME --candidate restored --base-port 19080
+
+Add --apply to restore only after verifying capacity and intended target. It creates a stopped copy. A manifest alone is not verified integrity.
+
+For a final update trial, check out the exact reviewed target revision with full Git history. Disable private routes, restore local origins, coordinate a customer maintenance window and prevent external writes. Confirm a separate physical backup, enough space for full image/data archives and a parallel copy.
+
+    python3 scripts/recovery-center.py stage INSTANCE BACKUP_ROOT --mount-id FINGERPRINT --candidate trial --base-port 19080 --to-commit FULL_REVIEWED_SHA
+
+Add --apply to perform a final cold backup with all images, hold the original offline and stage a separate stopped candidate. If staging fails, inspect the exact hold and any partial candidate; do not delete or overwrite it. An interruption before the hold is fully committed can resume the source through the normal backup journal; the trial refuses to start if the source is running.
+
+    python3 scripts/recovery-center.py start-trial INSTANCE BACKUP_ROOT --mount-id FINGERPRINT --candidate trial --apply
+
+This checks reachability, not functional acceptance. Keep the trial loopback-only with no public or private customer routes until a technician completes every selected application's acceptance. Do not allow real customer writes during testing. On rollback:
+
+    python3 scripts/recovery-center.py rollback INSTANCE BACKUP_ROOT --mount-id FINGERPRINT --candidate trial --confirm-no-candidate-writes --apply
+
+The tool stops the linked candidate and restarts the original exact service set; it retains both datasets and the backup. If a partial candidate has no valid link journal, inspect it manually before recovery. Never start both with real users. Production cutover, transferring systemd timers, private HTTPS, customer data reconciliation after real writes and retiring the original remain supervised tasks; this is not an unattended migration. No automatic deletion or rollback of migrated databases.

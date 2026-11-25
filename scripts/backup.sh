@@ -24,8 +24,9 @@ if [[ "${2:-}" == "--resume" ]]; then
   resume_services
   exit
 fi
+[[ ! -e "$INSTANCE/.upgrade-hold.json" ]] || { echo "Upgrade hold active; do not back up or restart original until reconciled" >&2; exit 1; }
 [[ ! -e "$JOURNAL" ]] || { echo 'Interrupted backup. Inspect the instance, then run backup.sh INSTANCE --resume.' >&2; exit 1; }
-[[ -d "$DEST" && "$DEST" != "$INSTANCE" && "$DEST" != "$INSTANCE/"* ]] || { echo 'Separate backup directory required'; exit 1; }
+[[ -d "$DEST" && "$DEST" != "$INSTANCE" && "$DEST" != "$INSTANCE/"* && "$INSTANCE" != "$DEST/"* ]] || { echo 'Separate backup directory required'; exit 1; }
 OUT="$DEST/$PROJECT-$(date -u +%Y%m%dT%H%M%SZ)"
 mkdir "$OUT"
 # Preserve the actual running/stopped image identities, not merely mutable tags.
@@ -34,11 +35,16 @@ python3 "$ROOT/scripts/release-inventory.py" "$INSTANCE" --record >/dev/null
 # images are referenced by immutable digest in the backed-up inventory.
 image_file=local-images.tar.gz
 image_options=()
-if [[ "${3:-}" == "--all-images" ]]; then
+hold=false
+if [[ "${3:-}" == "--hold-for-upgrade" ]]; then
+  hold=true
+  image_file=all-images.tar.gz
+  image_options=(--all-images)
+elif [[ "${3:-}" == "--all-images" ]]; then
   image_file=all-images.tar.gz
   image_options=(--all-images)
 elif [[ $# -ne 2 ]]; then
-  echo 'Usage: backup.sh INSTANCE DEST [--all-images]' >&2; exit 2
+  echo 'Usage: backup.sh INSTANCE DEST [--all-images|--hold-for-upgrade]' >&2; exit 2
 fi
 IMAGE_LIST="$(python3 "$ROOT/scripts/recovery_images.py" "$INSTANCE/image-inventory.json" "${image_options[@]}")"
 if [[ -n "$IMAGE_LIST" ]]; then
@@ -71,6 +77,22 @@ while IFS= read -r volume; do
   [[ "$volume" == "$PROJECT"_* ]] || { echo "Unexpected volume"; exit 1; }
   docker run --rm --network none -v "$volume:/src:ro" -v "$OUT:/backup:rw" alpine:3.22@sha256:49340b346798875b5592e5d420241f2f9cfba5f47e62ebb1446a1b34734e898f sh -c 'tar czf "/backup/$1.tar.gz" -C /src .' sh "$volume"
 done <<< "$VOLUMES"
-resume_services
 (cd "$OUT" && sha256sum ./*.tar.gz > SHA256SUMS.tmp && sha256sum -c SHA256SUMS.tmp && mv SHA256SUMS.tmp SHA256SUMS)
+if $hold; then
+  # Record the exact originally running services and completed archive. Keep
+  # the normal interrupted-backup journal until the hold is safely recorded.
+  python3 - "$INSTANCE" "$OUT" <<'PY'
+import json,os,sys
+from pathlib import Path
+i=Path(sys.argv[1]);b=Path(sys.argv[2]);journal=i/'.backup-running-services'
+p=i/'.upgrade-hold.json';tmp=i/'.upgrade-hold.tmp'
+with tmp.open('x') as out:
+    json.dump({'state':'held','backup':str(b),'services':journal.read_text().splitlines()},out)
+    out.flush();os.fsync(out.fileno())
+os.replace(tmp,p)
+PY
+  rm -- "$JOURNAL"
+else
+  resume_services
+fi
 echo "Backup: $OUT (contains secrets; encrypt and test restoration on separate host)"

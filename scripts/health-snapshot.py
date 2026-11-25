@@ -35,9 +35,14 @@ def summarize(instance,dest,expected,devices=(),check_updates=False):
             elif stamp:backup={'state':'review'}
             if any('backup' in x.lower() and ('fail' in x.lower() or 'older' in x.lower()) for x in m.get('alerts',[])):backup['state']='review'
     except (OSError,ValueError,KeyError,subprocess.SubprocessError):pass
+    recovery={'state':'idle'}
+    try:
+        r=json.loads((instance/'recovery-state.json').read_text());state=r.get('state')
+        if state in ('preparing','candidate_ready','trial_reachable','review_required','rolled_back'):recovery={'state':state}
+    except (OSError,ValueError):pass
     smart=diag['smart'] if isinstance(diag['smart'],list) else []
     # Keep raw diagnostics private. Provide only safe health categories, not hardware IDs.
-    return {'at':now().isoformat(),'data_free_percent':diag['data_free_percent'],'docker_free_percent':diag['docker_free_percent'],'ram_gib':diag['ram_gib'],'temperature_c':[x['celsius'] for x in diag['thermal_zones'] if isinstance(x.get('celsius'),(int,float))],'drives':[{'state':x['state'],'temperature_c':x.get('temperature_c')} for x in smart],'storage':storage_snapshot(instance),'service_alert_count':len(diag['alerts']),'backup':backup,'updates':update_status(release,check_updates),'onboarding':sorted(set(json.loads((instance/'onboarding.json').read_text()))&set('music navidrome movies photos files passwords tasks dns monitor remote'.split())) if (instance/'onboarding.json').exists() else []}
+    return {'at':now().isoformat(),'data_free_percent':diag['data_free_percent'],'docker_free_percent':diag['docker_free_percent'],'ram_gib':diag['ram_gib'],'temperature_c':[x['celsius'] for x in diag['thermal_zones'] if isinstance(x.get('celsius'),(int,float))],'drives':[{'state':x['state'],'temperature_c':x.get('temperature_c')} for x in smart],'storage':storage_snapshot(instance),'recovery':recovery,'service_alert_count':len(diag['alerts']),'backup':backup,'updates':update_status(release,check_updates),'onboarding':sorted(set(json.loads((instance/'onboarding.json').read_text()))&set('music navidrome movies photos files passwords tasks dns monitor remote'.split())) if (instance/'onboarding.json').exists() else []}
 def main():
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('instance',type=Path);p.add_argument('backup',type=Path);p.add_argument('--expected-backup-mount',required=True);p.add_argument('--smart-device',action='append',default=[]);p.add_argument('--check-updates',action='store_true');a=p.parse_args()
     i=a.instance.resolve();out=i/'data/.dashboard-metrics'

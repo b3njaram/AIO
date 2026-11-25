@@ -55,6 +55,7 @@ def main():
     p.add_argument('--base-port',type=int,required=True)
     p.add_argument('--minimum-free-gib',type=int,default=50)
     p.add_argument('--prepare',action='store_true',help='Approve cold backup downtime and creation of a separate stopped upgrade')
+    p.add_argument('--hold-source',action='store_true',help='Keep original stopped after final verified backup; approved maintenance window only')
     a=p.parse_args()
     i=a.instance.resolve()
     backup=a.backup_root.resolve()
@@ -70,13 +71,15 @@ def main():
     env=dict(x.split('=',1) for x in (i/'.env').read_text().splitlines() if '=' in x)
     if env['INSTANCE_DIR']!=str(i) or env['BIND_IP']!='127.0.0.1':
         p.error('Only dedicated loopback instances support staged upgrades')
+    if a.hold_source and any((i/n).exists() for n in ('.private-serve.json','.backup-running-services','.upgrade-hold.json')):p.error('Disable source private routes and reconcile existing backup or upgrade first')
+    if a.hold_source and any(x.get('url') for x in json.loads((i/'dashboard.json').read_text())['apps']):p.error('Restore source local origins before final hold')
     if not a.prepare:
         print('Preflight passed. --prepare cold-backs up the source, verifies exact recovery, and prepares a stopped candidate at',target)
         return
     os.umask(0o077)
     # Use the path reported by this invocation. Concurrent operator backups can
     # never cause selection of a different customer's archive.
-    result=subprocess.run(['bash',str(ROOT/'scripts/backup.sh'),str(i),str(backup)],check=True,stdout=subprocess.PIPE,text=True)
+    result=subprocess.run(['bash',str(ROOT/'scripts/backup.sh'),str(i),str(backup),*(['--hold-for-upgrade'] if a.hold_source else [])],check=True,stdout=subprocess.PIPE,text=True)
     completed=[s.removeprefix('Backup: ').split(' (',1)[0] for s in result.stdout.splitlines() if s.startswith('Backup: ')]
     if len(completed)!=1:raise ValueError('Backup did not report one completed archive')
     snapshot=Path(completed[0])
@@ -98,9 +101,9 @@ def main():
     initialize_task_storage(target)
     release['aio_commit']=a.to_commit
     (target/'release.json').write_text(json.dumps(release,indent=2)+'\n')
-    (target/'upgrade.json').write_text(json.dumps({'source':str(i),'backup':str(snapshot),'from':a.from_commit,'to':a.to_commit,'state':'stopped-awaiting-validation'},indent=2)+'\n')
+    (target/'upgrade.json').write_text(json.dumps({'source':str(i),'backup':str(snapshot),'from':a.from_commit,'to':a.to_commit,'state':'stopped-awaiting-validation','source_held':a.hold_source},indent=2)+'\n')
     print('Prepared stopped candidate:',target)
-    print('Review outbound integrations and origin settings before isolated testing. Source remains authoritative.')
+    print('Review outbound integrations and origin settings before isolated testing. Original remains authoritative until explicitly accepting a validated cutover.')
     print('To abandon a trial after starting it, stop the candidate with ctl.sh. Retain both data sets. Reconcile any post-cutover writes manually.')
 
 

@@ -259,9 +259,18 @@ jobs:
           curl --retry 20 --retry-all-errors --retry-delay 1 -fsS http://127.0.0.1:19300/healthz
           bash scripts/ctl.sh /tmp/jobbi-upgrade/trial stop
           curl --retry 20 --retry-all-errors --retry-delay 1 -fsS http://127.0.0.1:19200/healthz
+          mountid="$(python3 -c 'import sys;sys.path.insert(0,"scripts");from backup_mount import mount_identity;print(mount_identity(sys.argv[1]))' /tmp/jobbi-upgrade-backups)"
+          recover=(/tmp/jobbi-upgrade/original /tmp/jobbi-upgrade-backups --mount-id "$mountid" --candidate held)
+          sleep 2
+          python3 scripts/recovery-center.py stage "${recover[@]}" --base-port 19400 --to-commit "$(git rev-parse HEAD)" --apply
+          test -z "$(bash scripts/ctl.sh /tmp/jobbi-upgrade/original ps -q --status running)"
+          python3 scripts/recovery-center.py start-trial "${recover[@]}" --apply
+          python3 scripts/recovery-center.py rollback "${recover[@]}" --confirm-no-candidate-writes --apply
+          test -z "$(bash scripts/ctl.sh /tmp/jobbi-upgrade/held ps -q --status running)"
+          curl --retry 20 --retry-all-errors --retry-delay 1 -fsS http://127.0.0.1:19200/healthz
       - if: always()
         run: |
-          for n in original trial; do
+          for n in original trial held; do
             if test -f "/tmp/jobbi-upgrade/$n/.env"; then
               bash scripts/ctl.sh "/tmp/jobbi-upgrade/$n" down -v
             fi
