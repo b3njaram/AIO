@@ -3,6 +3,19 @@ const spanish = new Map(`
 Demo only · no login · use test records|Solo demo · sin acceso por contraseña · usa registros de prueba
 Customers|Clientes
 Customer appliances|Servidores de clientes
+Find appliance|Buscar servidor
+Health filter|Filtrar salud
+Refresh fleet|Actualizar servidores
+Export visible summary|Exportar resumen visible
+Recent activity|Actividad reciente
+Reports are customer-shared snapshots, not proof of live connectivity.|Los informes son datos compartidos por clientes, no prueba de conexión en vivo.
+Private fleet summary downloaded.|Resumen privado descargado.
+registered|Registrado
+sharing_allowed|Permiso concedido
+sharing_revoked|Permiso revocado
+report_imported|Informe recibido
+reporting_enabled|Informes automáticos habilitados
+reporting_revoked|Credencial revocada
 Private registry · customer-shared reports only|Registro privado · solo informes compartidos por clientes
 Register appliance|Registrar servidor
 Appliance ID|ID del servidor

@@ -96,5 +96,6 @@ def rows(db):
         if r:
             age=now()-timestamp(r['at'])
             x['state']='stale' if age>dt.timedelta(hours=1 if x['reporting'] else 24) else 'review' if r['alerts'] is None or r['free_percent'] is None or r['alerts']>0 or r['free_percent']<15 or r['backup']!='verified' or r['raid'] in ('degraded','review','syncing') else 'reported_ok'
+        x['activity']=[dict(e) for e in db.execute('SELECT kind,recorded FROM appliance_events WHERE appliance_id=? ORDER BY id DESC LIMIT 12',(x['id'],))]
         out.append(x)
     return out

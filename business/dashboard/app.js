@@ -139,12 +139,13 @@ document.addEventListener('jobbi-language',attempt(async()=>{
 
 let appliances=[];
 async function loadAppliances(){appliances=await api('appliances');renderAppliances()}
+function filteredAppliances(){const q=$('fleetSearch').value.trim().toLowerCase(),st=$('fleetState').value;return appliances.filter(x=>(!st||x.state===st)&&[x.id,x.label,x.order_id].some(y=>String(y).toLowerCase().includes(q)))}
 function renderAppliances(){
  const list=$('applianceList'),metrics=$('applianceMetrics');list.replaceChildren();metrics.replaceChildren();
  metric(metrics,'Registered',appliances.length);metric(metrics,'Reports need review',appliances.filter(x=>['review','stale'].includes(x.state)).length);metric(metrics,'Sharing enabled',appliances.filter(x=>x.consent).length);
  opts($('healthImport').elements.id,appliances.filter(x=>x.consent).map(x=>[x.id,x.label]));
  const names={reported_ok:'No reported alerts',not_shared:'Not shared',unknown:'No report',stale:'Stale report',review:'Needs review'};
- for(const x of appliances){const c=el('article',undefined,'ordercard');const order=orders.find(o=>o.id===x.order_id),r=x.report;
+ for(const x of filteredAppliances()){const c=el('article',undefined,'ordercard');const order=orders.find(o=>o.id===x.order_id),r=x.report;
  c.append(el('h3',x.label),el('small',x.id+' · '+x.order_id),el('p',translate(names[x.state]||'No report'),'tag'));
  if(r){c.append(el('p',translate('Storage free')+': '+(r.free_percent===null?'—':r.free_percent+'%')),el('p',translate('Backup')+': '+translate(r.backup)),el('small',translate('Report date')+': '+new Date(r.at).toLocaleString()));const details=el('details');details.append(el('summary',translate('Health details')),el('p','RAID: '+translate(r.raid)),el('p',translate('Temperature')+': '+(r.temperature_c===null?'—':r.temperature_c+' °C')),el('p',translate('Alerts')+': '+(r.alerts??'—')),el('p',translate('Release')+': '+r.release.slice(0,12)));c.append(details)}
  if(order?.support_end)c.append(el('p',translate('Support ends')+': '+order.support_end));
@@ -154,9 +155,15 @@ function renderAppliances(){
  if(x.reporting)c.append(el('small',translate('Reporting credential expires')+': '+new Date(x.reporting_expires).toLocaleDateString()));
  c.append(button(x.reporting?'Revoke reporting credential':'Issue reporting credential',async()=>{if(!confirm(translate(x.reporting?'Revoke automatic reporting?':'Confirm customer approved automatic private health reporting for 90 days.')))return;
  if(x.reporting){await api('reporting-disable',{id:x.id,confirmed:true})}else{const grant=await api('reporting-enable',{id:x.id,confirmed:true});prompt(translate('Copy this one-time credential securely. It will not be displayed again.'),grant.token)}await loadAppliances()}));}
+ const history=el('details');history.append(el('summary',translate('Recent activity')));for(const e of x.activity||[])history.append(el('p',translate(e.kind)+' · '+new Date(e.recorded).toLocaleString()));c.append(history);
  list.append(c)}
- if(!appliances.length)list.append(el('p',translate('No registered appliances.')));
+ if(!filteredAppliances().length)list.append(el('p',translate('No registered appliances.')));
 }
 $('applianceForm').onsubmit=attempt(async e=>{e.preventDefault();await api('appliance',formdata('applianceForm'));e.target.reset();await loadAppliances();notice('Appliance saved.')});
 $('healthImport').onsubmit=attempt(async e=>{e.preventDefault();const file=$('healthFile').files[0];if(!file||file.size>32768)throw Error('Select a small health report JSON file');await api('health-import',{id:e.target.elements.id.value,report:JSON.parse(await file.text())});$('healthFile').value='';await loadAppliances();notice('Health report imported.')});
 document.addEventListener('jobbi-language',()=>renderAppliances());
+
+$('fleetSearch').oninput=renderAppliances;
+$('fleetState').onchange=renderAppliances;
+$('fleetRefresh').onclick=attempt(loadAppliances);
+$('fleetExport').onclick=()=>{const rows=filteredAppliances().map(x=>({id:x.id,label:x.label,order_id:x.order_id,state:x.state,report_at:x.report?.at||null,release:x.report?.release||null,free_percent:x.report?.free_percent??null,backup:x.report?.backup||null}));downloadText('jobbi-private-fleet.json',JSON.stringify({at:new Date().toISOString(),appliances:rows},null,2));notice('Private fleet summary downloaded.')};
