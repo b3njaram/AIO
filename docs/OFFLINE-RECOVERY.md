@@ -1,0 +1,9 @@
+# Portable offline recovery kit
+
+Create a full cold backup using `bash scripts/backup.sh INSTANCE BACKUP_ROOT --all-images` and verify the archive. Then run `python3 scripts/make-recovery-kit.py INSTANCE --output /private/recovery-kit` to preview, and add --apply to create the kit. It archives the exact committed AIO and upstream source trees (not locally edited files), plus the pinned Alpine restore helper image. It records checksums and exact release/source pins. Keep this kit private and review licensing before redistribution. The kit does not contain customer media, backup data, local credentials, or the OS/Docker installer.
+
+On the recovery host, install compatible Linux, Docker Compose and Python 3.12+ first. Use a trusted recovery-capable AIO checkout containing the offline restore support; a historical AIO archive may predate the tool. Verify the kit against the trusted backup release. With sufficient independent storage and the original UID/GID, run:
+
+    python3 scripts/restore.py BACKUP --data-root DATA_ROOT --name recovered --base-port 19080 --offline-kit /private/recovery-kit
+
+The restore requires the all-images archive, matching kit, exact inventory, and creates a new stopped loopback-only instance. No git fetch or Docker pull is used by this path. Sources are extracted from committed archives and versioned customer patches reapplied. Recovered source trees have no Git history; future kit generation or upgrades needing Git checkout may require reconnecting to the original repository. Actual application operation may require network access (e.g. model downloads, integrations). This is not an offline OS installation or proof of complete air-gapped functionality. Checksums detect corruption, not hostile replacement; use trusted media. Test a real offline restore on disposable data before relying on it. Never overwrite the only backup.
