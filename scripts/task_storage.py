@@ -2,7 +2,7 @@
 import json,re,subprocess
 from pathlib import Path
 HELPER='alpine:3.22@sha256:49340b346798875b5592e5d420241f2f9cfba5f47e62ebb1446a1b34734e898f'
-def initialize(instance):
+def initialize(instance,helper=HELPER,offline=False):
     instance=Path(instance).resolve()
     env=dict(line.split('=',1) for line in (instance/'.env').read_text().splitlines() if '=' in line)
     if 'tasks' not in env['COMPOSE_PROFILES'].split(','):return
@@ -16,4 +16,4 @@ def initialize(instance):
     if subprocess.check_output(['docker','ps','-q','--filter','volume='+volume],text=True).strip():
         raise ValueError('Task storage must be stopped before initialization')
     # Only change the mount root. Never recursively chown customer attachments.
-    subprocess.run(['docker','run','--rm','--network','none','--cap-drop','ALL','--cap-add','CHOWN','--cap-add','DAC_OVERRIDE','--cap-add','FOWNER','--security-opt','no-new-privileges','--mount','type=volume,source='+volume+',target=/files,volume-nocopy',HELPER,'sh','-ec','chmod 0750 /files; chown 1000:0 /files'],check=True)
+    subprocess.run(['docker','run','--rm',*(['--pull','never'] if offline else []),'--network','none','--cap-drop','ALL','--cap-add','CHOWN','--cap-add','DAC_OVERRIDE','--cap-add','FOWNER','--security-opt','no-new-privileges','--mount','type=volume,source='+volume+',target=/files,volume-nocopy',helper,'sh','-ec','chmod 0750 /files; chown 1000:0 /files'],check=True)

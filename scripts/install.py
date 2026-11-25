@@ -42,6 +42,7 @@ def main():
     p.add_argument('--vault-url',default='')
     p.add_argument('--task-url',default='')
     p.add_argument('--tz',default='Etc/UTC')
+    p.add_argument('--offline-bundle',type=Path,help='Matching trusted private application bundle; host prerequisites must already exist')
     p.add_argument('--prepare-only',action='store_true')
     p.add_argument('--allow-private-bootstrap',action='store_true',help='Explicitly permit first-run setup on a trusted private network')
     p.add_argument('--local-dns-port',type=int,help='Loopback-only DNS pilot on an unprivileged port')
@@ -86,11 +87,19 @@ def main():
     if 'dns' in apps:
         reserve(a.bind,a.local_dns_port or 53)
         reserve(a.bind,a.local_dns_port or 53,socket.SOCK_DGRAM)
+    bundle=None
+    release={'aio_commit':subprocess.check_output(['git','-C',str(ROOT),'rev-parse','HEAD'],text=True).strip(),'customer_patch_version':VERSION,'source_pins':{k:v for k,v in PINS.items() if ('music' if k=='navidrome' else 'movies') in apps}}
+    if a.offline_bundle:
+        from install_bundle import check
+        from offline_kit import load_helper
+        if 'dns' in apps or not ip.is_loopback:p.error('Offline bundle requires core loopback deployment')
+        if subprocess.check_output(['git','-C',str(ROOT),'status','--porcelain'],text=True).strip():p.error('Use clean matching release checkout')
+        bundle=a.offline_bundle.absolute();inventory,kit=check(bundle,release,apps)
+        helper=load_helper(bundle/'kit',kit)
     os.umask(0o077)
     instance.mkdir()
     progress(instance,"preparing instance")
     shutil.copytree(ROOT/'deploy',instance/'deployment')
-    release={'aio_commit':subprocess.check_output(['git','-C',str(ROOT),'rev-parse','HEAD'],text=True).strip(),'customer_patch_version':VERSION,'source_pins':{k:v for k,v in PINS.items() if ('music' if k=='navidrome' else 'movies') in apps}}
     (instance/'release.json').write_text(json.dumps(release,indent=2)+'\n')
     data=instance/'data'
     data.mkdir()
@@ -109,10 +118,15 @@ def main():
             # Only public source files use normal permissions; .env stays private.
             old_umask=os.umask(0o022)
             try:
-                run('git','init',str(target))
-                run('git','-C',str(target),'remote','add','origin','https://github.com/b3njaram/'+repo+'.git')
-                run('git','-C',str(target),'fetch','--depth=1','origin',PINS[repo])
-                run('git','-C',str(target),'checkout','--detach','FETCH_HEAD')
+                if bundle:
+                    from offline_kit import extract_source
+                    target.mkdir()
+                    extract_source(bundle/'kit'/(repo+'-source.tar.gz'),target)
+                else:
+                    run('git','init',str(target))
+                    run('git','-C',str(target),'remote','add','origin','https://github.com/b3njaram/'+repo+'.git')
+                    run('git','-C',str(target),'fetch','--depth=1','origin',PINS[repo])
+                    run('git','-C',str(target),'checkout','--detach','FETCH_HEAD')
                 apply(instance,repo)
             finally:
                 os.umask(old_umask)
@@ -139,13 +153,22 @@ def main():
     env.update({k:str(v) for k,v in ports.items()})
     (instance/'.env').write_text(''.join(k+'='+v+'\n' for k,v in env.items()))
     cmd=['bash',str(ROOT/'scripts/ctl.sh'),str(instance)]
+    if bundle:
+        from recovery_images import stage
+        stage(inventory,bundle/'images.tar.gz',instance/'deployment',True)
     progress(instance,'checking Compose configuration')
     run(*cmd,'config','--quiet')
     progress(instance,'prepared')
     print('Prepared:',instance,flush=True)
     if not a.prepare_only:
         progress(instance,'building and starting services')
-        if 'tasks' in apps:
+        if bundle:
+            run(*cmd,'create','--no-build','--pull','never')
+            (instance/'bundle-inventory.json').write_text(json.dumps(inventory))
+            run(sys.executable,str(ROOT/'scripts/release-inventory.py'),str(instance),'--compare',str(instance/'bundle-inventory.json'))
+            if 'tasks' in apps:initialize_task_storage(instance,helper=helper,offline=True)
+            run(*cmd,'up','-d','--no-build','--pull','never')
+        elif 'tasks' in apps:
             run(*cmd,'create','--build')
             initialize_task_storage(instance)
             run(*cmd,'up','-d','--no-build')
