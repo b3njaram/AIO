@@ -1,0 +1,46 @@
+name: Exact release image security scan
+on:
+  workflow_dispatch:
+  push:
+    paths: ['scripts/scan-release.py','deploy/**','.github/workflows/release-security.yml']
+permissions:
+  contents: read
+jobs:
+  image-scan:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[security-pilot]')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify pinned scanner archive
+        run: |
+          mkdir -p "$RUNNER_TEMP/jobbi-scanner"
+          cd "$RUNNER_TEMP/jobbi-scanner"
+          curl --fail --location --retry 3 --max-time 300 https://github.com/aquasecurity/trivy/releases/download/v0.76.2/trivy_0.76.2_Linux-64bit.tar.gz -o trivy.tar.gz
+          echo 'bc0fc726e017b8927a62b2d3531d7a84ee01769daf5c99ed866dced54089fdbf  trivy.tar.gz' | sha256sum -c -
+          tar xzf trivy.tar.gz trivy
+          ./trivy --version
+      - name: Build exact candidate without exposing services
+        run: |
+          mkdir -p /tmp/jobbi-security-pilot
+          python3 scripts/install.py --name audit --data-root /tmp/jobbi-security-pilot --apps music,movies,photos,files,passwords,tasks,monitor,dns --local-dns-port 10553 --prepare-only
+          bash scripts/ctl.sh /tmp/jobbi-security-pilot/audit create --build
+      - name: Scan locally created image IDs
+        run: python3 scripts/scan-release.py /tmp/jobbi-security-pilot/audit --scanner "$RUNNER_TEMP/jobbi-scanner/trivy" --output "$RUNNER_TEMP/jobbi-security-evidence"
+      - name: Review finding counts
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          p=Path(os.environ['RUNNER_TEMP'])/'jobbi-security-evidence/report.json'
+          if not p.is_file():print('Scan not completed');raise SystemExit(1)
+          r=json.loads(p.read_text())
+          for x in r['images']:
+              print(', '.join(x['services']),len(x['vulnerabilities']),'review findings; licenses:',', '.join(x['license_names']) or 'not identified')
+              for v in x['vulnerabilities']:
+                  print(v['severity'],v['id'],v['package'],v['installed'],'fix:',v['fixed'] or 'not reported')
+          PY
+      - if: always()
+        run: |
+          if test -f /tmp/jobbi-security-pilot/audit/.env; then bash scripts/ctl.sh /tmp/jobbi-security-pilot/audit down -v; fi
