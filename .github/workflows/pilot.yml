@@ -56,6 +56,7 @@ jobs:
           mkdir -p /tmp/jobbi-restore
           tar xzf "$BACKUP/instance.tar.gz" -C /tmp/jobbi-restore data/.pilot-marker release.json
           cmp /tmp/jobbi-pilot/first/data/.pilot-marker /tmp/jobbi-restore/data/.pilot-marker
+          tar tzf "$BACKUP/instance.tar.gz" | grep -qx image-inventory.json
           python3 scripts/restore.py "$BACKUP" --data-root /tmp/jobbi-pilot --name recovered --base-port 18300
           cmp /tmp/jobbi-pilot/first/data/.pilot-marker /tmp/jobbi-pilot/recovered/data/.pilot-marker
           bash scripts/ctl.sh /tmp/jobbi-pilot/recovered up -d

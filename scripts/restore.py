@@ -34,7 +34,7 @@ def validate_archive(path,instance=False):
             name=str(n)
             if name in seen:raise ValueError('Duplicate archive member')
             seen.add(name)
-            if instance and n.parts and n.parts[0] not in ('.env','dashboard.json','release.json','deployment','data','onboarding.json'):raise ValueError('Unexpected instance member')
+            if instance and n.parts and n.parts[0] not in ('.env','dashboard.json','release.json','deployment','data','onboarding.json','image-inventory.json'):raise ValueError('Unexpected instance member')
             # Reject links escaping their own archive; no device files or FIFOs.
             if m.issym() or m.islnk():
                 target=PurePosixPath(m.linkname)
@@ -53,7 +53,7 @@ def metadata(path):
         return env,cfg,release
 def main():
     p=argparse.ArgumentParser(description=__doc__)
-    p.add_argument('backup',type=Path);p.add_argument('--data-root',type=Path,required=True);p.add_argument('--name',required=True);p.add_argument('--base-port',type=int,default=19080)
+    p.add_argument('backup',type=Path);p.add_argument('--data-root',type=Path,required=True);p.add_argument('--name',required=True);p.add_argument('--base-port',type=int,default=19080);p.add_argument('--require-exact-images',action='store_true',help='Stop before volume restore if recorded image IDs differ')
     a=p.parse_args()
     if not re.fullmatch(r'[a-z0-9][a-z0-9-]{0,35}',a.name) or not 1024<=a.base_port<=65525:p.error('Invalid name or port')
     backup=a.backup.resolve();parent=a.data_root.expanduser().resolve();dest=parent/a.name;project='jobbi-'+a.name
@@ -112,6 +112,15 @@ def main():
     # Compose creates named volumes; no service starts before recovery is complete.
     run(*ctl,'create','--build')
     available=set(output('docker','volume','ls','-q','--filter','label=com.docker.compose.project='+project).splitlines())
+    expected_volumes={project+'_'+suffix for suffix in volumes}
+    if available!=expected_volumes:raise ValueError('Backup volume set does not match destination; inspect before recovery')
+    inventory=dest/'image-inventory.json'
+    if inventory.exists():
+        result=subprocess.run([sys.executable,str(ROOT/'scripts/release-inventory.py'),str(dest),'--compare',str(inventory)])
+        if result.returncode:
+            if a.require_exact_images:raise ValueError('Image identity differs or cannot be verified; no named volume restored')
+            print('WARNING: image identity differs or could not be verified. Do not start until reviewed.')
+    elif a.require_exact_images:raise ValueError('Backup lacks image inventory; strict recovery cannot continue')
     for suffix,path in volumes.items():
         volume=project+'_'+suffix
         if volume not in available:raise ValueError('Backup volume not defined in new project: '+suffix)

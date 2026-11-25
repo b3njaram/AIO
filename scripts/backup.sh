@@ -9,6 +9,8 @@ PROJECT="$(sed -n 's/^COMPOSE_PROJECT_NAME=//p' "$INSTANCE/.env")"
 [[ "$PROJECT" =~ ^jobbi-[a-z0-9-]+$ ]] || exit 1
 OUT="$DEST/$PROJECT-$(date -u +%Y%m%dT%H%M%SZ)"
 mkdir "$OUT"
+# Preserve the actual running/stopped image identities, not merely mutable tags.
+python3 "$ROOT/scripts/release-inventory.py" "$INSTANCE" --record >/dev/null
 ctl(){ bash "$ROOT/scripts/ctl.sh" "$INSTANCE" "$@"; }
 SERVICES="$(ctl ps --status running --services)"
 mapfile -t RUNNING <<< "$SERVICES"
@@ -25,7 +27,7 @@ restart_on_exit(){
 }
 trap restart_on_exit EXIT
 ctl stop "${RUNNING[@]}"
-docker run --rm -v "$INSTANCE:/src:ro" -v "$OUT:/backup:rw" alpine:3.22 sh -c 'cd /src; set -- .env dashboard.json data; for p in release.json deployment onboarding.json; do if test -e "$p"; then set -- "$@" "$p"; fi; done; tar czf /backup/instance.tar.gz "$@"'
+docker run --rm -v "$INSTANCE:/src:ro" -v "$OUT:/backup:rw" alpine:3.22 sh -c 'cd /src; set -- .env dashboard.json data; for p in release.json deployment onboarding.json image-inventory.json; do if test -e "$p"; then set -- "$@" "$p"; fi; done; tar czf /backup/instance.tar.gz "$@"'
 VOLUMES="$(docker volume ls -q --filter "label=com.docker.compose.project=$PROJECT")"
 while IFS= read -r volume; do
   [[ -n "$volume" ]] || continue

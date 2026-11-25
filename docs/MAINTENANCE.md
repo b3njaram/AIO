@@ -37,3 +37,9 @@ After explicit approval of weekly downtime, actual mount independence and suffic
     python3 scripts/schedule-backups.py /path/to/customer-instance /path/to/mounted-backups --hour 3 --enable
 
 It refuses existing conflicting units and same-filesystem backups. It only creates a user timer for the specified validated instance. No system-wide changes or automatic retention. Check user manager startup and backup log after the first scheduled run. A backup or restart failure returns nonzero; examine maintenance.json and journal. Never run this against the owner production server merely to test.
+
+## Actual image inventory
+
+    python3 scripts/release-inventory.py INSTANCE --record
+
+Records image IDs and available registry digests for this project's containers, without their environment or secrets. Cold backups now include image-inventory.json. During restore, the new project's image IDs are compared to the source. Use --require-exact-images to stop before restoring named volumes if any identity differs or cannot be checked. The default warns; do not start a mismatched recovery until reviewing compatibility. The bind data is already extracted into the new, isolated directory at that point; nothing overwrites the original. The restored project remains stopped. Older backups without an inventory require manual version review. This is drift detection, not image archival: retain compatible image artifacts separately. Docker rebuilds may produce different image IDs even with the same source. Strict mode intentionally refuses these until exact images are available.
