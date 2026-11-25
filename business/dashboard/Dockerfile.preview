@@ -4,6 +4,13 @@ RUN pip install --no-cache-dir 'reportlab==4.4.9'
 COPY --chmod=0644 records.py order.py /app/business/
 COPY --chmod=0755 dashboard/ /app/business/dashboard/
 COPY --chmod=0755 sourcing/ /app/business/sourcing/
+# BuildKit can preserve restrictive directory modes from the source checkout
+# even when COPY --chmod sets file modes. Normalize only image application
+# code, never the host-mounted private demo ledger.
+RUN chmod 0755 /app /app/business && \
+    find /app/business -type d -exec chmod 0755 {} + && \
+    find /app/business -type f -exec chmod 0644 {} + && \
+    mkdir -p /demo && chmod 0755 /demo
 ENV HOME=/demo PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 USER 65534:65534
 EXPOSE 8791

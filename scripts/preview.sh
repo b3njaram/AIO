@@ -23,6 +23,11 @@ case "${1:-up}" in
         echo 'http://macmini2012:8791  |  http://macmini2012:8781'
         exit 0
       fi
+      cid="$("${compose[@]}" ps -a -q dashboard)"
+      if [[ -n "$cid" ]] && [[ "$(docker inspect --format '{{.RestartCount}}' "$cid")" -ge 2 ]]; then
+        echo 'Admin container is repeatedly crashing; showing startup logs.' >&2
+        break
+      fi
       sleep 1
     done
     "${compose[@]}" logs --tail=50 dashboard

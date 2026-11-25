@@ -26,6 +26,10 @@ jobs:
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
+      - name: Simulate owner checkout with restrictive umask
+        run: |
+          find business quote -type d -exec chmod 0700 {} +
+          find business quote -type f -exec chmod 0600 {} +
       - run: bash scripts/preview.sh
       - run: |
           bash scripts/preview.sh status
