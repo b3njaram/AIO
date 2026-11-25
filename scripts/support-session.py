@@ -40,6 +40,7 @@ class Session:
     def report(self):
         if not self.active():raise ValueError('Session expired')
         data=self.read(self.instance,self.id)
+        if not self.active():raise ValueError('Session expired')
         self.record(self.instance,'report_viewed')
         return data
 class Server(http.server.HTTPServer):
@@ -65,7 +66,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if self.headers.get_all('Host',[])!=[self.server.host_header]:self.send(403,{'error':'Exact private hostname required'});return
         session=self.server.session
         if not session.active():self.send(410,{'error':'Session expired'});return
-        assets={'/':('support-session.html','text/html; charset=utf-8'),'/support.js':('support-session.js','application/javascript; charset=utf-8')}
+        assets={'/':('support-session.html','text/html; charset=utf-8'),'/support.js':('support-session.js','application/javascript; charset=utf-8'),'/support.css':('support-session.css','text/css; charset=utf-8')}
         if self.path in assets:
             file,mime=assets[self.path];self.send(200,(ROOT/file).read_bytes(),mime);return
         if self.path!='/api/report':self.send(404,{'error':'Not found'});return

@@ -46,3 +46,5 @@ The scan at `0166293a` reported 2,366 high/critical/unknown package findings acr
 
 ## Development continuation while hardware is unavailable
 Physical qualification is deferred at the project owner's request so later development can proceed. This is a development assumption, not evidence of passing physical tests or authorization to sell. Retain physical, private-network, software security and commercial blockers explicitly. No stable commercial release until the actual gates are satisfied.
+
+The scan at `85bcc327` confirmed zero high/critical/unknown findings in the hardened Jobbi Music, StreamHub backend, storage-agent and dashboard images. Total findings fell from 2,366 to 2,313; remaining findings are in third-party images and still block commercial approval. Phase 6 development proceeds while this remediation and physical testing are deferred; no release gate has been waived.
