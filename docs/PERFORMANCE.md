@@ -1,0 +1,9 @@
+# Phase 7 — capacity and performance
+
+Run `python3 scripts/performance.py INSTANCE` as the appliance operator. It reports host memory, CPU count, estimated capacity requirements, actual per-project Docker statistics and detected Intel render nodes. Recommendations are conservative planning estimates, not benchmarks. No resource changes are made.
+
+For an explicitly approved disposable encode on the dedicated host, use `python3 scripts/performance.py INSTANCE --probe-device /dev/dri/renderD128 --apply-probe` with the exact detected node. The probe uses the existing StreamHub backend image, no customer data mounts, no network, a single generated video sample, limited memory/CPU/processes and an unprivileged user. It reports whether software and Intel Quick Sync encoding succeed in that image. It does not configure the production application or promise transcoding throughput. A driver or image that lacks QSV support is reported unavailable; direct playback remains the default.
+
+Do not pass an entire /dev tree, grant privileged mode or replace the security audit to enable GPU support. Actual Immich/StreamHub hardware transcoding configuration and simultaneous streaming acceptance depend on the hardware and upstream application support. Only enable the narrow render device mapping in a separately reviewed candidate, measure actual playback and recovery, and update the exact security policy to match the approved mapping. No automatic changes to frozen deployment or unsafe resource caps.
+
+Use 16 GiB as a starting point for smaller configurations; 32 GiB is a sensible candidate for concurrent photo indexing, file sync and media workloads. Verify actual CPU/RAM/thermal behavior and available storage before committing a customer configuration. Avoid swap-intensive workloads and coordinate initial indexing outside busy hours.
