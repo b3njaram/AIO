@@ -36,7 +36,8 @@ class Session:
             self.done.add(app)
             return self.status()
 class Server(http.server.ThreadingHTTPServer):
-    daemon_threads=True
+    # Wait for the current approved account operation and its response before exit.
+    daemon_threads=False
     def __init__(self,port,session):
         super().__init__(('127.0.0.1',port),Handler);self.session=session;self.origin='http://127.0.0.1:'+str(self.server_port)
 class Handler(http.server.BaseHTTPRequestHandler):

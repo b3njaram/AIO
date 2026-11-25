@@ -17,7 +17,7 @@ with tempfile.TemporaryDirectory() as tmp:
             expect(page.locator('#passwordFields')).to_be_hidden();expect(page.locator('#password')).to_have_value('')
             page.locator('#createButton').click();expect(page.locator('#progressText')).to_contain_text('2 / 2')
             page.locator('#lang').click();expect(page.locator('#title')).to_have_text('Configura tu hogar')
-            page.locator('#finish').click();expect(page.locator('#wizard')).to_be_hidden()
+            expect(page.locator('#finish')).to_be_enabled();page.locator('#finish').click();expect(page.locator('#wizard')).to_be_hidden()
             assert page.evaluate('document.documentElement.scrollWidth<=window.innerWidth+1')
             adapter.create.assert_called_once();adapter.invite_vault.assert_called_once()
             browser.close()
