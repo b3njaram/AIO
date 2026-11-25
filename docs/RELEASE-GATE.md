@@ -38,3 +38,5 @@ The `Exact release image security scan` workflow builds the pinned customer stac
 
 ## Exact revision readiness report
 Run `python3 scripts/release-readiness.py FULL_COMMIT_SHA` (optionally provide a read-only GitHub token through the GITHUB_TOKEN environment variable, not the command line). It checks completed push/dispatch jobs for static, full application, browser/Docker, ISO, VM, RAID and image scan workflows. Skipped jobs, mismatched commits, newer failures and unavailable API evidence do not count. Trigger skipped workflows explicitly for the intended revision. The report always leaves commercial approval false: physical acceptance and distribution/legal review are separate. It never publishes or tags a release.
+
+A commit with `[release-gate]` schedules all seven workflows on the same revision, regardless of which files changed. The missing-disk VM drill retains the UUID checks, uses stable virtual PCI slots, and captures guest mount/daemon diagnostics on failure. The data mount is an explicit required and ordered dependency even when its unit uses nofail for normal OS boot. Do not classify a failed reattachment as a successful power-loss test.

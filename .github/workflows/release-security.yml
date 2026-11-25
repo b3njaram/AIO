@@ -2,12 +2,11 @@ name: Exact release image security scan
 on:
   workflow_dispatch:
   push:
-    paths: ['scripts/scan-release.py','deploy/**','.github/workflows/release-security.yml']
 permissions:
   contents: read
 jobs:
   image-scan:
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[security-pilot]')
+    if: github.event_name == 'workflow_dispatch' || (contains(github.event.head_commit.message, '[security-pilot]') || contains(github.event.head_commit.message, '[release-gate]'))
     runs-on: ubuntu-24.04
     timeout-minutes: 55
     steps:

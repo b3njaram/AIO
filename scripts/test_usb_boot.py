@@ -17,5 +17,5 @@ class Tests(unittest.TestCase):
         with self.assertRaises(ValueError):m.config(a,'$6$fixture')
     def test_mount_guard(self):
         m=load('boot-guard');s=m.unit([('/srv/data','abcd-1234'),('/','abcd-5678')])
-        self.assertIn('RequiresMountsFor=/ /srv/data',s);self.assertIn('--mountpoint /srv/data --source UUID=abcd-1234',s)
+        self.assertIn('Requires=srv-data.mount',s);self.assertIn('After=srv-data.mount',s);self.assertIn('RequiresMountsFor=/ /srv/data',s);self.assertIn('--mountpoint /srv/data --source UUID=abcd-1234',s)
 if __name__=='__main__':unittest.main()

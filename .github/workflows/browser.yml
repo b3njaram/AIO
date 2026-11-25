@@ -1,7 +1,6 @@
 name: Owner dashboard browser checks
 on:
   push:
-    paths: ['business/**','quote/**','deploy/dashboard/**','scripts/preview.sh','scripts/setup-web*','scripts/setup-accounts.py','.github/workflows/browser.yml']
   pull_request:
     paths: ['business/**','quote/**','deploy/dashboard/**','scripts/preview.sh','scripts/setup-web*','scripts/setup-accounts.py','.github/workflows/browser.yml']
   workflow_dispatch:

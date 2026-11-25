@@ -2,9 +2,9 @@ name: Disposable RAID1 replacement and expansion
 on:
   workflow_dispatch:
   push:
-    paths: ['scripts/storage_manager.py','scripts/raid-pilot.sh','.github/workflows/storage-raid.yml']
 jobs:
   raid:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[release-gate]') || contains(github.event.head_commit.message, '[raid-pilot]')
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     steps:

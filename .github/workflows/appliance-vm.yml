@@ -2,10 +2,9 @@ name: Headless Ubuntu first-boot VM
 on:
   workflow_dispatch:
   push:
-    paths: ['scripts/**','deploy/**','.github/workflows/appliance-vm.yml']
 jobs:
   vm:
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[vm-pilot]')
+    if: github.event_name == 'workflow_dispatch' || (contains(github.event.head_commit.message, '[vm-pilot]') || contains(github.event.head_commit.message, '[release-gate]'))
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:

@@ -7,8 +7,12 @@ WORK="$(mktemp -d)"
 chmod 700 "$WORK"
 cd "$WORK"
 cleanup(){
+  local rc=$?
+  if ((rc!=0)) && [[ -f qemu.pid && -f fixture_key ]]; then
+    timeout 40 ssh -i fixture_key -p 2222 -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$WORK/known_hosts" jobbi@127.0.0.1 'sudo systemctl status docker containerd "srv-jobbi\\x2ddata.mount" "mnt-jobbi\\x2dbackup.mount" jobbi-vmhome-backup-resume --no-pager; sudo journalctl -b -u docker -u containerd -u "srv-jobbi\\x2ddata.mount" -u jobbi-vmhome-backup-resume --no-pager -n 100; lsblk -o NAME,UUID,MOUNTPOINTS; sudo docker ps -a' || true
+  fi
   if [[ -f qemu.pid ]]; then kill "$(cat qemu.pid)" 2>/dev/null || true; fi
-  if [[ -f serial.log ]]; then tail -100 serial.log; fi
+  for serial in serial-*.log; do [[ ! -f "$serial" ]] || tail -80 "$serial"; done
   rm -rf -- "$WORK"
 }
 trap cleanup EXIT
@@ -45,14 +49,15 @@ cloud-localds seed.iso user-data meta-data
 accel=(-accel tcg,thread=multi -cpu max)
 echo 'VM acceleration: TCG (software emulation)'
 start(){
+  # Keep virtual PCI slots identical even if the data disk is removed.
   local extra=()
-  if [[ "${1:-with-data}" == with-data ]]; then extra=(-drive file=data.img,format=raw,if=virtio); fi
+  if [[ "${1:-with-data}" == with-data ]]; then extra=(-drive file=data.img,format=raw,if=none,id=data -device virtio-blk-pci,drive=data,addr=0x6); fi
   qemu-system-x86_64 "${accel[@]}" -m 4096 -smp 2 -display none \
-    -serial file:serial.log -daemonize -pidfile qemu.pid \
-    -drive file=system.qcow2,format=qcow2,if=virtio \
-    "${extra[@]}" -drive file=backup.img,format=raw,if=virtio \
+    -serial file:serial-${1:-with-data}-$(date +%s).log -daemonize -pidfile qemu.pid \
+    -drive file=system.qcow2,format=qcow2,if=none,id=os -device virtio-blk-pci,drive=os,addr=0x5 \
+    "${extra[@]}" -drive file=backup.img,format=raw,if=none,id=backup -device virtio-blk-pci,drive=backup,addr=0x7 \
     -drive file=seed.iso,format=raw,media=cdrom,readonly=on \
-    -nic user,model=virtio-net-pci,hostfwd=tcp:127.0.0.1:2222-:22
+    -netdev user,id=net0,hostfwd=tcp:127.0.0.1:2222-:22 -device virtio-net-pci,netdev=net0,addr=0x8
 }
 guest(){ ssh -i fixture_key -p 2222 -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile="$WORK/known_hosts" jobbi@127.0.0.1 "$@"; }
 wait_ssh(){
@@ -89,8 +94,8 @@ echo 'PASS: first boot, interrupted backup journal, abrupt VM restart and persis
 hard_stop
 start without-data
 wait_ssh
-guest 'timeout 150 sudo systemctl start docker && exit 1 || test "$(systemctl is-active docker)" != active'
-guest 'test ! -e /srv/jobbi-data/jobbi-instances/vmhome/data/.vm-marker'
+guest 'if timeout 150 sudo systemctl start docker; then exit 1; fi; test "$(systemctl is-active docker)" != active; sudo systemctl status docker --no-pager || true'
+guest 'test ! -e /srv/jobbi-data/jobbi-instances/vmhome/data/.vm-marker && ! mountpoint -q /srv/jobbi-data && ! systemctl is-active --quiet docker'
 echo 'PASS: missing data disk prevents Docker startup'
 hard_stop
 start

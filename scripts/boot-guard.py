@@ -10,7 +10,11 @@ def mount(path):
     return target,uuid
 def unit(mounts):
     checks=sorted(set(mounts))
-    return '[Unit]\nRequiresMountsFor='+' '.join(x[0] for x in checks)+'\n[Service]\n' + ''.join('ExecStartPre=/usr/bin/findmnt --noheadings --mountpoint '+p+' --source UUID='+u+'\n' for p,u in checks)
+    # Explicit mount dependencies are needed for mount units marked nofail.
+    # RequiresMountsFor by itself does not order those mounts reliably.
+    names=[subprocess.check_output(['systemd-escape','--path','--suffix=mount',p],text=True).strip() for p,u in checks if p!='/']
+    dependency=('Requires='+' '.join(names)+'\nAfter='+' '.join(names)+'\n') if names else ''
+    return '[Unit]\n'+dependency+'RequiresMountsFor='+' '.join(x[0] for x in checks)+'\n[Service]\n' + ''.join('ExecStartPre=/usr/bin/findmnt --noheadings --mountpoint '+p+' --source UUID='+u+'\n' for p,u in checks)
 def main():
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('data',type=Path);p.add_argument('--apply',action='store_true');a=p.parse_args()
     data=a.data.resolve()
