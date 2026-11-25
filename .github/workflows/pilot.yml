@@ -215,3 +215,33 @@ jobs:
               bash scripts/ctl.sh "/tmp/jobbi-infra/$n" down -v
             fi
           done
+
+  staged-upgrade:
+    if: (github.event_name == 'workflow_dispatch' && inputs.full_stack) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[full-pilot]'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - run: |
+          mkdir -p /tmp/jobbi-upgrade /tmp/jobbi-upgrade-backups
+          sudo mount -t tmpfs -o "size=2G,uid=$(id -u),gid=$(id -g),mode=0700" tmpfs /tmp/jobbi-upgrade-backups
+          old=de0b98be2b2456dc98f29ca65a90e8c91946e6c5
+          git worktree add --detach /tmp/jobbi-old-checkout "$old"
+          python3 /tmp/jobbi-old-checkout/scripts/install.py --name original --data-root /tmp/jobbi-upgrade --base-port 19200 --apps monitor
+          args=(/tmp/jobbi-upgrade/original /tmp/jobbi-upgrade-backups --from-commit "$old" --to-commit "$(git rev-parse HEAD)" --name trial --base-port 19300 --minimum-free-gib 1)
+          python3 scripts/stage-upgrade.py "${args[@]}"
+          python3 scripts/stage-upgrade.py "${args[@]}" --prepare
+          test -z "$(bash scripts/ctl.sh /tmp/jobbi-upgrade/trial ps -q --status running)"
+          bash scripts/ctl.sh /tmp/jobbi-upgrade/trial up -d
+          curl --retry 20 --retry-all-errors --retry-delay 1 -fsS http://127.0.0.1:19300/healthz
+          bash scripts/ctl.sh /tmp/jobbi-upgrade/trial stop
+          curl --retry 20 --retry-all-errors --retry-delay 1 -fsS http://127.0.0.1:19200/healthz
+      - if: always()
+        run: |
+          for n in original trial; do
+            if test -f "/tmp/jobbi-upgrade/$n/.env"; then
+              bash scripts/ctl.sh "/tmp/jobbi-upgrade/$n" down -v
+            fi
+          done
+          if mountpoint -q /tmp/jobbi-upgrade-backups; then sudo umount /tmp/jobbi-upgrade-backups; fi
