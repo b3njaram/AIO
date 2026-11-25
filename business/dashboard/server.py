@@ -7,6 +7,7 @@ from urllib.parse import urlsplit,parse_qs
 ROOT=Path(__file__).resolve().parents[2]
 sys.path[:0]=[str(ROOT/'business'),str(ROOT/'business/sourcing')]
 import records,order
+import operations as ops
 import search as sourcing
 from retailers import links
 HOME=Path.home()/'.local/share/jobbi-business'
@@ -26,6 +27,7 @@ def db():
     d.row_factory=sqlite3.Row
     d.executescript("""CREATE TABLE IF NOT EXISTS order_details(order_id TEXT PRIMARY KEY REFERENCES orders(id), label TEXT NOT NULL, stage TEXT NOT NULL, delivered TEXT, months INTEGER NOT NULL, hardware_condition TEXT NOT NULL, note TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS confirmed_offers(profile TEXT NOT NULL,target TEXT NOT NULL,part TEXT NOT NULL,url TEXT NOT NULL,payload TEXT NOT NULL,PRIMARY KEY(profile,target,part,url));""")
+    ops.schema(d)
     return d
 def validate_id(v):
     if not isinstance(v,str) or not re.fullmatch(ID_RE,v):raise ValueError('Invalid order or transaction ID')
@@ -148,6 +150,23 @@ def payment(d):
     if date>dt.date.today():raise ValueError('Transaction cannot be future')
     with db() as conn:records.add_payment(conn,txn,id,kind,records.cents(str(d.get('amount'))),date.isoformat())
     return {'ok':True}
+def operations(d,action):
+    with db() as conn:
+        if action=='case':
+            ops.save_case(conn,d);return {'ok':True}
+        if action=='plan':
+            p=ops.plan(d)
+            if d.get('order_id'):
+                i=validate_id(d['order_id']);records.balance(conn,i)
+                conn.execute('INSERT OR REPLACE INTO install_plans VALUES(?,?)',(i,json.dumps(p)))
+            return p
+        if action=='handoff':
+            i=validate_id(d.get('order_id'))
+            o=next((x for x in list_orders() if x['id']==i),None)
+            if o is None:raise ValueError('Order not found')
+            row=conn.execute('SELECT payload FROM install_plans WHERE order_id=?',(i,)).fetchone()
+            return {'text':ops.handoff(o,json.loads(row[0]) if row else None,d.get('lang','en'))}
+    raise ValueError('Invalid operation')
 class Handler(http.server.BaseHTTPRequestHandler):
     def log_message(self,*args):pass
     def send(self,status,data,mime='application/json; charset=utf-8'):
@@ -180,6 +199,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 if profile not in PROFILES:raise ValueError('Invalid profile')
                 data=supplier_links(profile)
             elif u.path=='/api/orders':data=list_orders()
+            elif u.path=='/api/cases':
+                with db() as conn:data=ops.cases(conn)
+            elif u.path=='/api/plans':
+                with db() as conn:data=[{'order_id':r[0],'plan':json.loads(r[1])} for r in conn.execute('SELECT order_id,payload FROM install_plans')]
             else:self.send(404,{'error':'Not found'});return
             self.send(200,data)
         except (ValueError,KeyError,TypeError,OSError,sqlite3.Error):self.send(400,{'error':'Unable to read requested data'})
@@ -193,7 +216,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not 0<length<=65536:raise ValueError('Invalid request size')
             data=json.loads(self.rfile.read(length))
             if not isinstance(data,dict):raise ValueError('Invalid payload')
-            routes={'/api/search':start_search,'/api/cost':costing,'/api/confirmed':confirmations,'/api/confirm':lambda d:confirmations(d,save=True),'/api/remove-offer':lambda d:confirmations(d,remove=True),'/api/order':lambda d:save_order(d,True),'/api/order-update':lambda d:save_order(d,False),'/api/payment':payment}
+            routes={'/api/search':start_search,'/api/cost':costing,'/api/confirmed':confirmations,'/api/confirm':lambda d:confirmations(d,save=True),'/api/remove-offer':lambda d:confirmations(d,remove=True),'/api/order':lambda d:save_order(d,True),'/api/order-update':lambda d:save_order(d,False),'/api/payment':payment,'/api/plan':lambda d:operations(d,'plan'),'/api/case':lambda d:operations(d,'case'),'/api/handoff':lambda d:operations(d,'handoff')}
             fn=routes.get(self.path)
             if fn is None:self.send(404,{'error':'Not found'});return
             self.send(200,fn(data))
