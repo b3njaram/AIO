@@ -1,0 +1,5 @@
+# Phase 8 — UPS and power management
+
+Install and configure the distro Network UPS Tools (NUT) driver, local-only upsd and native upsmon for the exact customer UPS, following https://networkupstools.org/docs/user-manual.chunked/. Keep monitor credentials private. Run `upsc -l 127.0.0.1` and `python3 scripts/power-manager.py INSTANCE configure --ups NAME` to preview; add --apply after approval. Maintenance displays AC/battery/low battery, charge, and power alerts. The existing 15-minute opt-in notifications are not an emergency shutdown mechanism. Native NUT upsmon owns shutdown decisions. AIO never initiates shutdown, changes NUT config or issues UPS power-off commands. A missing driver or stale reading is not proof of protection.
+
+Verify actual UPS runtime, threshold, graceful systemd/Docker shutdown, AC return, firmware restore-on-AC, mounted-data restart and post-reboot data integrity on disposable data. Native shutdown and real battery behavior remain hardware acceptance steps. No automatic shutdown until explicitly configured and qualified by the customer.

@@ -6,6 +6,7 @@ from diagnostics import inspect
 from backup_mount import mount_identity
 from storage_manager import snapshot as storage_snapshot
 from maintenance_alerts import alerts
+from power_management import snapshot as power_snapshot
 ROOT=Path(__file__).resolve().parents[1]
 def now():return dt.datetime.now(dt.timezone.utc)
 def update_status(release,check=False):
@@ -49,6 +50,7 @@ def main():
     i=a.instance.resolve();out=i/'data/.dashboard-metrics'
     if not out.is_dir() or out.is_symlink():p.error('Metrics directory missing or unsafe')
     payload=summarize(i,a.backup.resolve(),a.expected_backup_mount,a.smart_device,a.check_updates)
+    payload['power']=power_snapshot(i)
     payload['notifications']={'active':alerts(payload)}
     with tempfile.NamedTemporaryFile(dir=out,delete=False) as tmp:
         try:

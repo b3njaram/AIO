@@ -1,7 +1,7 @@
 """Sanitized local alerts and optional customer-owned private HTTPS delivery."""
 import datetime as dt,json,math,os,re,stat,tempfile,urllib.parse,http.client,ssl,socket,ipaddress
 from pathlib import Path
-CODES={'storage_low','system_disk_low','temperature_high','drive_failed','drive_review','raid_degraded','backup_overdue','backup_unverified','backup_missing','services_review','health_stale','update_available','recovery_review'}
+CODES={'storage_low','system_disk_low','temperature_high','drive_failed','drive_review','raid_degraded','backup_overdue','backup_unverified','backup_missing','services_review','health_stale','update_available','recovery_review','ups_on_battery','ups_low_battery','ups_review'}
 def now():return dt.datetime.now(dt.timezone.utc)
 def alerts(s):
     found=set()
@@ -25,6 +25,10 @@ def alerts(s):
     if not numeric(s.get('service_alert_count')) or s['service_alert_count']>0:found.add('services_review')
     if s.get('updates',{}).get('state')=='review_available':found.add('update_available')
     if s.get('recovery',{}).get('state')=='review_required':found.add('recovery_review')
+    power=s.get('power',{})
+    if power.get('state')=='low_battery':found.add('ups_low_battery')
+    elif power.get('state')=='on_battery':found.add('ups_on_battery')
+    elif power.get('state') in ('unknown','review') or power.get('monitor_active') is False:found.add('ups_review')
     return sorted(found)
 def private_url(value):
     u=urllib.parse.urlsplit(value)
