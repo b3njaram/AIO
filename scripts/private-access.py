@@ -3,6 +3,7 @@
 import argparse,fcntl,ipaddress,json,re,shlex,subprocess,sys
 from pathlib import Path
 from private_origins import prepare,rollback
+from private_routes import manage
 ROOT=Path(__file__).resolve().parents[1]
 APP_PORTS={'dashboard':'DASH_PORT','music':'MUSIC_PORT','navidrome':'NAV_PORT','movies':'MOVIE_PORT','photos':'PHOTO_PORT','files':'CLOUD_PORT','passwords':'VAULT_PORT','tasks':'TASK_PORT','monitor':'MONITOR_PORT'}
 def output(*args):
@@ -56,12 +57,14 @@ def main():
     mode=p.add_mutually_exclusive_group()
     mode.add_argument('--prepare-origins',action='store_true',help='Save previous settings and write proposed origins on this customer host')
     mode.add_argument('--rollback-origins',action='store_true',help='Restore saved settings after disabling all Serve routes')
+    mode.add_argument('--enable-routes',action='store_true',help='Apply Serve on the dedicated host after customer ACL, account and origin checks')
+    mode.add_argument('--rollback-routes',action='store_true',help='Remove exactly matching journaled private routes')
     a=p.parse_args()
-    if a.verify and (a.prepare_origins or a.rollback_origins):p.error('Choose one operation')
+    if a.verify and (a.prepare_origins or a.rollback_origins or a.enable_routes or a.rollback_routes):p.error('Choose one operation')
     i=a.instance.resolve();env=dict(x.split('=',1) for x in (i/'.env').read_text().splitlines() if '=' in x)
     if env.get('INSTANCE_DIR')!=str(i) or not re.fullmatch(r'jobbi-[a-z0-9-]+',env.get('COMPOSE_PROJECT_NAME','')):p.error('Invalid customer instance')
     lock=None
-    if a.prepare_origins or a.rollback_origins:
+    if a.prepare_origins or a.rollback_origins or a.enable_routes or a.rollback_routes:
         lock=(i/'.private-origins.lock').open('a')
         fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
     if a.rollback_origins:
@@ -73,6 +76,10 @@ def main():
     state=json.loads(output('tailscale','status','--json'))
     if state.get('BackendState')!='Running':p.error('Customer must enroll this device in their own tailnet first')
     host=hostname(state['Self']['DNSName'])
+    if a.rollback_routes:
+        manage(i,{},host,True,verify_config,existing_conflicts)
+        print('Removed journaled private routes. Origin rollback is now available.')
+        return
     plan=routes(env,config,host,a.https_base)
     # Manual onboarding confirmations must exist before even generating exposure instructions.
     selected={x['id'] for x in config['apps']}-{'remote','passwords'}
@@ -91,6 +98,12 @@ def main():
     if 'music' in plan:changes['MUSIC_HTTPS']='true'
     if 'passwords' in plan:changes['VAULT_DOMAIN']=plan['passwords']['url']
     if 'tasks' in plan:changes.update(TASK_URL=plan['tasks']['url']+'/',TASK_REGISTRATION='false')
+    if a.enable_routes:
+        if any(env.get(k)!=v for k,v in changes.items()) or cfg!=config:
+            p.error('Prepare app origins before enabling routes')
+        manage(i,plan,host,False,verify_config,existing_conflicts)
+        print('Private Serve configuration verified. Test TLS and ACLs from independent devices.')
+        return
     if a.prepare_origins:
         prepare(i,cfg,changes)
         print('Saved previous configuration and prepared private origins. Recreate dashboard and affected services before enabling Serve.')

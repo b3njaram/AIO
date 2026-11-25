@@ -67,7 +67,8 @@ $('payment').onsubmit=attempt(async e=>{e.preventDefault();await api('payment',f
 let planResult=null;
 function downloadText(name,text,mime='text/plain'){const url=URL.createObjectURL(new Blob([text],{type:mime}));const a=el('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
 for(const [id,label] of Object.entries({music:'Music',movies:'Movies',photos:'Photos',files:'Files',passwords:'Passwords',tasks:'Tasks',monitor:'Monitoring',remote:'Remote access'})){const l=el('label');const c=el('input');c.type='checkbox';c.name='apps';c.value=id;c.checked=true;l.append(c,document.createTextNode(label));$('planApps').append(l)}
-function refreshOperations(){const choices=orders.map(o=>[o.id,o.id+' · '+(o.label||o.market)]);for(const [id,optional] of [['planForm',true],['caseForm',false],['handoffForm',false]]){const s=$(id).elements.order_id;const prev=s.value;opts(s,[...(optional?[['','No saved order']]:[]),...choices]);if([...s.options].some(x=>x.value===prev))s.value=prev}
+function refreshOperations(){const choices=orders.map(o=>[o.id,o.id+' · '+(o.label||o.market)]);for(const [id,optional] of [['planForm',true],['caseForm',false],['handoffForm',false],['documentForm',false]]){const s=$(id).elements.order_id;const prev=s.value;opts(s,[...(optional?[['','No saved order']]:[]),...choices]);if([...s.options].some(x=>x.value===prev))s.value=prev}
+refreshReceiptChoices();
 $('reminders').replaceChildren();for(const o of orders){if(o.stage!=='delivered')continue;for(const [k,label] of [['support_end','Support'],['warranty_end','Hardware warranty'],['installation_warranty_end','Installation warranty']]){if(!o[k])continue;const days=Math.ceil((Date.parse(o[k])-Date.parse(iso()))/86400000);if(days<=30&&days>=0)$('reminders').append(el('p',o.id+' · '+label+' ends in '+days+' days ('+o[k]+')'))}}if(!$('reminders').children.length)$('reminders').append(el('p','No recorded expiry in the next 30 days.'))}
 $('planForm').onsubmit=attempt(async e=>{e.preventDefault();const d=formdata('planForm');d.apps=[...$('planApps').querySelectorAll('input:checked')].map(x=>x.value);d.mirror=e.target.elements.mirror.checked;planResult=await api('plan',d);$('planOutput').textContent=planResult.note+'\n\n'+planResult.commands;$('downloadPlan').disabled=false;await loadPlans();notice('Plan generated; review and execute only on the customer host.')});
 $('downloadPlan').onclick=()=>{if(planResult)downloadText(planResult.name+'-installation.txt',planResult.note+'\n\n'+planResult.commands)};
@@ -75,3 +76,21 @@ async function loadPlans(){const arr=await api('plans');$('savedPlans').replaceC
 async function loadCases(){const arr=await api('cases');$('caseList').replaceChildren();for(const x of arr){const c=el('article',undefined,'ordercard');c.append(el('h3',x.id+' · '+x.subject),el('p',x.order_id+' · '+x.category+' · '+x.status+' · '+x.updated),el('p',x.note),button('Edit',()=>{for(const k of ['id','order_id','category','subject','status','note'])$('caseForm').elements[k].value=x[k]}));$('caseList').append(c)}}
 $('caseForm').onsubmit=attempt(async e=>{e.preventDefault();await api('case',formdata('caseForm'));await loadCases();notice('Case saved.')});
 $('handoffForm').onsubmit=attempt(async e=>{e.preventDefault();const d=formdata('handoffForm');const r=await api('handoff',d);downloadText(d.order_id+'-handoff-'+d.lang+'.txt',r.text);notice('Draft downloaded. Attach actual acceptance and warranty terms.')});
+
+function refreshReceiptChoices(){
+  const form=$('documentForm').elements;
+  const receipt=form.kind.value==='receipt';
+  form.transaction.parentElement.hidden=!receipt;
+  form.transaction.required=receipt;
+  const order=orders.find(row=>row.id===form.order_id.value);
+  opts(form.transaction,(order?.transactions||[]).map(tx=>[tx.id,tx.id+' · '+tx.recorded+' · '+tx.kind]));
+}
+$('documentForm').elements.order_id.onchange=refreshReceiptChoices;
+$('documentForm').elements.kind.onchange=refreshReceiptChoices;
+$('documentForm').onsubmit=attempt(async event=>{
+  event.preventDefault();
+  const data=formdata('documentForm');
+  const response=await api('document',data);
+  const bytes=Uint8Array.from(atob(response.pdf),character=>character.charCodeAt(0));
+  downloadText(data.order_id+'-'+data.kind+'-'+data.lang+'.pdf',bytes,'application/pdf');
+});

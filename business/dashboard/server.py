@@ -160,11 +160,15 @@ def operations(d,action):
                 i=validate_id(d['order_id']);records.balance(conn,i)
                 conn.execute('INSERT OR REPLACE INTO install_plans VALUES(?,?)',(i,json.dumps(p)))
             return p
-        if action=='handoff':
+        if action in ('handoff','document'):
             i=validate_id(d.get('order_id'))
             o=next((x for x in list_orders() if x['id']==i),None)
             if o is None:raise ValueError('Order not found')
             row=conn.execute('SELECT payload FROM install_plans WHERE order_id=?',(i,)).fetchone()
+            if action=='document':
+                from customer_documents import render
+                pdf=render(o,json.loads(row[0]) if row else None,d.get('kind'),d.get('lang'),d.get('transaction'),ops.handoff)
+                return {'pdf':base64.b64encode(pdf).decode('ascii')}
             return {'text':ops.handoff(o,json.loads(row[0]) if row else None,d.get('lang','en'))}
     raise ValueError('Invalid operation')
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -216,7 +220,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not 0<length<=65536:raise ValueError('Invalid request size')
             data=json.loads(self.rfile.read(length))
             if not isinstance(data,dict):raise ValueError('Invalid payload')
-            routes={'/api/search':start_search,'/api/cost':costing,'/api/confirmed':confirmations,'/api/confirm':lambda d:confirmations(d,save=True),'/api/remove-offer':lambda d:confirmations(d,remove=True),'/api/order':lambda d:save_order(d,True),'/api/order-update':lambda d:save_order(d,False),'/api/payment':payment,'/api/plan':lambda d:operations(d,'plan'),'/api/case':lambda d:operations(d,'case'),'/api/handoff':lambda d:operations(d,'handoff')}
+            routes={'/api/search':start_search,'/api/cost':costing,'/api/confirmed':confirmations,'/api/confirm':lambda d:confirmations(d,save=True),'/api/remove-offer':lambda d:confirmations(d,remove=True),'/api/order':lambda d:save_order(d,True),'/api/order-update':lambda d:save_order(d,False),'/api/payment':payment,'/api/plan':lambda d:operations(d,'plan'),'/api/case':lambda d:operations(d,'case'),'/api/handoff':lambda d:operations(d,'handoff'),'/api/document':lambda d:operations(d,'document')}
             fn=routes.get(self.path)
             if fn is None:self.send(404,{'error':'Not found'});return
             self.send(200,fn(data))

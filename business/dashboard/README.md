@@ -31,4 +31,14 @@ On the owner host, mount an independent encrypted backup filesystem with access 
 
     python3 business/dashboard/backup-records.py /path/to/mounted/private-backups
 
-Uses SQLite's online backup API so the dashboard need not stop. Runs integrity and foreign key checks and writes a SHA-256 checksum in a fresh directory. It refuses the same filesystem and does not overwrite or delete existing backups. This covers the cash database, orders, cases, saved plans and verified offers, not historical sourcing reports, password or API credentials. Back up reports separately if needed, and maintain credentials in your password manager. Actual independent filesystem and encryption must be verified. To recover, verify the checksum and inspect the database on a separate machine; stop the dashboard, keep a copy of the current DB and its WAL/SHM files, and follow a reviewed SQLite recovery procedure rather than overwriting a live ledger. No automated restoration or scheduler for business records yet.
+Uses SQLite's online backup API so the dashboard need not stop. Runs integrity and foreign key checks and writes a SHA-256 checksum in a fresh directory. It refuses the same filesystem and does not overwrite or delete existing backups. This covers the cash database, orders, cases, saved plans and verified offers, not historical sourcing reports, password or API credentials. Back up reports separately if needed, and maintain credentials in your password manager. Actual independent filesystem and encryption must be verified. To recover, verify the checksum and inspect the database on a separate machine; stop the dashboard, keep a copy of the current DB and its WAL/SHM files, and follow a reviewed SQLite recovery procedure rather than overwriting a live ledger. 
+
+### Recover a ledger copy
+
+    python3 business/dashboard/backup-records.py /private/new-recovery --restore-from /mounted/backups/jobbi-business-TIMESTAMP
+
+Uses a new private directory, verifies the copied bytes and SQLite integrity and foreign keys, then publishes cash.sqlite3. Review synthetic or real order totals locally before separately scheduling any cutover.
+
+### Customer PDF documents
+
+Install the distribution package `python3-reportlab` for the dashboard interpreter. In Support & handoff, choose the saved order, English or Spanish, and the document type. Receipts require the specific recorded payment or refund. The acceptance form leaves findings and signatures for the customer and technician. PDFs are generated in memory and downloaded by the authenticated owner.

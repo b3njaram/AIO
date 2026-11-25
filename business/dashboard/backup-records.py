@@ -50,7 +50,9 @@ def restore(folder, target):
         os.fsync(out.fileno())
     staged.chmod(0o600)
     with staged.open('rb') as stream:
-        digest=hashlib.file_digest(stream,'sha256').hexdigest()
+        hasher=hashlib.sha256()
+        for block in iter(lambda:stream.read(1024*1024),b''):hasher.update(block)
+        digest=hasher.hexdigest()
     if digest!=match[1]:raise ValueError('Ledger checksum mismatch')
     with sqlite3.connect(staged.as_uri()+'?mode=ro&immutable=1',uri=True) as db:
         if db.execute('PRAGMA integrity_check').fetchall()!=[('ok',)] or db.execute('PRAGMA foreign_key_check').fetchone():

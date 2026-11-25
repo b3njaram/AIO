@@ -66,6 +66,14 @@ def main():
                 h=page.locator('#handoffForm');select(h,'lang','es')
                 with page.expect_download() as d:h.get_by_role('button',name='Download handoff draft').click()
                 assert 'Folio: DEMO-1' in Path(d.value.path()).read_text()
+                documents=page.locator('#documentForm')
+                select(documents,'lang','es')
+                for kind in ('quote','handoff','receipt','acceptance'):
+                    select(documents,'kind',kind)
+                    if kind=='receipt':select(documents,'transaction','TX1')
+                    with page.expect_download() as d:
+                        documents.get_by_role('button').click()
+                    assert Path(d.value.path()).read_bytes().startswith(b'%PDF-')
                 page.reload()
                 page.get_by_role('button',name='Orders & warranty').click()
                 expect(page.get_by_role('heading',name='DEMO-1 · Synthetic order')).to_be_visible()

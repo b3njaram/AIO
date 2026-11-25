@@ -70,6 +70,12 @@ def inspect(instance,smart=()):
                     if item['State']!='running' or item['Health']=='unhealthy':alerts.append('Service needs review: '+str(item['Service']))
         except (ValueError,TypeError):alerts.append('Compose status unreadable')
     else:alerts.append('Compose status unavailable')
+    expected=run('bash',str(Path(__file__).resolve().parent/'ctl.sh'),str(instance),'config','--services')
+    if expected is None:
+        alerts.append('Cannot verify expected service list')
+    else:
+        for missing in sorted(set(expected.splitlines())-{s['Service'] for s in parsed}):
+            alerts.append('Missing container: '+missing)
     # lsblk lists devices but does not claim SMART health; privileged testing remains explicit.
     disks=run('lsblk','-J','-d','-o','NAME,SIZE,MODEL,ROTA,TYPE')
     try:devices=json.loads(disks)['blockdevices'] if disks else []

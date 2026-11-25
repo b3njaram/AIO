@@ -1,15 +1,31 @@
 #!/usr/bin/env bash
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-INSTANCE="$(realpath "$1")"; DEST="$(realpath "$2")"
-[[ "$DEST" != "$INSTANCE" && "$DEST" != "$INSTANCE/"* ]] || { echo "Backup outside instance required"; exit 1; }
-[[ -d "$DEST" && -f "$INSTANCE/.env" ]] || exit 1
+INSTANCE="$(realpath "$1")"
+if [[ "${2:-}" != "--resume" ]]; then DEST="$(realpath "$2")"; else DEST=""; fi
+[[ -f "$INSTANCE/.env" ]] || exit 1
 umask 077
 PROJECT="$(sed -n 's/^COMPOSE_PROJECT_NAME=//p' "$INSTANCE/.env")"
 [[ "$PROJECT" =~ ^jobbi-[a-z0-9-]+$ ]] || exit 1
 # Serialize direct and scheduled backups before inspecting or stopping services.
 exec {backup_lock}>"$INSTANCE/.backup.lock"
 flock -n "$backup_lock" || { echo 'Backup already running for this instance' >&2; exit 1; }
+ctl(){ bash "$ROOT/scripts/ctl.sh" "$INSTANCE" "$@"; }
+JOURNAL="$INSTANCE/.backup-running-services"
+resume_services(){
+  local -a services
+  mapfile -t services < "$JOURNAL"
+  (( ${#services[@]} )) || return 1
+  for service in "${services[@]}"; do [[ "$service" =~ ^[a-z0-9][a-z0-9-]*$ ]] || return 1; done
+  ctl start "${services[@]}" && rm -- "$JOURNAL"
+}
+if [[ "${2:-}" == "--resume" ]]; then
+  [[ -f "$JOURNAL" ]] || { echo 'No interrupted backup to resume'; exit 0; }
+  resume_services
+  exit
+fi
+[[ ! -e "$JOURNAL" ]] || { echo 'Interrupted backup. Inspect the instance, then run backup.sh INSTANCE --resume.' >&2; exit 1; }
+[[ -d "$DEST" && "$DEST" != "$INSTANCE" && "$DEST" != "$INSTANCE/"* ]] || { echo 'Separate backup directory required'; exit 1; }
 OUT="$DEST/$PROJECT-$(date -u +%Y%m%dT%H%M%SZ)"
 mkdir "$OUT"
 # Preserve the actual running/stopped image identities, not merely mutable tags.
@@ -21,7 +37,6 @@ if [[ -n "$IMAGE_LIST" ]]; then
   mapfile -t LOCAL_IMAGES <<< "$IMAGE_LIST"
   docker image save "${LOCAL_IMAGES[@]}" | gzip -1 > "$OUT/local-images.tar.gz"
 fi
-ctl(){ bash "$ROOT/scripts/ctl.sh" "$INSTANCE" "$@"; }
 SERVICES="$(ctl ps --status running --services)"
 mapfile -t RUNNING <<< "$SERVICES"
 [[ -n "$SERVICES" ]] || { echo 'No running services'; exit 1; }
@@ -29,13 +44,17 @@ mapfile -t RUNNING <<< "$SERVICES"
 restart_on_exit(){
   local status=$?
   trap - EXIT
-  if ! ctl start "${RUNNING[@]}"; then
+  if [[ -e "$JOURNAL" ]] && ! resume_services; then
     echo 'Restart failed; inspect instance immediately' >&2
     exit 1
   fi
   exit "$status"
 }
+printf '%s\n' "${RUNNING[@]}" > "$JOURNAL.tmp"
+mv "$JOURNAL.tmp" "$JOURNAL"
 trap restart_on_exit EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 ctl stop "${RUNNING[@]}"
 docker run --rm --network none -v "$INSTANCE:/src:ro" -v "$OUT:/backup:rw" alpine:3.22 sh -c 'cd /src; set -- .env dashboard.json data; for p in release.json deployment onboarding.json image-inventory.json; do if test -e "$p"; then set -- "$@" "$p"; fi; done; tar czf /backup/instance.tar.gz "$@"'
 VOLUMES="$(docker volume ls -q --filter "label=com.docker.compose.project=$PROJECT")"
@@ -44,5 +63,6 @@ while IFS= read -r volume; do
   [[ "$volume" == "$PROJECT"_* ]] || { echo "Unexpected volume"; exit 1; }
   docker run --rm --network none -v "$volume:/src:ro" -v "$OUT:/backup:rw" alpine:3.22 sh -c 'tar czf "/backup/$1.tar.gz" -C /src .' sh "$volume"
 done <<< "$VOLUMES"
+resume_services
 (cd "$OUT" && sha256sum ./*.tar.gz > SHA256SUMS.tmp && sha256sum -c SHA256SUMS.tmp && mv SHA256SUMS.tmp SHA256SUMS)
 echo "Backup: $OUT (contains secrets; encrypt and test restoration on separate host)"

@@ -38,7 +38,7 @@ def plan(d):
     def cmd(*a):return shlex.join(a)
     p['commands']='\n'.join(['# Run ONLY on a dedicated customer Linux host, from the reviewed AIO checkout.',
        '# Verify actual mounts, hardware, disk health, backup drive and free ports first.',
-       cmd('python3','scripts/preflight.py','--data-root',root,'--apps',','.join(apps),'--minimum-free-gib',str(max(50,int(tb*1000**4/1024**3)))),
+       cmd('python3','scripts/preflight.py','--data-root',root,'--backup-root',backup,'--apps',','.join(apps),'--minimum-free-gib',str(max(50,int(tb*1000**4/1024**3)))),
        '# Continue only if preflight passes and capacity/RAID are confirmed.',
        cmd('python3','scripts/install.py','--name',name,'--data-root',root,'--base-port',str(port),'--apps',','.join(apps),'--tz',tz),
        cmd('bash','scripts/verify.sh',instance),cmd('python3','scripts/onboard.py',instance),
