@@ -17,3 +17,7 @@ Pricing is in quote/app.js. USD and MXN rates are illustrative; verify local act
 Customers can download their service configuration as JSON; it contains no secrets or authoritative pricing. The installer accepts it via --quote.
 
 The consumer quote site uses cash-only wording, no mandatory subscription, an email contact button with the current estimate, browser/third-party client policy and no preselected subscription cancellations. Hardware and electricity prices remain illustrative, not live supplier offers. The email button opens the visitor's email client; no private dashboard, credentials, customer database, automatic submissions or payments are exposed. Custom capacity requests can still export their configuration and request a final quote.
+
+## Persistent isolated preview
+
+From the preview worktree, run `bash quote/preview.sh`. It builds and starts a separate Docker Compose project, `jobbi-quote-preview`, bound only to 127.0.0.1:8781. It ignores the production quote .env and does not restart the production quote container. Stop an existing foreground Python preview on that port before running it. `bash quote/preview.sh status` checks the local backend; `bash quote/preview.sh logs` shows only preview logs. The container has the existing restart policy. If the local backend responds but the tailnet URL returns 502, inspect `tailscale serve status` and ensure the HTTP 8781 listener targets http://127.0.0.1:8781. Only configure a missing preview route after checking for conflicts and Funnel; never reset existing routes. 

@@ -49,6 +49,7 @@ def main():
                 errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
                 page.goto(base)
                 expect(page.locator('#overview')).to_be_visible()
+                expect(page.locator('.quick-actions')).to_have_count(0)
                 page.locator('nav [data-tab=hardware]').click()
                 expect(page.get_by_text('Dell OptiPlex 7060 MT i5 16GB 256GB SSD')).to_be_visible()
                 page.locator('#target').select_option('US')

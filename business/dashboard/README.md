@@ -59,3 +59,5 @@ The second route needs the quote preview listening on 127.0.0.1:8781. On a permi
 ## No-login UI demo
 
 For convenience on port 8791 only, append `--preview-no-auth` to the isolated preview command. This uses a new separate .jobbi-no-login-demo directory inside the selected HOME. Existing preview and real ledger records remain unchanged. Live hardware sourcing is disabled; do not enter customer or financial records. Anyone permitted by your tailnet ACL to reach this port can access the demo, so never enable Funnel or a public proxy. Exact Host and Origin checks remain active. Ordinary dashboard invocations still require credentials.
+
+For the quote preview, use `bash quote/preview.sh` instead of a foreground Python HTTP server. It keeps the separate loopback backend running after logout and checks readiness without touching the live quote container. See docs/QUOTE.md.
