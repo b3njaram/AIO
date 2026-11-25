@@ -27,6 +27,7 @@ def main():
     run(sys.executable,str(ROOT/'scripts/boot-guard.py'),str(roots[0]),'--apply')
     env={**os.environ,'GIT_CONFIG_COUNT':'1','GIT_CONFIG_KEY_0':'safe.directory','GIT_CONFIG_VALUE_0':str(ROOT),'HOME':user.pw_dir}
     run('runuser','-u',user.pw_name,'--',sys.executable,str(ROOT/'scripts/setup-customer.py'),'--name',cfg['name'],'--data-root',str(roots[0]),'--backup-root',str(roots[1]),'--apps',cfg['apps'],'--apply',env=env)
+    run(sys.executable,str(ROOT/'scripts/install-health-service.py'),str(roots[0]/cfg['name']),str(roots[1]),'--operator',user.pw_name,'--check-updates','--apply')
     state=Path('/var/lib/jobbi');state.mkdir(mode=0o700,exist_ok=True)
     (state/'first-boot-complete').write_text('Provisioned; onboarding and acceptance pending\n')
     print('First boot completed; operator must finish customer onboarding.')
