@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Prepare and start a new isolated customer instance; never overwrite an existing one."""
-import argparse, ipaddress, json, os, re, secrets, socket, subprocess, sys
+import argparse, ipaddress, json, os, re, secrets, shutil, socket, subprocess, sys
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 PINS={'navidrome':'83684735def8138100dc1e304d62f0f1ca556357','movies':'d80c1eb6a255a3a6e1f0912a7777bd1461c5a49f'}
@@ -34,12 +34,14 @@ def main():
     p.add_argument('--task-url',default='')
     p.add_argument('--tz',default='Etc/UTC')
     p.add_argument('--prepare-only',action='store_true')
+    p.add_argument('--allow-private-bootstrap',action='store_true',help='Explicitly permit first-run setup on a trusted private network')
     a=p.parse_args()
     if not re.fullmatch(r'[a-z0-9][a-z0-9-]{0,35}',a.name): p.error('Invalid name')
     if not re.fullmatch(r'[A-Za-z0-9_.-]{1,48}',a.music_admin): p.error('Invalid admin name')
     if not re.fullmatch(r'[A-Za-z0-9_+/-]+',a.tz): p.error('Invalid timezone')
     ip=ipaddress.IPv4Address(a.bind)
     if not (ip.is_loopback or any(ip in ipaddress.IPv4Network(n) for n in ('10.0.0.0/8','172.16.0.0/12','192.168.0.0/16','100.64.0.0/10'))): p.error('Use explicit loopback, LAN or Tailscale IPv4, never public or wildcard')
+    if not ip.is_loopback and not a.allow_private_bootstrap: p.error('First-run accounts must be set up on loopback. Use --allow-private-bootstrap only on an isolated trusted network.')
     if not 1024<=a.base_port<=65525: p.error('Invalid base port')
     selection=a.apps or DEFAULT
     if a.quote:
@@ -73,6 +75,9 @@ def main():
         reserve(a.bind,53,socket.SOCK_DGRAM)
     os.umask(0o077)
     instance.mkdir()
+    shutil.copytree(ROOT/'deploy',instance/'deployment')
+    release={'aio_commit':subprocess.check_output(['git','-C',str(ROOT),'rev-parse','HEAD'],text=True).strip(),'source_pins':{k:v for k,v in PINS.items() if ('music' if k=='navidrome' else 'movies') in apps}}
+    (instance/'release.json').write_text(json.dumps(release,indent=2)+'\n')
     data=instance/'data'
     data.mkdir()
     data.chmod(0o755)

@@ -41,3 +41,9 @@ Jobbi Music and StreamHub use specific upstream commit SHAs, fetched into each n
 See upstream application licenses and distribution terms before shipping. Provide required notices and corresponding source where required. No copyrighted media or external account credentials are included.
 
 The quote site can export a non-secret `jobbi-home-config.json` (application IDs, hardware preferences, and support period). Pass `--quote /path/to/jobbi-home-config.json` to the installer; it uses the selected apps unless overridden with `--apps`. Hardware and commercial pricing remain subject to manual validation. Pi-hole selection requires an explicit LAN IP.
+
+## Business launch and release qualification
+
+See [business launch playbook](business/PLAYBOOK.md), [intake](business/INTAKE.md), [proposed bilingual support terms](business/SUPPORT.md), [acceptance](business/ACCEPTANCE.md) and [quick start](business/QUICKSTART.md). The offline business/order.py calculator uses proposed prices and actual local costs. Never commit completed customer records to this public repository.
+
+Run `python3 scripts/preflight.py --data-root /path/to/mounted/data --apps music,movies,photos,files,monitor` before installing. New installations snapshot their deployment files and source references under the instance directory; pulling AIO will not silently replace the installed Compose definition. First-run private LAN binding requires explicit --allow-private-bootstrap; localhost remains the default. To update a customer, plan and test a migration deliberately.

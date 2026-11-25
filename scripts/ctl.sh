@@ -11,4 +11,9 @@ while IFS= read -r line; do
   key="$(printf '%s' "$line" | cut -d= -f1)"
   if [[ "$key" =~ ^[A-Z_][A-Z0-9_]*$ ]]; then unset "$key"; fi
 done < "$INSTANCE/.env"
-exec docker compose --env-file "$INSTANCE/.env" -p "$PROJECT" -f "$ROOT/deploy/compose.yaml" "$@"
+COMPOSE="$INSTANCE/deployment/compose.yaml"
+if [[ ! -f "$COMPOSE" ]]; then
+  echo "Legacy pilot: using repository deployment file; freeze it before updating." >&2
+  COMPOSE="$ROOT/deploy/compose.yaml"
+fi
+exec docker compose --env-file "$INSTANCE/.env" -p "$PROJECT" -f "$COMPOSE" "$@"

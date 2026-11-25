@@ -1,0 +1,83 @@
+name: Customer pilot checks
+on:
+  push:
+    paths: ['business/**','scripts/**','deploy/**','.github/workflows/pilot.yml']
+  pull_request:
+    paths: ['business/**','scripts/**','deploy/**','.github/workflows/pilot.yml']
+  workflow_dispatch:
+    inputs:
+      full_stack:
+        description: 'Also start all core apps (not DNS or remote enrollment)'
+        type: boolean
+        default: false
+jobs:
+  isolation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 -m unittest discover -s business -p 'test_*.py'
+      - run: python3 -m py_compile scripts/*.py
+      - run: |
+          mkdir -p /tmp/jobbi-pilot /tmp/jobbi-backups
+          python3 scripts/preflight.py --data-root /tmp/jobbi-pilot --apps monitor --minimum-free-gib 1
+          python3 scripts/install.py --name first --data-root /tmp/jobbi-pilot --base-port 18100 --apps monitor
+          python3 scripts/install.py --name second --data-root /tmp/jobbi-pilot --base-port 18200 --apps monitor
+          for port in 18100 18200; do
+            curl --retry 20 --retry-all-errors --retry-delay 2 -fsS "http://127.0.0.1:$port/healthz"
+          done
+          python3 - <<'PY'
+          import pathlib, json, urllib.request
+          base=pathlib.Path('/tmp/jobbi-pilot')
+          def env(n): return dict(x.split('=',1) for x in (base/n/'.env').read_text().splitlines())
+          a,b=env('first'),env('second')
+          assert a['MOVIE_SECRET']!=b['MOVIE_SECRET']
+          assert a['MUSIC_DB_PASSWORD']!=b['MUSIC_DB_PASSWORD']
+          assert a['INSTANCE_DIR']!=b['INSTANCE_DIR']
+          for port, name in [(18100,'first'),(18200,'second')]:
+              with urllib.request.urlopen(f'http://127.0.0.1:{port}/api/config') as r:
+                  assert json.load(r)['name'].endswith(name)
+          PY
+          docker network inspect jobbi-first_default jobbi-second_default --format '{{.Id}}' | sort -u | wc -l | grep -qx 2
+          bash scripts/ctl.sh /tmp/jobbi-pilot/first stop
+          curl -fsS http://127.0.0.1:18200/healthz
+          bash scripts/ctl.sh /tmp/jobbi-pilot/first start
+          curl --retry 10 --retry-all-errors --retry-delay 1 -fsS http://127.0.0.1:18100/healthz
+      - run: |
+          printf 'pilot backup marker\n' > /tmp/jobbi-pilot/first/data/.pilot-marker
+          bash scripts/backup.sh /tmp/jobbi-pilot/first /tmp/jobbi-backups
+          BACKUP="$(find /tmp/jobbi-backups -mindepth 1 -maxdepth 1 -type d | head -1)"
+          (cd "$BACKUP" && sha256sum -c SHA256SUMS)
+          mkdir -p /tmp/jobbi-restore
+          tar xzf "$BACKUP/instance.tar.gz" -C /tmp/jobbi-restore data/.pilot-marker release.json
+          cmp /tmp/jobbi-pilot/first/data/.pilot-marker /tmp/jobbi-restore/data/.pilot-marker
+          curl --retry 10 --retry-all-errors --retry-delay 1 -fsS http://127.0.0.1:18100/healthz
+          curl -fsS http://127.0.0.1:18200/healthz
+      - if: always()
+        run: |
+          for n in first second; do
+            if test -f "/tmp/jobbi-pilot/$n/.env"; then
+              bash scripts/ctl.sh "/tmp/jobbi-pilot/$n" down -v
+            fi
+          done
+  full-stack:
+    if: github.event_name == 'workflow_dispatch' && inputs.full_stack
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          mkdir -p /tmp/jobbi-full
+          python3 scripts/install.py --name full --data-root /tmp/jobbi-full --apps music,movies,photos,files,passwords,tasks,monitor
+          for i in $(seq 1 45); do
+            if bash scripts/verify.sh /tmp/jobbi-full/full; then exit 0; fi
+            sleep 10
+          done
+          exit 1
+      - if: failure()
+        run: bash scripts/ctl.sh /tmp/jobbi-full/full ps
+      - if: always()
+        run: |
+          if test -f /tmp/jobbi-full/full/.env; then
+            bash scripts/ctl.sh /tmp/jobbi-full/full down -v
+          fi
