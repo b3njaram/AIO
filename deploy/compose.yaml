@@ -218,11 +218,12 @@ services:
     volumes: ["${INSTANCE_DIR}/data/pihole:/etc/pihole"]
     ports:
       - "${BIND_IP}:${DNS_WEB_PORT}:80"
-      - "${BIND_IP}:53:53/tcp"
-      - "${BIND_IP}:53:53/udp"
+      - "${BIND_IP}:${DNS_LISTEN_PORT:-53}:53/tcp"
+      - "${BIND_IP}:${DNS_LISTEN_PORT:-53}:53/udp"
   uptime-kuma:
     profiles: [monitor]
     image: louislam/uptime-kuma:2
+    environment: {UPTIME_KUMA_DB_TYPE: sqlite}
     restart: unless-stopped
     volumes: ["${INSTANCE_DIR}/data/uptime:/app/data"]
     ports: ["${BIND_IP}:${MONITOR_PORT}:3001"]

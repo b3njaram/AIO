@@ -66,7 +66,13 @@ def main():
     env,cfg,release=metadata(archives['instance.tar.gz'])
     old=env.get('COMPOSE_PROJECT_NAME','')
     if not re.fullmatch(r'jobbi-[a-z0-9-]+',old) or old==project:p.error('Restore must have a new project name')
-    if 'dns' in env.get('COMPOSE_PROFILES','').split(','):p.error('DNS restores require a separate manual LAN plan')
+    dns='dns' in env.get('COMPOSE_PROFILES','').split(',')
+    if dns:
+        if 'DNS_LISTEN_PORT' not in env or a.base_port+11>65535:p.error('Legacy DNS installation requires a manual private restore')
+        reserve('127.0.0.1',a.base_port+11)
+        import socket
+        reserve('127.0.0.1',a.base_port+11,socket.SOCK_DGRAM)
+        env['DNS_LISTEN_PORT']=str(a.base_port+11)
     if env.get('OWNER_UID')!=str(os.getuid()) or env.get('OWNER_GID')!=str(os.getgid()):p.error('Restore using the original installation UID/GID; manual ownership migration otherwise')
     version=release.get('customer_patch_version',0)
     if version not in (0,1,2):p.error('Unknown customer patch version')

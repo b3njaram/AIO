@@ -36,6 +36,7 @@ def main():
     p.add_argument('--tz',default='Etc/UTC')
     p.add_argument('--prepare-only',action='store_true')
     p.add_argument('--allow-private-bootstrap',action='store_true',help='Explicitly permit first-run setup on a trusted private network')
+    p.add_argument('--local-dns-port',type=int,help='Loopback-only DNS pilot on an unprivileged port')
     a=p.parse_args()
     if not re.fullmatch(r'[a-z0-9][a-z0-9-]{0,35}',a.name): p.error('Invalid name')
     if not re.fullmatch(r'[A-Za-z0-9_.-]{1,48}',a.music_admin): p.error('Invalid admin name')
@@ -52,7 +53,9 @@ def main():
         print('Quoted storage, mirroring and RAM require separate hardware validation; this script never formats disks.')
     apps=set(filter(None,selection.split(',')))
     if apps-(set(APPS)-{'navidrome'}): p.error('Unknown app IDs')
-    if 'dns' in apps and (ip.is_loopback or ip in ipaddress.IPv4Network('100.64.0.0/10')): p.error('Pi-hole requires an explicit LAN address; omit dns for now')
+    if a.local_dns_port is not None and ('dns' not in apps or a.bind!='127.0.0.1' or not 1024<=a.local_dns_port<=65535 or a.local_dns_port in range(a.base_port,a.base_port+11)):
+        p.error('Choose a separate unprivileged port for a loopback DNS pilot')
+    if a.local_dns_port is None and 'dns' in apps and (ip.is_loopback or ip in ipaddress.IPv4Network('100.64.0.0/10')): p.error('Pi-hole requires an explicit LAN address; omit dns for now')
     parent=Path(a.data_root).expanduser().resolve()
     if not parent.is_dir(): p.error('Data root must already exist; verify disk is mounted')
     instance=parent/a.name
@@ -73,8 +76,8 @@ def main():
     if 'movies' in apps: active.add('PROWLARR_PORT')
     for k in active: reserve('127.0.0.1' if k=='PROWLARR_PORT' else a.bind,ports[k])
     if 'dns' in apps:
-        reserve(a.bind,53)
-        reserve(a.bind,53,socket.SOCK_DGRAM)
+        reserve(a.bind,a.local_dns_port or 53)
+        reserve(a.bind,a.local_dns_port or 53,socket.SOCK_DGRAM)
     os.umask(0o077)
     instance.mkdir()
     shutil.copytree(ROOT/'deploy',instance/'deployment')
@@ -122,6 +125,7 @@ def main():
          'TASK_REGISTRATION':'false','TASK_URL':a.task_url or 'http://'+a.bind+':'+str(ports['TASK_PORT'])+'/','PROWLARR_API_KEY':'','TMDB_API_KEY':''}
     for k in ('MUSIC_DB_PASSWORD','MOVIE_SECRET','IMMICH_DB_PASSWORD','CLOUD_DB_PASSWORD','VAULT_ADMIN_TOKEN','TASK_SECRET','TASK_DB_PASSWORD','DNS_PASSWORD'):
         env[k]=secrets.token_hex(32)
+    if 'dns' in apps:env['DNS_LISTEN_PORT']=str(a.local_dns_port or 53)
     env.update({k:str(v) for k,v in ports.items()})
     (instance/'.env').write_text(''.join(k+'='+v+'\n' for k,v in env.items()))
     cmd=['bash',str(ROOT/'scripts/ctl.sh'),str(instance)]
