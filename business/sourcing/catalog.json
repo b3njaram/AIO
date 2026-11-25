@@ -1,0 +1,107 @@
+{
+  "schema": 1,
+  "profiles": {
+    "core": {
+      "name": "Home Core — candidate 4 TB",
+      "parts": [
+        {
+          "id": "computer",
+          "quantity": 1,
+          "query": "Dell OptiPlex 7060 7070 7080 tower i5 16GB 256GB SSD refurbished",
+          "kind": "computer"
+        },
+        {
+          "id": "hdd",
+          "quantity": 1,
+          "query": "WD40EFPX ST4000VN006 4TB NAS SATA hard drive",
+          "kind": "drive",
+          "models": [
+            "WD40EFPX",
+            "ST4000VN006"
+          ],
+          "tb": 4
+        }
+      ]
+    },
+    "family": {
+      "name": "Home Family — candidate 4 TB mirrored",
+      "parts": [
+        {
+          "id": "computer",
+          "quantity": 1,
+          "query": "Dell OptiPlex 7060 7070 7080 tower i5 16GB 256GB SSD refurbished",
+          "kind": "computer"
+        },
+        {
+          "id": "hdd",
+          "quantity": 2,
+          "query": "WD40EFPX ST4000VN006 4TB NAS SATA hard drive",
+          "kind": "drive",
+          "models": [
+            "WD40EFPX",
+            "ST4000VN006"
+          ],
+          "tb": 4
+        }
+      ]
+    },
+    "family8": {
+      "name": "Home Family — candidate 8 TB mirrored",
+      "parts": [
+        {
+          "id": "computer",
+          "quantity": 1,
+          "query": "Dell OptiPlex 7060 7070 7080 tower i5 16GB 256GB SSD refurbished",
+          "kind": "computer"
+        },
+        {
+          "id": "hdd",
+          "quantity": 2,
+          "query": "WD80EFPX ST8000VN004 8TB NAS SATA hard drive",
+          "kind": "drive",
+          "models": [
+            "WD80EFPX",
+            "ST8000VN004"
+          ],
+          "tb": 8
+        }
+      ]
+    },
+    "plus": {
+      "name": "Home Plus — candidate 8 TB mirrored",
+      "parts": [
+        {
+          "id": "computer",
+          "quantity": 1,
+          "query": "Dell OptiPlex 7060 7070 7080 tower i5 32GB 256GB SSD refurbished",
+          "kind": "computer"
+        },
+        {
+          "id": "hdd",
+          "quantity": 2,
+          "query": "WD80EFPX ST8000VN004 8TB NAS SATA hard drive",
+          "kind": "drive",
+          "models": [
+            "WD80EFPX",
+            "ST8000VN004"
+          ],
+          "tb": 8
+        }
+      ]
+    }
+  },
+  "suppliers": {
+    "US": {
+      "Amazon US": "amazon.com",
+      "Dell Refurbished": "dellrefurbished.com",
+      "B&H": "bhphotovideo.com",
+      "eBay": "ebay.com"
+    },
+    "MX": {
+      "Amazon Mexico": "amazon.com.mx",
+      "Cyberpuerta": "cyberpuerta.mx",
+      "PCEL": "pcel.com",
+      "eBay": "ebay.com.mx"
+    }
+  }
+}
