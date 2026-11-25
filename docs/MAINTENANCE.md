@@ -47,3 +47,6 @@ New cold backups include the image inventory and a compressed archive of locally
 If backup power or execution was interrupted, inspect the project and run `bash scripts/backup.sh INSTANCE --resume` to start exactly the services that were running before the cold backup. A subsequent backup refuses to start while that journal exists. Only a directory with a completed and verified SHA256SUMS is eligible for recovery. After a crash, verify recovered application health. Checksums detect corruption. Maintain custody of backups containing secrets.
 
 For optional failure notification, add `--failure-unit your-notifier.service` to the schedule preview and enable commands. Supply a customer-owned systemd user service that delivers the notification. Inspect its own journal to confirm receipt. No third-party account is required.
+
+## Storage Manager
+See [STORAGE.md](STORAGE.md) for read-only RAID1 status and technician disk preparation, replacement and expansion plans. No web endpoint executes disk operations.

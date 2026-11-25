@@ -25,3 +25,5 @@ The full pilot must pass at the exact candidate revision, not just the PR's shor
 ## Appliance boot and customer UI gate
 
 Require passing unit tests of seed generation and guard rules, all three UI browser suites, Docker preview regression, functional app setup/recovery, and the dedicated headless Ubuntu VM boot/missing-disk workflow at the proposed release. Validate the generated ISO through actual Subiquity interactive disk selection on a disposable VM and then boot the physical candidate. Use the private qualification evidence collector plus real measured wall power, thermal/load tests, backup restore, physical reboot, missing-disk behavior and second-device customer ACL/TLS verification. A VM pass is not a hardware pass. Do not create a stable commercial tag until those gates are satisfied.
+
+For RAID1 configurations, additionally verify actual array assembly after reboot, degraded operation, replacement and resynchronization, expansion and independent restore on disposable storage before offering these operations commercially. Storage Manager preview is not evidence of successful physical disk operations.
