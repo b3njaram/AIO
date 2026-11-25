@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Plan private customer Tailscale HTTPS. Does not change tailnet or execute Serve."""
-import argparse,ipaddress,json,re,shlex,subprocess,sys
+import argparse,fcntl,ipaddress,json,re,shlex,subprocess,sys
 from pathlib import Path
+from private_origins import prepare,rollback
 ROOT=Path(__file__).resolve().parents[1]
 APP_PORTS={'dashboard':'DASH_PORT','music':'MUSIC_PORT','navidrome':'NAV_PORT','movies':'MOVIE_PORT','photos':'PHOTO_PORT','files':'CLOUD_PORT','passwords':'VAULT_PORT','tasks':'TASK_PORT','monitor':'MONITOR_PORT'}
 def output(*args):
@@ -51,9 +52,23 @@ def commands(planned):
     return {'enable':[shlex.join(['sudo','tailscale','serve','--bg','--https='+str(r['port']),r['target']]) for r in planned.values()],
       'disable':[shlex.join(['sudo','tailscale','serve','--https='+str(r['port']),'off']) for r in planned.values()]}
 def main():
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('instance',type=Path);p.add_argument('--https-base',type=int,default=19443);p.add_argument('--verify',action='store_true',help='Read-only verify actual Serve config after enabling');a=p.parse_args()
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('instance',type=Path);p.add_argument('--https-base',type=int,default=19443);p.add_argument('--verify',action='store_true',help='Read-only verify actual Serve config after enabling')
+    mode=p.add_mutually_exclusive_group()
+    mode.add_argument('--prepare-origins',action='store_true',help='Save previous settings and write proposed origins on this customer host')
+    mode.add_argument('--rollback-origins',action='store_true',help='Restore saved settings after disabling all Serve routes')
+    a=p.parse_args()
+    if a.verify and (a.prepare_origins or a.rollback_origins):p.error('Choose one operation')
     i=a.instance.resolve();env=dict(x.split('=',1) for x in (i/'.env').read_text().splitlines() if '=' in x)
     if env.get('INSTANCE_DIR')!=str(i) or not re.fullmatch(r'jobbi-[a-z0-9-]+',env.get('COMPOSE_PROJECT_NAME','')):p.error('Invalid customer instance')
+    lock=None
+    if a.prepare_origins or a.rollback_origins:
+        lock=(i/'.private-origins.lock').open('a')
+        fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+    if a.rollback_origins:
+        existing_conflicts(json.loads(output('tailscale','serve','status','--json')),set())
+        rollback(i)
+        print('Previous files restored. Recreate the dashboard and affected services on this instance.')
+        return
     config=json.loads((i/'dashboard.json').read_text())
     state=json.loads(output('tailscale','status','--json'))
     if state.get('BackendState')!='Running':p.error('Customer must enroll this device in their own tailnet first')
@@ -76,6 +91,9 @@ def main():
     if 'music' in plan:changes['MUSIC_HTTPS']='true'
     if 'passwords' in plan:changes['VAULT_DOMAIN']=plan['passwords']['url']
     if 'tasks' in plan:changes.update(TASK_URL=plan['tasks']['url']+'/',TASK_REGISTRATION='false')
+    if a.prepare_origins:
+        prepare(i,cfg,changes)
+        print('Saved previous configuration and prepared private origins. Recreate dashboard and affected services before enabling Serve.')
     print(json.dumps({'host':host,'routes':plan,'proposed_env_changes':changes,'proposed_dashboard_config':cfg,'enable_commands':c['enable'],'disable_commands':c['disable'],'note':'Preview only. Confirm Vaultwarden signups are closed and the intended owner invitation before serving; finish its acceptance after HTTPS. Configure app origins and verify ACLs before enabling routes. Never enable Funnel. Do not run on owner infrastructure.'},indent=2))
 if __name__=='__main__':
     try:main()

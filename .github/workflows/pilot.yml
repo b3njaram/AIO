@@ -163,3 +163,29 @@ jobs:
             fi
           done
           rm -f /tmp/jobbi-library-fixture.json
+
+  office-recovery:
+    if: (github.event_name == 'workflow_dispatch' && inputs.full_stack) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[full-pilot]'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          mkdir -p /tmp/jobbi-office /tmp/jobbi-office-backups
+          export JOBBI_PILOT_INSTANCE=/tmp/jobbi-office/source
+          python3 scripts/install.py --name source --data-root /tmp/jobbi-office --base-port 18800 --apps files,tasks
+          python3 scripts/test-files-pilot.py
+          python3 scripts/test-tasks-pilot.py
+          bash scripts/backup.sh "$JOBBI_PILOT_INSTANCE" /tmp/jobbi-office-backups
+          python3 scripts/restore.py /tmp/jobbi-office-backups/jobbi-source-* --require-exact-images --data-root /tmp/jobbi-office --name recovered --base-port 18900
+          export JOBBI_PILOT_INSTANCE=/tmp/jobbi-office/recovered
+          bash scripts/ctl.sh "$JOBBI_PILOT_INSTANCE" up -d
+          python3 scripts/test-files-pilot.py
+          python3 scripts/test-tasks-pilot.py
+      - if: always()
+        run: |
+          for n in source recovered; do
+            if test -f "/tmp/jobbi-office/$n/.env"; then
+              bash scripts/ctl.sh "/tmp/jobbi-office/$n" down -v
+            fi
+          done

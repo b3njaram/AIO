@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Consistent online SQLite backup of the owner business ledger, never overwrites."""
-import argparse,datetime as dt,hashlib,json,os,sqlite3,sys
+import argparse,datetime as dt,hashlib,json,os,re,shutil,sqlite3,sys
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[2]
 DEFAULT=Path.home()/'.local/share/jobbi-business/cash.sqlite3'
@@ -28,8 +28,40 @@ def backup(source,destination):
     except Exception:
         # Leave incomplete folder for inspection, without a completion checksum.
         raise
+def restore(folder, target):
+    folder=Path(folder).resolve()
+    target=Path(target).expanduser().absolute()
+    if target.parent.resolve()==ROOT or ROOT in target.parent.resolve().parents:
+        raise ValueError('Use a private recovery destination outside Git')
+    if target.parent.resolve()==folder or folder in target.parent.resolve().parents:
+        raise ValueError('Keep the recovery copy outside the backup')
+    source=folder/'cash.sqlite3'
+    manifest=folder/'SHA256SUMS'
+    if any(p.is_symlink() or not p.is_file() for p in (source,manifest)):
+        raise ValueError('Incomplete ledger backup')
+    match=re.fullmatch(r'([a-f0-9]{64})  cash\.sqlite3\n',manifest.read_text())
+    if not match:raise ValueError('Invalid ledger checksum manifest')
+    target.mkdir(mode=0o700)
+    # No existing path is ever replaced. Publish only the checked copy.
+    staged=target/'recovery.partial'
+    with source.open('rb') as src, staged.open('xb') as out:
+        shutil.copyfileobj(src,out)
+        out.flush()
+        os.fsync(out.fileno())
+    staged.chmod(0o600)
+    with staged.open('rb') as stream:
+        digest=hashlib.file_digest(stream,'sha256').hexdigest()
+    if digest!=match[1]:raise ValueError('Ledger checksum mismatch')
+    with sqlite3.connect(staged.as_uri()+'?mode=ro&immutable=1',uri=True) as db:
+        if db.execute('PRAGMA integrity_check').fetchall()!=[('ok',)] or db.execute('PRAGMA foreign_key_check').fetchone():
+            raise ValueError('Recovered database failed SQLite checks')
+    staged.rename(target/'cash.sqlite3')
+    return target/'cash.sqlite3'
+
 def main():
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('destination',type=Path);p.add_argument('--source',type=Path,default=DEFAULT);a=p.parse_args()
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('destination',type=Path);p.add_argument('--source',type=Path,default=DEFAULT);p.add_argument('--restore-from',type=Path,help='Recover a completed backup into a new destination directory');a=p.parse_args()
+    if a.restore_from:
+        print('Verified recovered ledger:',restore(a.restore_from,a.destination));return
     print('Verified private business backup:',backup(a.source,a.destination))
     print('Contains financial/customer records. Encrypt at rest; keep credentials separate.')
 if __name__=='__main__':
