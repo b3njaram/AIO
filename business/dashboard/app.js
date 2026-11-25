@@ -2,18 +2,18 @@
 const $=id=>document.getElementById(id);
 let init,report={offers:[],coverage:[]},visible=30,confirmed,costResult,editing=null,orders=[];
 const el=(tag,text,cls)=>{const x=document.createElement(tag);if(text!==undefined)x.textContent=text;if(cls)x.className=cls;return x};
-function notice(s){$('status').textContent=s}
+function notice(s){$('status').textContent=translate(s)}
 async function api(path,data){const response=await fetch('/api/'+path,data===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json','X-Jobbi-Request':'1'},body:JSON.stringify(data)});const j=await response.json();if(!response.ok)throw Error(j.error||'Request failed');return j}
 function attempt(fn){return async(...args)=>{try{await fn(...args)}catch(e){notice(e.message)}}}
-function link(url,label){const a=el('a',label);try{const u=new URL(url);if(u.protocol==='https:'&&!u.username&&!u.password){a.href=u.href;a.target='_blank';a.rel='noopener noreferrer'}}catch{}return a}
-function button(label,fn){const b=el('button',label);b.type='button';b.onclick=attempt(fn);return b}
+function link(url,label){const a=el('a',translate(label));try{const u=new URL(url);if(u.protocol==='https:'&&!u.username&&!u.password){a.href=u.href;a.target='_blank';a.rel='noopener noreferrer'}}catch{}return a}
+function button(label,fn){const b=el('button',translate(label));b.type='button';b.onclick=attempt(fn);return b}
 function formdata(id){return Object.fromEntries(new FormData($(id)))}
-function fmt(n,cur){return new Intl.NumberFormat('en-US',{style:'currency',currency:cur}).format(Number(n))}
+function fmt(n,cur){return new Intl.NumberFormat(uiLanguage==='es'?'es-MX':'en-US',{style:'currency',currency:cur}).format(Number(n))}
 function currency(m){return m==='MX'?'MXN':'USD'}
-function metric(target,label,value){const d=el('div',undefined,'metric');d.append(el('small',label),el('strong',value));target.append(d)}
+function metric(target,label,value){const d=el('div',undefined,'metric');d.append(el('small',translate(label)),el('strong',value));target.append(d)}
 function tab(name){for(const s of document.querySelectorAll('main>section'))s.hidden=s.id!==name;for(const b of document.querySelectorAll('nav button'))b.classList.toggle('active',b.dataset.tab===name)}
 for(const b of document.querySelectorAll('nav button'))b.onclick=()=>tab(b.dataset.tab);tab('hardware');
-const opts=(s,rows)=>{s.replaceChildren();for(const [v,label] of rows)s.add(new Option(label,v))};
+const opts=(s,rows)=>{s.replaceChildren();for(const [v,label] of rows)s.add(new Option(translate(label),v))};
 function setReports(ids,selected){opts($('reports'),[['','Choose saved report'],...ids.map(x=>[x,x])]);$('reports').value=ids.includes(selected)?selected:ids[0]||''}
 function refreshSuppliers(){const form=$('confirm');opts(form.elements.supplier,Object.keys(init.suppliers[form.elements.market.value]).map(x=>[x,x]))}
 $('confirm').elements.market.onchange=refreshSuppliers;
@@ -33,7 +33,7 @@ function renderOffers(){
    if(r.decision!=='reject')c.append(el('br'),button('Review / confirm',()=>{const form=$('confirm');form.reset();form.elements.part.value=r.part;form.elements.market.value=r.market;refreshSuppliers();form.elements.supplier.value=r.supplier;form.elements.url.value=r.url;form.elements.checked_date.value=iso();form.elements.available_quantity.value=init.profiles[$('profile').value].parts.find(x=>x.id===r.part).quantity;form.scrollIntoView({behavior:'smooth'});notice('Enter confirmed checkout costs and exact model; search prices were not copied.')}))
    $('offers').append(c);
  }
- if(!filtered.length)$('offers').append(el('p','No results for these filters. Check provider coverage and supplier searches.'));
+ if(!filtered.length)$('offers').append(el('p',translate('No results for these filters. Check provider coverage and supplier searches.')));
  $('more').hidden=filtered.length<=visible;
  $('coverage').textContent=(report.coverage||[]).map(x=>x.join(' | ')).join('\n');
 }
@@ -46,7 +46,7 @@ $('target').onchange=attempt(recalc);
 $('search').onclick=attempt(async()=>{await api('search',{...queryOpts(),markets:$('markets').value});$('search').disabled=true;notice('Search started. Existing reports remain available.')});
 let lastJob='idle';
 async function poll(){try{const x=await api('job');$('job').textContent=x.message;$('search').disabled=x.state==='running';if(x.state==='done'&&lastJob!=='done'){setReports(x.reports,x.reports[0]);await loadReport()}lastJob=x.state}catch(e){notice(e.message)}}
-function renderConfirmed(x){confirmed=x;$('confirmed').replaceChildren();$('useBom').disabled=!x.bom.length;if(x.bom.length){$('confirmed').append(el('h3','Lowest complete confirmed build: '+fmt(x.total,x.currency)));for(const r of x.bom){const p=el('p');p.append(document.createTextNode(r.quantity+' × '+r.title+' · '+r.supplier+' · '+fmt(r.landed,r.currency)+' · '),link(r.url,'Listing'));$('confirmed').append(p)}}else $('confirmed').append(el('p','No complete confirmed build for this profile and target.'));for(const r of x.saved){const p=el('p');const excluded=x.excluded.find(y=>y.url===r.url);p.append(document.createTextNode(r.market+' · '+r.exact_model+' · '+r.supplier+(excluded?' — excluded: '+excluded.reason:'')+' '),link(r.url,'Listing'),document.createTextNode(' '),button('Remove',async()=>renderConfirmed(await api('remove-offer',{...queryOpts(),part:r.part,url:r.url}))));$('confirmed').append(p)}}
+function renderConfirmed(x){confirmed=x;$('confirmed').replaceChildren();$('useBom').disabled=!x.bom.length;if(x.bom.length){$('confirmed').append(el('h3','Lowest complete confirmed build: '+fmt(x.total,x.currency)));for(const r of x.bom){const p=el('p');p.append(document.createTextNode(r.quantity+' × '+r.title+' · '+r.supplier+' · '+fmt(r.landed,r.currency)+' · '),link(r.url,'Listing'));$('confirmed').append(p)}}else $('confirmed').append(el('p',translate('No complete confirmed build for this profile and target.')));for(const r of x.saved){const p=el('p');const excluded=x.excluded.find(y=>y.url===r.url);p.append(document.createTextNode(r.market+' · '+r.exact_model+' · '+r.supplier+(excluded?' — excluded: '+excluded.reason:'')+' '),link(r.url,'Listing'),document.createTextNode(' '),button('Remove',async()=>renderConfirmed(await api('remove-offer',{...queryOpts(),part:r.part,url:r.url}))));$('confirmed').append(p)}}
 async function recalc(){renderConfirmed(await api('confirmed',queryOpts()))}
 $('recalc').onclick=attempt(recalc);
 $('confirm').onsubmit=attempt(async e=>{e.preventDefault();const offer=formdata('confirm');offer.currency=currency(offer.market);renderConfirmed(await api('confirm',{...queryOpts(),offer}));notice('Confirmed offer saved.');e.target.reset();refreshSuppliers();e.target.elements.checked_date.value=iso()});
@@ -69,7 +69,7 @@ function downloadText(name,text,mime='text/plain'){const url=URL.createObjectURL
 for(const [id,label] of Object.entries({music:'Music',movies:'Movies',photos:'Photos',files:'Files',passwords:'Passwords',tasks:'Tasks',monitor:'Monitoring',remote:'Remote access'})){const l=el('label');const c=el('input');c.type='checkbox';c.name='apps';c.value=id;c.checked=true;l.append(c,document.createTextNode(label));$('planApps').append(l)}
 function refreshOperations(){const choices=orders.map(o=>[o.id,o.id+' · '+(o.label||o.market)]);for(const [id,optional] of [['planForm',true],['caseForm',false],['handoffForm',false],['documentForm',false],['componentForm',false],['eventForm',false]]){const s=$(id).elements.order_id;const prev=s.value;opts(s,[...(optional?[['','No saved order']]:[]),...choices]);if([...s.options].some(x=>x.value===prev))s.value=prev}
 refreshReceiptChoices();
-$('reminders').replaceChildren();for(const o of orders){if(o.stage!=='delivered')continue;for(const [k,label] of [['support_end','Support'],['warranty_end','Hardware warranty'],['installation_warranty_end','Installation warranty']]){if(!o[k])continue;const days=Math.ceil((Date.parse(o[k])-Date.parse(iso()))/86400000);if(days<=30&&days>=0)$('reminders').append(el('p',o.id+' · '+label+' ends in '+days+' days ('+o[k]+')'))}}renderInstallRecords();if(!$('reminders').children.length)$('reminders').append(el('p','No recorded expiry in the next 30 days.'))}
+$('reminders').replaceChildren();for(const o of orders){if(o.stage!=='delivered')continue;for(const [k,label] of [['support_end','Support'],['warranty_end','Hardware warranty'],['installation_warranty_end','Installation warranty']]){if(!o[k])continue;const days=Math.ceil((Date.parse(o[k])-Date.parse(iso()))/86400000);if(days<=30&&days>=0)$('reminders').append(el('p',o.id+' · '+label+' ends in '+days+' days ('+o[k]+')'))}}renderInstallRecords();if(!$('reminders').children.length)$('reminders').append(el('p',translate('No recorded expiry in the next 30 days.')))}
 $('planForm').onsubmit=attempt(async e=>{e.preventDefault();const d=formdata('planForm');d.apps=[...$('planApps').querySelectorAll('input:checked')].map(x=>x.value);d.mirror=e.target.elements.mirror.checked;planResult=await api('plan',d);$('planOutput').textContent=planResult.note+'\n\n'+planResult.commands;$('downloadPlan').disabled=false;await loadPlans();notice('Plan generated; review and execute only on the customer host.')});
 $('downloadPlan').onclick=()=>{if(planResult)downloadText(planResult.name+'-installation.txt',planResult.note+'\n\n'+planResult.commands)};
 async function loadPlans(){const arr=await api('plans');$('savedPlans').replaceChildren();for(const x of arr){const p=el('p');p.append(document.createTextNode(x.order_id+' · '+x.plan.name+' · '+x.plan.tb+' TB '),button('View plan',()=>{planResult=x.plan;$('planOutput').textContent=x.plan.note+'\n\n'+x.plan.commands;$('downloadPlan').disabled=false}));$('savedPlans').append(p)}}
@@ -118,3 +118,12 @@ for(const [id,endpoint] of [['componentForm','component'],['eventForm','installa
     notice('Saved / Guardado');
   });
 }
+
+document.addEventListener('jobbi-language',attempt(async()=>{
+  renderOffers();
+  if(confirmed)renderConfirmed(confirmed);
+  await loadOrders();
+  await loadPlans();
+  await loadCases();
+  await showLinks();
+}));

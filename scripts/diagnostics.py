@@ -87,6 +87,9 @@ def inspect(instance,smart=()):
         if dockerfree<15:alerts.append('Docker filesystem under 15% free')
     smart_results=[smart_device(x) for x in smart]
     for x in smart_results:
+        temperature=x.get('temperature_c')
+        if isinstance(temperature,(int,float)) and temperature>=60:
+            alerts.append('Elevated drive temperature; check manufacturer limits: '+x['device'])
         if x['state']!='passed':alerts.append('SMART '+x['state']+': '+x['device'])
     if not parsed:alerts.append('No service status available')
     return {'at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'project':env['COMPOSE_PROJECT_NAME'],'data_free_percent':free,'docker_free_percent':dockerfree,'ram_gib':mem,'load_average':os.getloadavg(),'thermal_zones':temperatures,'disks':devices,'smart':smart_results or 'Not tested; specify --smart-device for authorized read-only checks','services':parsed,'alerts':alerts}

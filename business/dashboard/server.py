@@ -197,9 +197,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not self.auth():return
         u=urlsplit(self.path);q=parse_qs(u.query)
         try:
-            if u.path in ('/','/app.js','/style.css'):
-                name={'/':'index.html','/app.js':'app.js','/style.css':'style.css'}[u.path]
-                self.send(200,(Path(__file__).parent/name).read_bytes(),{'/':'text/html; charset=utf-8','/app.js':'application/javascript; charset=utf-8','/style.css':'text/css; charset=utf-8'}[u.path]);return
+            if u.path in ('/','/app.js','/language.js','/style.css'):
+                name={'/':'index.html','/language.js':'language.js','/app.js':'app.js','/style.css':'style.css'}[u.path]
+                self.send(200,(Path(__file__).parent/name).read_bytes(),{'/':'text/html; charset=utf-8','/language.js':'application/javascript; charset=utf-8','/app.js':'application/javascript; charset=utf-8','/style.css':'text/css; charset=utf-8'}[u.path]);return
             if u.path=='/api/init':data={'profiles':PROFILES,'suppliers':sourcing.CAT['suppliers'],'reports':report_ids()}
             elif u.path=='/api/job':
                 with LOCK:data={**JOB,'reports':report_ids()}

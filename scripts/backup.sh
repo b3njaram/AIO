@@ -32,10 +32,18 @@ mkdir "$OUT"
 python3 "$ROOT/scripts/release-inventory.py" "$INSTANCE" --record >/dev/null
 # Capture non-pullable image IDs before interrupting customer services. Registry
 # images are referenced by immutable digest in the backed-up inventory.
-IMAGE_LIST="$(python3 "$ROOT/scripts/recovery_images.py" "$INSTANCE/image-inventory.json")"
+image_file=local-images.tar.gz
+image_options=()
+if [[ "${3:-}" == "--all-images" ]]; then
+  image_file=all-images.tar.gz
+  image_options=(--all-images)
+elif [[ $# -ne 2 ]]; then
+  echo 'Usage: backup.sh INSTANCE DEST [--all-images]' >&2; exit 2
+fi
+IMAGE_LIST="$(python3 "$ROOT/scripts/recovery_images.py" "$INSTANCE/image-inventory.json" "${image_options[@]}")"
 if [[ -n "$IMAGE_LIST" ]]; then
   mapfile -t LOCAL_IMAGES <<< "$IMAGE_LIST"
-  docker image save "${LOCAL_IMAGES[@]}" | gzip -1 > "$OUT/local-images.tar.gz"
+  docker image save "${LOCAL_IMAGES[@]}" | gzip -1 > "$OUT/$image_file"
 fi
 SERVICES="$(ctl ps --status running --services)"
 mapfile -t RUNNING <<< "$SERVICES"

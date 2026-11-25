@@ -2,6 +2,7 @@
 """Opt-in customer-local systemd user timer; defaults to preview."""
 import argparse,os,re,shlex,subprocess,sys
 from pathlib import Path
+from backup_mount import mount_identity
 ROOT=Path(__file__).resolve().parents[1]
 def safe(p):
     p=p.expanduser().resolve()
@@ -17,7 +18,7 @@ def units(instance,dest,hour,minimum,failure_unit=None):
     if env.get('INSTANCE_DIR')!=str(instance) or not re.fullmatch(r'jobbi-[a-z0-9-]+',project):raise ValueError('Invalid customer instance')
     name=project+'-backup'
     python=safe(Path(sys.executable))
-    service='[Unit]\nDescription=Cold backup for '+project+'\n[Service]\nType=oneshot\nUMask=0077\nExecStart='+str(python)+' '+str(root/'scripts/maintenance.py')+' '+str(instance)+' '+str(dest)+' --minimum-free-gib '+str(minimum)+' --run-backup\nTimeoutStartSec=infinity\n'
+    service='[Unit]\nDescription=Cold backup for '+project+'\n[Service]\nType=oneshot\nUMask=0077\nExecStart='+str(python)+' '+str(root/'scripts/maintenance.py')+' '+str(instance)+' '+str(dest)+' --minimum-free-gib '+str(minimum)+' --expected-backup-mount '+mount_identity(dest)+' --run-backup\nTimeoutStartSec=infinity\n'
     if failure_unit:
         if not re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9_.-]{0,100}\.service',failure_unit) or failure_unit==name+'.service':
             raise ValueError('Choose a separate existing user notification service')

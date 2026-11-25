@@ -26,15 +26,15 @@ def image_plan(inventory):
     return plan
 
 
-def stage(inventory, archive, deployment):
+def stage(inventory, archive, deployment, all_images=False):
     plan = image_plan(inventory)
-    if any(digest is None for _, digest in plan.values()):
+    if all_images or any(digest is None for _, digest in plan.values()):
         if archive is None:
             raise ValueError('Missing archive of locally built images')
         subprocess.run(['docker', 'image', 'load', '-i', str(archive)], check=True)
     services = {}
     for name, (identity, digest) in plan.items():
-        if digest:
+        if digest and not all_images:
             probe = ['docker', 'image', 'inspect', '--format', '{{.Id}}', digest]
             existing = subprocess.run(probe, capture_output=True, text=True)
             if existing.returncode:
@@ -52,5 +52,5 @@ def stage(inventory, archive, deployment):
 if __name__ == '__main__':
     import sys
     plan = image_plan(json.loads(Path(sys.argv[1]).read_text()))
-    for image in sorted({image for image, digest in plan.values() if digest is None}):
+    for image in sorted({image for image, digest in plan.values() if digest is None or "--all-images" in sys.argv[2:]}):
         print(image)

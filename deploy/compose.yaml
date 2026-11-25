@@ -13,7 +13,7 @@ services:
     security_opt: [no-new-privileges:true]
   navidrome:
     profiles: [music]
-    image: deluan/navidrome:0.58.0@sha256:2ae037d464de9f802d047165a13b1c9dc2bdbb14920a317ae4aef1233adc0a3c
+    image: deluan/navidrome:0.64.2@sha256:38dc2727bfcfd5ede290f8ada114fc90368146f265ae4701ddddbcbe2a44ee52
     user: "${OWNER_UID}:${OWNER_GID}"
     restart: unless-stopped
     environment: {ND_SCANSCHEDULE: 1h}
@@ -185,11 +185,11 @@ services:
     ports: ["${BIND_IP}:${VAULT_PORT}:80"]
   vikunja:
     profiles: [tasks]
-    image: vikunja/vikunja:0.24.6@sha256:ed1f3ed467fecec0b57e9de7bc6607f8bbcbb23ffced6a81f5dfefc794cdbe3b
+    image: vikunja/vikunja:2.8.0@sha256:35d937baf3b5d5803bed6b9e11d007448b7b536df9e4346dc35551e1072636c3
     restart: unless-stopped
     environment:
       VIKUNJA_SERVICE_PUBLICURL: ${TASK_URL}
-      VIKUNJA_SERVICE_JWTSECRET: ${TASK_SECRET}
+      VIKUNJA_SERVICE_SECRET: ${TASK_SECRET}
       VIKUNJA_SERVICE_ENABLEREGISTRATION: ${TASK_REGISTRATION:-false}
       VIKUNJA_DATABASE_TYPE: postgres
       VIKUNJA_DATABASE_HOST: vikunja-db

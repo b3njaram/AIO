@@ -4,11 +4,13 @@ import argparse,datetime as dt,fcntl,json,os,re,shutil,subprocess,sys
 from pathlib import Path
 from restore import verified_archives
 from diagnostics import inspect
+from backup_mount import mount_identity
 ROOT=Path(__file__).resolve().parents[1]
 def main():
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('instance',type=Path);p.add_argument('destination',type=Path);p.add_argument('--minimum-free-gib',type=int,default=50);p.add_argument('--max-backup-age-days',type=int,default=8);p.add_argument('--run-backup',action='store_true',help='Explicit consent to interrupt only this instance');p.add_argument('--smart-device',action='append',default=[]);a=p.parse_args()
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('instance',type=Path);p.add_argument('destination',type=Path);p.add_argument('--minimum-free-gib',type=int,default=50);p.add_argument('--max-backup-age-days',type=int,default=8);p.add_argument('--run-backup',action='store_true',help='Explicit consent to interrupt only this instance');p.add_argument('--smart-device',action='append',default=[]);p.add_argument('--expected-backup-mount',help='Fingerprint captured when scheduling');a=p.parse_args()
     i=a.instance.resolve();d=a.destination.resolve()
     if a.minimum_free_gib<1 or a.max_backup_age_days<1 or not d.is_dir() or i==d or i in d.parents or d in i.parents: p.error('Use separate existing backup directory and positive limits')
+    if a.expected_backup_mount and mount_identity(d)!=a.expected_backup_mount:p.error('Backup mount changed or disappeared; verify the intended disk')
     if i.stat().st_dev==d.stat().st_dev:p.error('Backup destination must be on a separate mounted filesystem')
     os.umask(0o077)
     env=dict(x.split('=',1) for x in (i/'.env').read_text().splitlines() if '=' in x)

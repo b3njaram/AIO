@@ -61,7 +61,10 @@ def main():
     if not parent.is_dir() or dest.exists() or not re.fullmatch(r'/[A-Za-z0-9_./-]+',str(dest)) or not re.fullmatch(r'/[A-Za-z0-9_./-]+',str(backup)):p.error('Use existing data root, new instance path and paths without spaces')
     if dest==backup or dest in backup.parents or backup in dest.parents:p.error('Backup and restore location must be separate')
     archives=verified_archives(backup)
+    all_images=archives.pop("all-images.tar.gz",None)
     local_images=archives.pop("local-images.tar.gz",None)
+    if all_images and local_images:p.error('Conflicting image archives')
+    image_archive=all_images or local_images
     for n,path in archives.items():validate_archive(path,n=='instance.tar.gz')
     env,cfg,release=metadata(archives['instance.tar.gz'])
     old=env.get('COMPOSE_PROJECT_NAME','')
@@ -117,9 +120,9 @@ def main():
     finally:os.umask(oldmask)
     ctl=['bash',str(ROOT/'scripts/ctl.sh'),str(dest)]
     inventory=dest/'image-inventory.json'
-    exact=inventory.is_file() and (local_images is not None or a.require_exact_images)
+    exact=inventory.is_file() and (image_archive is not None or a.require_exact_images)
     if exact:
-        stage(json.loads(inventory.read_text()),local_images,dest/'deployment')
+        stage(json.loads(inventory.read_text()),image_archive,dest/'deployment',bool(all_images))
     run(*ctl,'config','--quiet')
     # Compose creates named volumes; no service starts before recovery is complete.
     run(*ctl,'create',*(['--no-build','--pull','never'] if exact else ['--build']))

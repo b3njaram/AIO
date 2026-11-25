@@ -85,6 +85,11 @@ def main():
                 page.reload()
                 page.get_by_role('button',name='Orders & warranty').click()
                 expect(page.get_by_role('heading',name='DEMO-1 · Synthetic order')).to_be_visible()
+                page.locator('#dashboardLanguage').select_option('es')
+                expect(page.get_by_role('button',name='Pedidos y garantías')).to_be_visible()
+                expect(page.locator('#order').get_by_role('button',name='Guardar pedido')).to_be_visible()
+                page.reload()
+                expect(page.locator('html')).to_have_attribute('lang','es')
                 assert not errors,errors
                 browser.close()
             print('PASS: browser hardware confirmation, BOM, pricing, cash order, install plan, support case, handoff and persistence')

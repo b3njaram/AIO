@@ -50,7 +50,7 @@ jobs:
           curl --retry 10 --retry-all-errors --retry-delay 1 -fsS http://127.0.0.1:18100/healthz
       - run: |
           printf 'pilot backup marker\n' > /tmp/jobbi-pilot/first/data/.pilot-marker
-          bash scripts/backup.sh /tmp/jobbi-pilot/first /tmp/jobbi-backups
+          bash scripts/backup.sh /tmp/jobbi-pilot/first /tmp/jobbi-backups --all-images
           BACKUP="$(find /tmp/jobbi-backups -mindepth 1 -maxdepth 1 -type d | head -1)"
           (cd "$BACKUP" && sha256sum -c SHA256SUMS)
           mkdir -p /tmp/jobbi-restore
@@ -238,6 +238,10 @@ jobs:
           git worktree add --detach /tmp/jobbi-old-checkout "$old"
           python3 /tmp/jobbi-old-checkout/scripts/install.py --name original --data-root /tmp/jobbi-upgrade --base-port 19200 --apps monitor
           args=(/tmp/jobbi-upgrade/original /tmp/jobbi-upgrade-backups --from-commit "$old" --to-commit "$(git rev-parse HEAD)" --name trial --base-port 19300 --minimum-free-gib 1)
+          python3 scripts/schedule-backups.py /tmp/jobbi-upgrade/original /tmp/jobbi-upgrade-backups --hour 4 --minimum-free-gib 1 --failure-unit notify-owner.service > /tmp/jobbi-schedule-preview
+          grep -q 'OnFailure=notify-owner.service' /tmp/jobbi-schedule-preview
+          grep -Eq -- '--expected-backup-mount [a-f0-9]{64}' /tmp/jobbi-schedule-preview
+          grep -q '04:00:00' /tmp/jobbi-schedule-preview
           python3 scripts/stage-upgrade.py "${args[@]}"
           python3 scripts/stage-upgrade.py "${args[@]}" --prepare
           test -z "$(bash scripts/ctl.sh /tmp/jobbi-upgrade/trial ps -q --status running)"
