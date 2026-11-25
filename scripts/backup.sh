@@ -16,7 +16,7 @@ mapfile -t RUNNING <<< "$SERVICES"
 (( ${#RUNNING[@]} )) || { echo "No running services"; exit 1; }
 trap 'ctl start "${RUNNING[@]}" || echo "Restart failed; inspect instance" >&2' EXIT
 ctl stop "${RUNNING[@]}"
-docker run --rm -v "$INSTANCE:/src:ro" -v "$OUT:/backup:rw" alpine:3.22 sh -c 'cd /src; set -- .env dashboard.json data; for p in release.json deployment; do if test -e "$p"; then set -- "$@" "$p"; fi; done; tar czf /backup/instance.tar.gz "$@"'
+docker run --rm -v "$INSTANCE:/src:ro" -v "$OUT:/backup:rw" alpine:3.22 sh -c 'cd /src; set -- .env dashboard.json data; for p in release.json deployment onboarding.json; do if test -e "$p"; then set -- "$@" "$p"; fi; done; tar czf /backup/instance.tar.gz "$@"'
 VOLUMES="$(docker volume ls -q --filter "label=com.docker.compose.project=$PROJECT")"
 while IFS= read -r volume; do
   [[ -n "$volume" ]] || continue

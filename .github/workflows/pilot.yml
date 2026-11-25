@@ -53,11 +53,16 @@ jobs:
           mkdir -p /tmp/jobbi-restore
           tar xzf "$BACKUP/instance.tar.gz" -C /tmp/jobbi-restore data/.pilot-marker release.json
           cmp /tmp/jobbi-pilot/first/data/.pilot-marker /tmp/jobbi-restore/data/.pilot-marker
+          python3 scripts/restore.py "$BACKUP" --data-root /tmp/jobbi-pilot --name recovered --base-port 18300
+          cmp /tmp/jobbi-pilot/first/data/.pilot-marker /tmp/jobbi-pilot/recovered/data/.pilot-marker
+          bash scripts/ctl.sh /tmp/jobbi-pilot/recovered up -d
+          curl --retry 10 --retry-all-errors --retry-delay 1 -fsS http://127.0.0.1:18300/healthz
+          python3 scripts/onboard.py /tmp/jobbi-pilot/recovered --mark monitor
           curl --retry 10 --retry-all-errors --retry-delay 1 -fsS http://127.0.0.1:18100/healthz
           curl -fsS http://127.0.0.1:18200/healthz
       - if: always()
         run: |
-          for n in first second; do
+          for n in first second recovered; do
             if test -f "/tmp/jobbi-pilot/$n/.env"; then
               bash scripts/ctl.sh "/tmp/jobbi-pilot/$n" down -v
             fi

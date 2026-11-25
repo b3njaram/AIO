@@ -41,3 +41,22 @@ No automatic production upgrades. Review upstream releases and image digests, ba
 New installs copy deploy/ into instance/deployment and record release.json. ctl.sh uses this snapshot, not the repository's current Compose file. Old instances without a snapshot retain the legacy fallback with a warning. Do not overwrite the snapshot during a normal git pull. Backups now include it and release.json when present. Source checkouts are recreated from pinned references, not included in backups; store the exact source/release artifacts separately for long-term recovery. Full recovery still requires a tested migration and compatible images.
 
 Before any paid installation, complete business/ACCEPTANCE.md and use business/PLAYBOOK.md. Run preflight against the actual data mount. --allow-private-bootstrap is only for a physically isolated/trusted private network; do not use it on a public or shared guest network. Do not advertise private HTTPS, automated remote access, or full support until verified on the selected hardware.
+
+## Guided first-run setup
+
+    python3 scripts/onboard.py /absolute/path/to/instance
+    python3 scripts/onboard.py /absolute/path/to/instance --create-movie-owner owner
+    python3 scripts/onboard.py /absolute/path/to/instance --link-movie-key
+    python3 scripts/onboard.py /absolute/path/to/instance --mark movies
+
+Only mark a step after actual functional validation. This tracker stores no passwords and does not claim automatic external account enrollment, HTTPS configuration, or app registration. Initial account creation remains customer-controlled for most services.
+
+## Isolated restore pilot
+
+Use only your own trusted cold backups; checksums detect corruption, not malicious edits. New backups contain the frozen deployment and release manifest. Use the same OS architecture and installation UID/GID and compatible image versions. The tool verifies all hashes, rejects unsafe archive paths and unsupported links, requires a fresh instance/project and distinct ports, restores files and project-scoped volumes, and leaves services stopped.
+
+    python3 scripts/restore.py /path/to/backup --data-root /path/to/mounted/data --name recovery1 --base-port 19080
+    bash scripts/ctl.sh /path/to/mounted/data/recovery1 up -d
+    bash scripts/verify.sh /path/to/mounted/data/recovery1
+
+The original remains untouched. Keep recovered copy loopback-only; never run it against the original production hostname. DNS restores, archives with bind-tree symlinks, external mounts, different UID/GID and legacy backups without a deployment snapshot need manual recovery. Some application volume layouts may contain unsupported links. Image tags are not all immutable; store compatible images separately and validate real application restore. This is a pilot, not a disaster-recovery guarantee.
