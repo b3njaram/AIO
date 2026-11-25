@@ -13,7 +13,7 @@ def main():
             page.route('**/api/config',lambda route:route.fulfill(json={'name':'Jobbi Home · Demo','apps':[{'id':'music','name':'Jobbi Music','en':'Personal music','es':'Música personal','port':18081},{'id':'passwords','name':'Vaultwarden','en':'Password manager','es':'Gestor de contraseñas','url':'https://demo.example.ts.net:19449','note':'HTTPS required','noteEs':'Requiere HTTPS'},{'id':'remote','name':'Tailscale','en':'Private access','es':'Acceso privado'}]}))
             page.route('**/api/status',lambda route:route.fulfill(json={'disk':{'free':4000000000,'total':8000000000,'used':4000000000},'apps':[{'id':'music','state':'reachable'},{'id':'passwords','state':'unavailable'},{'id':'remote','state':'manual'}]}))
             from datetime import datetime,timezone
-            page.route('**/api/health',lambda route:route.fulfill(json={'at':datetime.now(timezone.utc).isoformat(),'data_free_percent':50,'docker_free_percent':60,'temperature_c':[42],'drives':[{'state':'passed'}],'backup':{'state':'verified'},'updates':{'state':'current'},'onboarding':['music'],'storage':{'total_bytes':8000000000000,'free_bytes':4000000000000,'redundancy':{'level':'raid1','state':'degraded','expected':2}}}))
+            page.route('**/api/health',lambda route:route.fulfill(json={'at':datetime.now(timezone.utc).isoformat(),'data_free_percent':50,'docker_free_percent':60,'temperature_c':[42],'drives':[{'state':'passed'}],'backup':{'state':'verified'},'updates':{'state':'current'},'onboarding':['music'],'notifications':{'active':['raid_degraded','backup_overdue']},'storage':{'total_bytes':8000000000000,'free_bytes':4000000000000,'redundancy':{'level':'raid1','state':'degraded','expected':2}}}))
             page.goto('http://jobbi.test/')
             expect(page.locator('#apps .app')).to_have_count(3)
             expect(page.locator('#apps .badge').first).to_contain_text('Reachable')
@@ -24,6 +24,7 @@ def main():
             expect(page.locator('#meter')).to_have_attribute('value','50')
             page.locator('#maintenanceTab').click()
             expect(page.locator('#healthCards')).to_contain_text('42 °C')
+            expect(page.locator('#healthCards')).to_contain_text('Degraded mirror')
             page.locator('#storageTab').click()
             expect(page.locator('#storageCards')).to_contain_text('Degraded')
             expect(page.locator('#storageCards')).to_contain_text('8.00 TB')
