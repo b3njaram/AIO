@@ -5,6 +5,7 @@ Never points at an existing instance or starts services automatically.
 import argparse,hashlib,json,os,re,shutil,subprocess,sys,tarfile
 from pathlib import Path,PurePosixPath
 from install import PORTS, reserve, APPS
+from customer_patches import apply
 ROOT=Path(__file__).resolve().parents[1]
 ALLOWED_REPOS={'navidrome','movies'}
 def run(*args):subprocess.run(args,check=True)
@@ -102,6 +103,7 @@ def main():
             run('git','-C',str(folder),'remote','add','origin','https://github.com/b3njaram/'+repo+'.git')
             run('git','-C',str(folder),'fetch','--depth=1','origin',sha)
             run('git','-C',str(folder),'checkout','--detach','FETCH_HEAD')
+            if release.get('customer_patch_version')==1:apply(dest,repo)
     finally:os.umask(oldmask)
     ctl=['bash',str(ROOT/'scripts/ctl.sh'),str(dest)]
     run(*ctl,'config','--quiet')

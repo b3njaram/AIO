@@ -2,6 +2,7 @@
 """Prepare and start a new isolated customer instance; never overwrite an existing one."""
 import argparse, ipaddress, json, os, re, secrets, shutil, socket, subprocess, sys
 from pathlib import Path
+from customer_patches import apply
 ROOT=Path(__file__).resolve().parents[1]
 PINS={'navidrome':'83684735def8138100dc1e304d62f0f1ca556357','movies':'d80c1eb6a255a3a6e1f0912a7777bd1461c5a49f'}
 DEFAULT='music,movies,photos,files,passwords,tasks,monitor,remote'
@@ -76,7 +77,7 @@ def main():
     os.umask(0o077)
     instance.mkdir()
     shutil.copytree(ROOT/'deploy',instance/'deployment')
-    release={'aio_commit':subprocess.check_output(['git','-C',str(ROOT),'rev-parse','HEAD'],text=True).strip(),'source_pins':{k:v for k,v in PINS.items() if ('music' if k=='navidrome' else 'movies') in apps}}
+    release={'aio_commit':subprocess.check_output(['git','-C',str(ROOT),'rev-parse','HEAD'],text=True).strip(),'customer_patch_version':1,'source_pins':{k:v for k,v in PINS.items() if ('music' if k=='navidrome' else 'movies') in apps}}
     (instance/'release.json').write_text(json.dumps(release,indent=2)+'\n')
     data=instance/'data'
     data.mkdir()
@@ -98,6 +99,7 @@ def main():
                 run('git','-C',str(target),'remote','add','origin','https://github.com/b3njaram/'+repo+'.git')
                 run('git','-C',str(target),'fetch','--depth=1','origin',PINS[repo])
                 run('git','-C',str(target),'checkout','--detach','FETCH_HEAD')
+                apply(instance,repo)
             finally:
                 os.umask(old_umask)
     config=[]
