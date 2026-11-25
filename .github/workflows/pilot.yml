@@ -19,7 +19,9 @@ jobs:
       - run: python3 -m unittest discover -s business -p 'test_*.py'
       - run: python3 -m unittest discover -s business/sourcing -p 'test_*.py'
       - run: python3 business/sourcing/search.py --offline --output /tmp/jobbi-sourcing-ci
-      - run: python3 -m py_compile scripts/*.py
+      - run: python3 -m py_compile scripts/*.py business/dashboard/server.py
+      - run: node --check business/dashboard/app.js
+      - run: python3 -m unittest discover -s business/dashboard -p 'test_*.py'
       - run: |
           mkdir -p /tmp/jobbi-pilot /tmp/jobbi-backups
           python3 scripts/preflight.py --data-root /tmp/jobbi-pilot --apps monitor --minimum-free-gib 1 --minimum-docker-free-gib 1
@@ -100,6 +102,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg
           mkdir -p /tmp/jobbi-media /tmp/jobbi-media-backups
           python3 scripts/install.py --name source --data-root /tmp/jobbi-media --base-port 18400 --apps movies
           for i in $(seq 1 30); do

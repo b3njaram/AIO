@@ -55,3 +55,7 @@ Run `python3 scripts/preflight.py --data-root /path/to/mounted/data --apps music
 ## Client policy
 
 [Supported customer clients](docs/CLIENTS.md): browser-first, compatible third-party apps, optional experimental native Jobbi source. Official app-store publishing and commercial signing are not launch requirements. No unsigned binary is represented as installable.
+
+## Private owner dashboard
+
+[Business dashboard setup](business/dashboard/README.md): hardware searches, confirmed landed BOM, costing, cash ledger, orders and warranty tracking. Localhost plus SSH forwarding; no public site changes.

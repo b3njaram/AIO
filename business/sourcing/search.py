@@ -189,7 +189,10 @@ def main():
                             if x.currency!='USD' or not domain_is(x.url,'ebay.com'):continue
                             price=dec(x.price)
                             if price is None or price<=0:continue
-                            rows.append(row('US',part,'eBay',x.title,x.url,price,dec(x.shipping),x.condition,'DealCompare '+('Browse API' if api.configured() else 'authorized HTML'),x.price_is_starting,'Delivery not verified for your postal code; confirm seller, shipping, fixed price and stock.'))
+                            entry=row('US',part,'eBay',x.title,x.url,price,dec(x.shipping),x.condition,'DealCompare '+('Browse API' if api.configured() else 'authorized HTML'),x.price_is_starting,'Delivery not verified for your postal code; confirm seller, shipping, fixed price and stock.')
+                            image=safe_url(getattr(x,'image',''))
+                            if u.urlsplit(image).hostname=='i.ebayimg.com':entry['image']=image
+                            rows.append(entry)
                         status.append(('US',part['id'],'DealCompare eBay',str(len(items))+' leads; '+'; '.join(notes)))
                         if any('rate limit' in n.lower() or 'denied access' in n.lower() or 'paused' in n.lower() or 'challenge' in n.lower() for n in notes):break
                 if 'MX' in markets:status.append(('MX','eBay','No direct Mexican marketplace API; prepared links and confirmed offers only'))
