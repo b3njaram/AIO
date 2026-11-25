@@ -26,3 +26,5 @@ Copy verified.example.csv to a private directory outside AIO. After checking a s
 Replace the sample FX with the actual quote rate. Cross-border landed comparison requires explicit FX and all landed-cost fields; those fields must include lawful import costs for target market. The cheapest complete confirmed build chooses the lowest landed cost per component. No BOM if a required component is missing. Review the final order again and use business/order.py for labor, support, warranty, travel and margin. No actual orders are placed.
 
 Provider references: https://serpapi.com/google-shopping-api ; https://serpapi.com/organic-results ; https://developer.ebay.com/develop/api/buy/browse_api/item/search .
+
+The HTML report shows the lowest screened advertised candidate per market/component, separately from the final verified BOM. The generated review.csv pre-populates direct supplier links; confirm the exact listing and fill actual costs/quantity before re-importing. No API credentials are needed to review the report or calculate the final confirmed BOM. If using eBay-only, omit SERPAPI_KEY; results will be partial.

@@ -17,6 +17,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: python3 -m unittest discover -s business -p 'test_*.py'
+      - run: python3 -m unittest discover -s business/sourcing -p 'test_*.py'
+      - run: python3 business/sourcing/search.py --offline --output /tmp/jobbi-sourcing-ci
       - run: python3 -m py_compile scripts/*.py
       - run: |
           mkdir -p /tmp/jobbi-pilot /tmp/jobbi-backups
@@ -75,7 +77,11 @@ jobs:
           done
           exit 1
       - if: failure()
-        run: bash scripts/ctl.sh /tmp/jobbi-full/full ps
+        run: |
+          if test -f /tmp/jobbi-full/full/.env; then
+            bash scripts/ctl.sh /tmp/jobbi-full/full ps -a
+            bash scripts/ctl.sh /tmp/jobbi-full/full logs --tail=45 jobbi-music jobbi-storage-agent
+          fi
       - if: always()
         run: |
           if test -f /tmp/jobbi-full/full/.env; then

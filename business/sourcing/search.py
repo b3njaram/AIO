@@ -128,7 +128,7 @@ def ebay(part,market,token,postal):
     if not token:return [],'not configured or API authentication failed'
     # Browse US marketplace only; Mexico delivery must be independently confirmed.
     if market!='US':return [],'US marketplace only; use Google indexed MX offers or confirmed manual quote'
-    q=part['query'] if not part.get('models') else '('+','.join(part['models'])+')'
+    q='Dell OptiPlex tower '+('32GB' if '32GB' in part['query'] else '16GB')+' SSD' if not part.get('models') else '('+','.join(part['models'])+')'
     params={'q':q[:100],'limit':'50','filter':'buyingOptions:{FIXED_PRICE},deliveryCountry:US'}
     hdr={'Authorization':'Bearer '+token,'X-EBAY-C-MARKETPLACE-ID':'EBAY_US','X-EBAY-C-ENDUSERCTX':'contextualLocation='+u.quote('country=US,zip='+postal,safe='')}
     try:
@@ -205,7 +205,16 @@ def report(path,profile,target,rows,status,confirmed,bom,requests):
         for x in bom:h.append('<li>'+esc(x['part'])+' × '+esc(x['quantity'])+' — '+esc(x['title'])+' — '+esc(x['supplier'])+' — '+esc(x['landed'])+' — '+link(x)+'</li>')
         h.append('</ul>')
     else:h.append('<p>No complete confirmed build yet. Fill the verification CSV with exact models, available quantity, shipping, tax, import and warranty. Do not buy based on search prices alone.</p>')
-    h.append('<h2>Supplier coverage</h2><ul>')
+    h.append('<h2>Lowest screened advertised prices by market</h2><p>Only candidate listings with prices. This is a provisional price-only comparison, not a recommendation to purchase. Unknown delivery, taxes and availability are excluded; no cross-currency ranking.</p><section><table><thead><tr><th>Market / part</th><th>Lowest advertised candidate</th><th>Quantity</th><th>Advertised subtotal</th><th>Shipping per unit</th></tr></thead><tbody>')
+    for m in MARKETS:
+        for p in CAT['profiles'][profile]['parts']:
+            matches=[r for r in rows if r['market']==m and r['part']==p['id'] and r['decision']=='candidate' and r['price'] is not None]
+            if not matches:
+                h.append('<tr><td>'+esc(m+' / '+p['id'])+'</td><td colspan="4">No screened priced offer</td></tr>')
+                continue
+            r=min(matches,key=lambda a:Decimal(a['price']))
+            h.append('<tr><td>'+esc(m+' / '+p['id'])+'</td><td>'+esc(r['supplier'])+' — '+esc(r['title'])+' — '+link(r)+'</td><td>'+esc(p['quantity'])+'</td><td>'+esc(r['currency'])+' '+esc(Decimal(r['price'])*p['quantity'])+'</td><td>'+esc(r['shipping'])+'</td></tr>')
+    h.append('</tbody></table></section><h2>Supplier coverage</h2><ul>')
     for x in status:h.append('<li>'+esc(' | '.join(x))+'</li>')
     h.append('</ul><h2>Search leads by market and part</h2><section><table><thead><tr><th>Market / part</th><th>Supplier / listing</th><th>Advertised price</th><th>Shipping</th><th>Screen</th><th>Notes</th></tr></thead><tbody>')
     for r in rows:
@@ -266,6 +275,14 @@ def main():
         dest=out/(a.profile+'-'+stamp);dest.mkdir()
         (dest/'offers.json').write_text(json.dumps({'offers':unique,'coverage':status,'verified':verified,'bom':bom},indent=2),encoding='utf-8')
         report(dest/'report.html',a.profile,a.target,unique,status,verified,bom,calls)
+        # Prepare an editable shortlist with no fabricated confirmations or costs.
+        fields=(ROOT/'verified.example.csv').read_text().strip().split(',')
+        with (dest/'review.csv').open('w',newline='',encoding='utf-8') as stream:
+            writer=csv.DictWriter(stream,fieldnames=fields);writer.writeheader()
+            for r in unique:
+                if r['decision']=='reject' or not domain_is(r['url'],CAT['suppliers'][r['market']][r['supplier']]):continue
+                # Leave all landed prices blank; indexed prices are not checkout prices.
+                writer.writerow({'part':r['part'],'market':r['market'],'supplier':r['supplier'],'url':r['url'],'currency':r['currency'],'confirmed':'no','compatibility_checked':'no'})
         print('Report:',dest/'report.html');print('Search leads:',len(unique),'| Complete confirmed build:',bool(bom),'| Search API requests:',calls)
         if not unique and not bom:print('No offers retrieved. Configure provider credentials or add confirmed supplier quotes; no prices fabricated.')
     except (OSError,ValueError,KeyError,TypeError,InvalidOperation) as e:p.exit(1,'Error: '+str(e)+'\n')

@@ -47,3 +47,7 @@ The quote site can export a non-secret `jobbi-home-config.json` (application IDs
 See [business launch playbook](business/PLAYBOOK.md), [intake](business/INTAKE.md), [proposed bilingual support terms](business/SUPPORT.md), [acceptance](business/ACCEPTANCE.md) and [quick start](business/QUICKSTART.md). The offline business/order.py calculator uses proposed prices and actual local costs. Never commit completed customer records to this public repository.
 
 Run `python3 scripts/preflight.py --data-root /path/to/mounted/data --apps music,movies,photos,files,monitor` before installing. New installations snapshot their deployment files and source references under the instance directory; pulling AIO will not silently replace the installed Compose definition. First-run private LAN binding requires explicit --allow-private-bootstrap; localhost remains the default. To update a customer, plan and test a migration deliberately.
+
+## Private procurement
+
+[Jobbi Hardware Finder](business/sourcing/README.md) searches US/MX suppliers from one command, screens exact parts, exports a private HTML report and an editable review CSV, and selects a complete confirmed landed-cost BOM. No purchases are automated; optional search API credentials are required for live offers. The public quotation site is unchanged.

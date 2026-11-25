@@ -89,10 +89,17 @@ def main():
     for repo,profile in [('navidrome','music'),('movies','movies')]:
         if profile in apps:
             target=instance/'sources'/repo
-            run('git','init',str(target))
-            run('git','-C',str(target),'remote','add','origin','https://github.com/b3njaram/'+repo+'.git')
-            run('git','-C',str(target),'fetch','--depth=1','origin',PINS[repo])
-            run('git','-C',str(target),'checkout','--detach','FETCH_HEAD')
+            # Upstream Dockerfiles COPY source files without chown. A private
+            # process umask would make application JS unreadable by container users.
+            # Only public source files use normal permissions; .env stays private.
+            old_umask=os.umask(0o022)
+            try:
+                run('git','init',str(target))
+                run('git','-C',str(target),'remote','add','origin','https://github.com/b3njaram/'+repo+'.git')
+                run('git','-C',str(target),'fetch','--depth=1','origin',PINS[repo])
+                run('git','-C',str(target),'checkout','--detach','FETCH_HEAD')
+            finally:
+                os.umask(old_umask)
     config=[]
     for app,(name,en,es,port,probe) in APPS.items():
         if app not in apps and not (app=='navidrome' and 'music' in apps): continue
