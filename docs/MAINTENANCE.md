@@ -76,3 +76,20 @@ This checks reachability, not functional acceptance. Keep the trial loopback-onl
     python3 scripts/recovery-center.py rollback INSTANCE BACKUP_ROOT --mount-id FINGERPRINT --candidate trial --confirm-no-candidate-writes --apply
 
 The tool stops the linked candidate and restarts the original exact service set; it retains both datasets and the backup. If a partial candidate has no valid link journal, inspect it manually before recovery. Never start both with real users. Production cutover, transferring systemd timers, private HTTPS, customer data reconciliation after real writes and retiring the original remain supervised tasks; this is not an unattended migration. No automatic deletion or rollback of migrated databases.
+
+## Customer-owned encrypted offsite copies
+
+Install the Ubuntu `age` package. The customer creates an age recovery identity on their trusted offline device and stores it independently of the appliance. Only the public recipient is needed to encrypt. Never put the secret identity in Git, the admin dashboard, the source appliance, a shell argument containing its contents, or the same backup media.
+
+    age-keygen -o customer-recovery.key
+    age-keygen -y customer-recovery.key
+
+On the appliance or a trusted backup workstation, export a completed verified backup:
+
+    python3 scripts/backup-export.py export COMPLETED_BACKUP /mnt/offsite/customer-backup.age --recipient CUSTOMER_AGE_PUBLIC_KEY
+
+The tool verifies checksums, streams encrypted data without writing an intermediate plaintext bundle, and never overwrites an existing output. The original backup remains; use encrypted local filesystems for its protection. Copy the ciphertext to a customer-approved independent location. Verify actual decryption on the trusted recovery workstation:
+
+    python3 scripts/backup-export.py import /mnt/offsite/customer-backup.age /mnt/recovery/new-backup --identity /private/customer-recovery.key --project jobbi-home --mount-id APPROVED_DESTINATION_FINGERPRINT
+
+The importer verifies authenticated decryption, safe archive members, checksums and exact project identity before publishing the new directory. Use strict restore separately. Never delete the only recovery identity or last known-good backup. No automatic offsite upload or deletion; establish retention and storage costs with the customer.

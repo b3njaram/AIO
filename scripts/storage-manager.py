@@ -11,6 +11,8 @@ def main():
         print(json.dumps(snapshot(a.instance.resolve()),indent=2));return
     nodes=topology()
     protected=ancestry(nodes,source_for('/'))
+    docker=Path(subprocess.check_output(['docker','info','--format','{{.DockerRootDir}}'],text=True).strip())
+    protected|=ancestry(nodes,source_for(docker))
     if a.action=='create-mirror':
         if len(a.disk)!=2 or not a.instance is None or a.backup:p.error('Provide exactly two blank disks for a NEW appliance, no instance')
         drives=[blank_disk(nodes,d,protected) for d in a.disk]
@@ -29,8 +31,10 @@ def main():
     if old.get('COMPOSE_PROJECT_NAME')!=env.get('COMPOSE_PROJECT_NAME'):p.error('Backup belongs to another instance')
     source=source_for(i);node=nodes[source];md=read_md(source)
     # Refuse OS/Docker/backup devices and all their ancestors.
-    docker=Path(subprocess.check_output(['docker','info','--format','{{.DockerRootDir}}'],text=True).strip())
-    protected|=ancestry(nodes,source_for(docker))|ancestry(nodes,source_for(b))|ancestry(nodes,source)
+    data_ancestry=ancestry(nodes,source);backup_ancestry=ancestry(nodes,source_for(b))
+    if data_ancestry&backup_ancestry or ancestry(nodes,source_for(docker))&backup_ancestry:raise ValueError('Backup has a shared backing block device; require physically independent storage')
+    if data_ancestry&protected:raise ValueError('Array overlaps OS or Docker storage; specialist review required')
+    protected|=backup_ancestry|data_ancestry
     if a.action=='replace-member':
         if len(a.disk)!=1:p.error('Provide one approved unused whole disk')
         d=blank_disk(nodes,a.disk[0],protected);replacement(md,d)

@@ -37,6 +37,13 @@ image_file=local-images.tar.gz
 image_options=()
 hold=false
 if [[ "${3:-}" == "--hold-for-upgrade" ]]; then
+  python3 - "$INSTANCE" "$DEST" <<'PY'
+import json,subprocess,sys
+from pathlib import Path
+i,b=map(Path,sys.argv[1:]);root=Path(subprocess.check_output(['docker','info','--format','{{.DockerRootDir}}'],text=True).strip())
+if b.stat().st_dev in (i.stat().st_dev,root.stat().st_dev):sys.exit('Independent backup filesystem required for upgrade hold')
+if (i/'.private-serve.json').exists() or any(a.get('url') for a in json.loads((i/'dashboard.json').read_text())['apps']):sys.exit('Disable private routes and restore local origins before holding source')
+PY
   hold=true
   image_file=all-images.tar.gz
   image_options=(--all-images)
