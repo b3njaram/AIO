@@ -55,3 +55,7 @@ In another terminal on the owner host, first inspect `tailscale serve status` an
     sudo tailscale serve --bg --http=8781 http://127.0.0.1:8781
 
 The second route needs the quote preview listening on 127.0.0.1:8781. On a permitted tailnet device visit http://macmini2012:8791 or http://macmini2012:8781. MagicDNS and tailnet ACL access must be enabled. Add the exact full .ts.net browser origin with a second --allow-origin if needed. HTTPS Serve is preferable for actual private financial records (use the exact https://name.tailnet.ts.net origin and matching HTTPS listener). HTTP preview traffic is carried through the encrypted Tailscale connection, but the browser does not consider the page an HTTPS secure context. Basic authentication and exact Host/Origin matching remain enforced; no forwarded headers are trusted. If a proxy rewrites Host, access fails closed. Restrict tailnet ACLs to owner devices. Never publish the business dashboard through Funnel or Cloudflare.
+
+## No-login UI demo
+
+For convenience on port 8791 only, append `--preview-no-auth` to the isolated preview command. This uses a new separate .jobbi-no-login-demo directory inside the selected HOME. Existing preview and real ledger records remain unchanged. Live hardware sourcing is disabled; do not enter customer or financial records. Anyone permitted by your tailnet ACL to reach this port can access the demo, so never enable Funnel or a public proxy. Exact Host and Origin checks remain active. Ordinary dashboard invocations still require credentials.

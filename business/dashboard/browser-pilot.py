@@ -129,4 +129,43 @@ def main():
             print('PASS: browser hardware confirmation, BOM, pricing, cash order, install plan, support case, handoff and persistence')
         finally:
             proc.terminate();proc.wait(timeout=10)
-if __name__=='__main__':main()
+def no_login_demo():
+    with tempfile.TemporaryDirectory() as tmp:
+        env={**os.environ,'HOME':tmp}
+        command=[sys.executable,str(ROOT/'business/dashboard/server.py'),'--preview-no-auth','--port','8791','--allow-origin','http://macmini2012:8791']
+        proc=subprocess.Popen(command,env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)
+        base='http://127.0.0.1:8791'
+        def request(path,host='macmini2012:8791',origin=None):
+            headers={'Host':host}
+            if origin:headers.update({'Origin':origin,'X-Jobbi-Request':'1','Content-Type':'application/json'})
+            req=urllib.request.Request(base+path,headers=headers,data=b'{}' if origin else None)
+            try:
+                with urllib.request.urlopen(req,timeout=3) as response:return response.status,response.read()
+            except urllib.error.HTTPError as error:return error.code,error.read()
+        try:
+            for _ in range(40):
+                if proc.poll() is not None:raise RuntimeError('Demo failed to start')
+                try:
+                    code,body=request('/api/init')
+                    if code==200:break
+                except OSError:time.sleep(.25)
+            else:raise RuntimeError('Demo unavailable')
+            assert json.loads(body)['preview'] is True
+            assert request('/api/init',host='unapproved.example')[0]==403
+            assert request('/api/search',origin='http://macmini2012:8791')[0]==403
+            assert request('/api/nonexistent',origin='http://evil.example')[0]==403
+            assert request('/api/nonexistent',origin='http://macmini2012:8791')[0]==404
+            assert (Path(tmp)/'.jobbi-no-login-demo/cash.sqlite3').exists()
+            assert not (Path(tmp)/'.local/share/jobbi-business/cash.sqlite3').exists()
+            with sync_playwright() as playwright:
+                browser=playwright.chromium.launch()
+                page=browser.new_page()
+                page.goto(base)
+                expect(page.locator('#demoNotice')).to_be_visible()
+                expect(page.locator('#overview')).to_be_visible()
+                browser.close()
+        finally:proc.terminate();proc.wait(timeout=10)
+        denied=subprocess.run(command+['--port','8790'],env=env,capture_output=True,timeout=10)
+        assert denied.returncode!=0
+    print('PASS: no-login preview, separate data, offline sourcing, host/origin rejection and production-port refusal')
+if __name__=='__main__':main();no_login_demo()

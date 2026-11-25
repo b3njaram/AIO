@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Private single-operator dashboard. Loopback only; use an SSH tunnel."""
+"""Private single-operator dashboard. Loopback only; private Serve or SSH."""
 import argparse,base64,csv,datetime as dt,hashlib,hmac,http.server,json,os,re,secrets,sqlite3,subprocess,sys,tempfile,threading
 from pathlib import Path
 from decimal import Decimal
@@ -209,6 +209,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         hosts=self.headers.get_all('Host',[])
         if len(hosts)!=1 or hosts[0] not in self.server.allowed_origins:
             self.send(403,{'error':'Unapproved private dashboard hostname'});return False
+        if self.server.preview:return True
         expected='Basic '+base64.b64encode(('owner:'+self.server.password).encode()).decode()
         if not hmac.compare_digest(self.headers.get('Authorization',''),expected):
             self.send(401,{'error':'Authentication required'});return False
@@ -220,7 +221,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if u.path in ('/','/app.js','/language.js','/style.css'):
                 name={'/':'index.html','/language.js':'language.js','/app.js':'app.js','/style.css':'style.css'}[u.path]
                 self.send(200,(Path(__file__).parent/name).read_bytes(),{'/':'text/html; charset=utf-8','/language.js':'application/javascript; charset=utf-8','/app.js':'application/javascript; charset=utf-8','/style.css':'text/css; charset=utf-8'}[u.path]);return
-            if u.path=='/api/init':data={'profiles':PROFILES,'suppliers':sourcing.CAT['suppliers'],'reports':report_ids()}
+            if u.path=='/api/init':data={'profiles':PROFILES,'suppliers':sourcing.CAT['suppliers'],'reports':report_ids(),'preview':self.server.preview}
             elif u.path=='/api/job':
                 with LOCK:data={**JOB,'reports':report_ids()}
             elif u.path=='/api/report':data=read_report(q.get('id',[''])[0])
@@ -247,26 +248,42 @@ class Handler(http.server.BaseHTTPRequestHandler):
             data=json.loads(self.rfile.read(length))
             if not isinstance(data,dict):raise ValueError('Invalid payload')
             routes={'/api/search':start_search,'/api/cost':costing,'/api/confirmed':confirmations,'/api/confirm':lambda d:confirmations(d,save=True),'/api/remove-offer':lambda d:confirmations(d,remove=True),'/api/order':lambda d:save_order(d,True),'/api/order-update':lambda d:save_order(d,False),'/api/payment':payment,'/api/plan':lambda d:operations(d,'plan'),'/api/case':lambda d:operations(d,'case'),'/api/component':lambda d:operations(d,'component'),'/api/installation-event':lambda d:operations(d,'installation-event'),'/api/handoff':lambda d:operations(d,'handoff'),'/api/document':lambda d:operations(d,'document')}
+            if self.server.preview and self.path=='/api/search':
+                self.send(403,{'error':'Live hardware search is disabled in the no-login demo.'});return
             fn=routes.get(self.path)
             if fn is None:self.send(404,{'error':'Not found'});return
             self.send(200,fn(data))
         except (ValueError,KeyError,TypeError,ArithmeticError,argparse.ArgumentTypeError,sqlite3.IntegrityError) as e:self.send(400,{'error':str(e)[:300]})
         except (OSError,sqlite3.Error):self.send(500,{'error':'Local storage operation failed'})
 def main():
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--port',type=int,default=8790);p.add_argument('--init',action='store_true');p.add_argument('--allow-origin',action='append',default=[],help='Exact private Tailscale browser origin; repeat for additional names');a=p.parse_args()
+    global HOME,REPORTS,CONFIG
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--port',type=int,default=8790);p.add_argument('--init',action='store_true');p.add_argument('--allow-origin',action='append',default=[],help='Exact private Tailscale browser origin; repeat for additional names');p.add_argument('--preview-no-auth',action='store_true',help='Port 8791 only; separate demo database, no live sourcing, no password');a=p.parse_args()
     if not 1024<=a.port<=65535:p.error('Invalid port')
     try:allowed=permitted_origins(a.port,a.allow_origin)
     except ValueError as e:p.error(str(e))
-    os.umask(0o077);HOME.mkdir(parents=True,exist_ok=True);CONFIG.mkdir(parents=True,exist_ok=True)
+    os.umask(0o077)
+    if a.preview_no_auth:
+        if a.port!=8791 or a.init:p.error('No-login demo is limited to port 8791; do not use --init')
+        demo=Path.home()/'.jobbi-no-login-demo'
+        for directory in (demo,demo/'sourcing',demo/'config'):
+            if directory.is_symlink():p.error('Demo directory must not be a symlink')
+            directory.mkdir(mode=0o700,exist_ok=True)
+            if not directory.is_dir() or directory.stat().st_uid!=os.getuid() or directory.stat().st_mode&0o077:p.error('Demo directory must be privately owned')
+        for name in ('cash.sqlite3','cash.sqlite3-wal','cash.sqlite3-shm','cash.sqlite3-journal'):
+            path=demo/name
+            if path.is_symlink() or path.exists() and (not path.is_file() or path.stat().st_nlink!=1):p.error('Unsafe demo database path')
+        HOME=demo;REPORTS=demo/'sourcing';CONFIG=demo/'config'
+    HOME.mkdir(parents=True,exist_ok=True);CONFIG.mkdir(parents=True,exist_ok=True)
     token=CONFIG/'dashboard-password'
     if a.init:
         if not token.exists():
             fd=os.open(token,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
             with os.fdopen(fd,'w') as stream:stream.write(secrets.token_urlsafe(32)+'\n')
         print('Dashboard credentials file:',private_file(token));return
-    password=private_file(token).read_text().strip()
-    if len(password)<32:p.error('Invalid dashboard password')
+    password=None if a.preview_no_auth else private_file(token).read_text().strip()
+    if not a.preview_no_auth and len(password)<32:p.error('Invalid dashboard password')
     with db():pass
-    server=http.server.ThreadingHTTPServer(('127.0.0.1',a.port),Handler);server.password=password;server.allowed_origins=allowed
+    server=http.server.ThreadingHTTPServer(('127.0.0.1',a.port),Handler);server.password=password;server.allowed_origins=allowed;server.preview=a.preview_no_auth
+    if a.preview_no_auth:print('NO-LOGIN DEMO: use synthetic records only; restrict Serve to your devices.',flush=True)
     print('Private dashboard on http://127.0.0.1:'+str(a.port),flush=True);server.serve_forever()
 if __name__=='__main__':main()

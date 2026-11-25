@@ -1,5 +1,6 @@
 'use strict';
 const spanish = new Map(`
+Demo only · no login · use test records|Solo demo · sin acceso por contraseña · usa registros de prueba
 Overview|Resumen
 WORKSPACE|ESPACIO DE TRABAJO
 What needs your attention today?|¿Qué necesita tu atención hoy?
