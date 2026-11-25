@@ -16,4 +16,8 @@ if [[ ! -f "$COMPOSE" ]]; then
   echo "Legacy pilot: using repository deployment file; freeze it before updating." >&2
   COMPOSE="$ROOT/deploy/compose.yaml"
 fi
-exec docker compose --env-file "$INSTANCE/.env" -p "$PROJECT" -f "$COMPOSE" "$@"
+FILES=(-f "$COMPOSE")
+if [[ -f "$INSTANCE/deployment/recovery-images.json" ]]; then
+  FILES+=(-f "$INSTANCE/deployment/recovery-images.json")
+fi
+exec docker compose --env-file "$INSTANCE/.env" -p "$PROJECT" "${FILES[@]}" "$@"

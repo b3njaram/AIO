@@ -6,6 +6,7 @@ import argparse,hashlib,json,os,re,shutil,subprocess,sys,tarfile
 from pathlib import Path,PurePosixPath
 from install import PORTS, reserve, APPS
 from customer_patches import apply
+from recovery_images import stage
 ROOT=Path(__file__).resolve().parents[1]
 ALLOWED_REPOS={'navidrome','movies'}
 def run(*args):subprocess.run(args,check=True)
@@ -60,6 +61,7 @@ def main():
     if not parent.is_dir() or dest.exists() or not re.fullmatch(r'/[A-Za-z0-9_./-]+',str(dest)) or not re.fullmatch(r'/[A-Za-z0-9_./-]+',str(backup)):p.error('Use existing data root, new instance path and paths without spaces')
     if dest==backup or dest in backup.parents or backup in dest.parents:p.error('Backup and restore location must be separate')
     archives=verified_archives(backup)
+    local_images=archives.pop("local-images.tar.gz",None)
     for n,path in archives.items():validate_archive(path,n=='instance.tar.gz')
     env,cfg,release=metadata(archives['instance.tar.gz'])
     old=env.get('COMPOSE_PROJECT_NAME','')
@@ -108,9 +110,13 @@ def main():
             if version:apply(dest,repo,version)
     finally:os.umask(oldmask)
     ctl=['bash',str(ROOT/'scripts/ctl.sh'),str(dest)]
+    inventory=dest/'image-inventory.json'
+    exact=inventory.is_file() and (local_images is not None or a.require_exact_images)
+    if exact:
+        stage(json.loads(inventory.read_text()),local_images,dest/'deployment')
     run(*ctl,'config','--quiet')
     # Compose creates named volumes; no service starts before recovery is complete.
-    run(*ctl,'create','--build')
+    run(*ctl,'create',*(['--no-build','--pull','never'] if exact else ['--build']))
     available=set(output('docker','volume','ls','-q','--filter','label=com.docker.compose.project='+project).splitlines())
     expected_volumes={project+'_'+suffix for suffix in volumes}
     if available!=expected_volumes:raise ValueError('Backup volume set does not match destination; inspect before recovery')
@@ -118,7 +124,7 @@ def main():
     if inventory.exists():
         result=subprocess.run([sys.executable,str(ROOT/'scripts/release-inventory.py'),str(dest),'--compare',str(inventory)])
         if result.returncode:
-            if a.require_exact_images:raise ValueError('Image identity differs or cannot be verified; no named volume restored')
+            if exact:raise ValueError('Image identity differs or cannot be verified; no named volume restored')
             print('WARNING: image identity differs or could not be verified. Do not start until reviewed.')
     elif a.require_exact_images:raise ValueError('Backup lacks image inventory; strict recovery cannot continue')
     for suffix,path in volumes.items():

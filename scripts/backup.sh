@@ -14,6 +14,13 @@ OUT="$DEST/$PROJECT-$(date -u +%Y%m%dT%H%M%SZ)"
 mkdir "$OUT"
 # Preserve the actual running/stopped image identities, not merely mutable tags.
 python3 "$ROOT/scripts/release-inventory.py" "$INSTANCE" --record >/dev/null
+# Capture non-pullable image IDs before interrupting customer services. Registry
+# images are referenced by immutable digest in the backed-up inventory.
+IMAGE_LIST="$(python3 "$ROOT/scripts/recovery_images.py" "$INSTANCE/image-inventory.json")"
+if [[ -n "$IMAGE_LIST" ]]; then
+  mapfile -t LOCAL_IMAGES <<< "$IMAGE_LIST"
+  docker image save "${LOCAL_IMAGES[@]}" | gzip -1 > "$OUT/local-images.tar.gz"
+fi
 ctl(){ bash "$ROOT/scripts/ctl.sh" "$INSTANCE" "$@"; }
 SERVICES="$(ctl ps --status running --services)"
 mapfile -t RUNNING <<< "$SERVICES"
