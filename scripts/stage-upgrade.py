@@ -30,7 +30,7 @@ def check_release(instance,old,new):
     release=json.loads((instance/'release.json').read_text())
     if release['aio_commit']!=old:
         raise ValueError('Installed release differs from expected source')
-    if release['customer_patch_version'] not in (2,3,VERSION) or any(PINS.get(k)!=v for k,v in release['source_pins'].items()):
+    if release['customer_patch_version'] not in (2,3,4,VERSION) or any(PINS.get(k)!=v for k,v in release['source_pins'].items()):
         raise ValueError('This transition requires a reviewed source migration')
     frozen=instance/'deployment'
     names=git('ls-tree','-r','--name-only',old,'deploy').decode().splitlines()
