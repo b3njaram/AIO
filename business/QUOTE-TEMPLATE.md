@@ -25,3 +25,5 @@ Expected delivery date / Entrega estimada:
 | Balance | |
 
 Attach agreed support terms, hardware warranty, return/cancellation provisions and tax/invoice information. Do not accept money until applicable business requirements are resolved. No media catalog, lifetime support, guaranteed savings, or unrestricted third-party access is included. Existing installed software does not require a recurring Jobbi payment. Customer approves only the written scope; obtain approval for changes before doing billable work.
+
+Payment method / Forma de pago: cash only / solo efectivo. Attach warranty policy and cancellation disclosures before sale; give a cash acknowledgment for each payment. Official support: CONTACT.md.

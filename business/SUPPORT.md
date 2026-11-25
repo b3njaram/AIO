@@ -21,3 +21,5 @@ Draft for approval; not a final contract or legal advice. Mandatory consumer rig
 - Garantías y devoluciones del equipo se especifican por pedido conforme a la ley. Conservar facturas y números de serie. El espejo de discos no es respaldo; mantener copia independiente probada. No se promete pérdida cero.
 - Soporte remoto solo con consentimiento expreso, acceso temporal y revocación al terminar. No enviar contraseñas por correo/chat. Sin acceso rutinario a archivos o historial. El cliente controla cuentas externas, derechos sobre contenido, red y costos operativos.
 - No renovar no impide usar las versiones instaladas. Entregar instrucciones de exportación y revocar accesos de soporte; devolver/eliminar copias de soporte conforme al acuerdo y la ley.
+
+Official support / Soporte oficial: see [CONTACT.md](CONTACT.md). Separate hardware and installation defect warranty / Garantía independiente: [WARRANTY-RETURNS.md](WARRANTY-RETURNS.md).

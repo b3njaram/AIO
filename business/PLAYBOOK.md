@@ -16,7 +16,7 @@ Start with a paid pilot only after the technical release gate passes. Offer one 
 | Premium annual support (scope quoted separately) | 179 | 1,999 |
 | Out-of-scope hourly service | 49 | 499 |
 
-Hardware is separate: actual landed local cost + proposed 12% markup (not 12% net margin). Taxes, shipping, travel, payment fees, warranty reserve, labor and support reserve must be included in internal costing; do not treat taxes collected as revenue. Use local supplier invoices/FX at order time. Requote if quote expires or components change. Prices are proposals and may be too low on complex jobs. Never accept an order below the contribution floor without owner review.
+Hardware is separate: actual landed local cost + proposed 12% markup (not 12% net margin). Taxes, shipping, travel, cash handling costs, warranty reserve, labor and support reserve must be included in internal costing; do not treat taxes collected as revenue. Use local supplier invoices/FX at order time. Requote if quote expires or components change. Prices are proposals and may be too low on complex jobs. Never accept an order below the contribution floor without owner review.
 
 Use the private costing helper: `python3 business/order.py --help`. No customer data, passwords, payment details or completed order records belong in this public repository.
 
@@ -25,7 +25,7 @@ Use the private costing helper: `python3 business/order.py --help`. No customer 
 1. Inquiry: use the intake template. Find actual monthly bills, data size, users, devices and network; explain what self-hosting replaces and what it does not.
 2. Compatibility: confirm disk layout, power, wired network, upload speed, OS, hardware, app selection, HTTPS and backup destination. Reject unsupported or unsafe builds.
 3. Quote: calculate actual parts, labor, support allowance, transport, fees and warranty provision; confirm currency, taxes, expiry and scope. Confirm business registration, invoicing/tax and warranty obligations for the sale location with a qualified local adviser before accepting payment.
-4. Order: written acceptance and mutually agreed deposit/return terms before buying special-order parts. Suggested deposit only covers agreed nonrecoverable procurement, subject to consumer law and payment terms. Use a legitimate invoice/payment provider; do not store card numbers.
+4. Order: written acceptance and mutually agreed deposit/return terms before buying special-order parts. Suggested deposit only covers agreed nonrecoverable procurement, subject to consumer law and payment terms. Accept cash only; follow CASH-SALES.md. No payment provider integration.
 5. Assemble: record serials and supplier warranties privately, check SMART/drive health and temperatures, install OS security updates and Docker, measure real power. Do not erase existing disks without documented owner approval and backup.
 6. Provision: new isolated instance, fresh credentials, local-only first boot, customer enters external accounts. No personal JobbiSoft tokens. Run acceptance checklist, backup/restore and security tests.
 7. Deliver: transfer admin and recovery information securely, verify customer has ownership and backups, remove temporary support access, collect acceptance and remaining payment under agreed terms. Give invoice and quick-start guide in preferred language.
@@ -42,4 +42,6 @@ Suggested launch channels: personal referrals, local small-business and family n
 
 ## Pending owner decisions
 
-Legal seller and invoicing setup in Mexico/US; supplier and sourcing route; hardware warranty and return terms; payment methods/currency; official support email and hours; whether travel is charged; exact support cap and price floor. Review terms with appropriate advisers before taking orders. No registration, payment account, or real sales transaction is created by this repository.
+Legal seller and invoicing setup deferred, but applicable obligations must be confirmed before sales; supplier agreements and verified hardware; approval of drafted warranty/return terms; service address and support hours; travel charges, support cap and price floor. Cash-only is decided. Official email verified in CONTACT.md. Review terms with appropriate advisers before taking orders. No registration, payment account, or real sales transaction is created by this repository.
+
+See SOURCING.md, WARRANTY-RETURNS.md, CASH-SALES.md, CONTACT.md and the blank trackers. The proposed warranty is separate from optional support.

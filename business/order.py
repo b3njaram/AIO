@@ -29,7 +29,7 @@ def main():
     for k in ('hardware','labor','support','shipping','warranty','overhead'):
         p.add_argument('--'+k,type=amount,required=True,help='Actual estimated cost in local currency; explicitly use 0 if none')
     p.add_argument('--markup',type=amount,default=D(12))
-    p.add_argument('--fee-pct',type=amount,default=D(3))
+    p.add_argument('--fee-pct',type=amount,default=D(0),help='Default zero for cash-only sales; other cash handling expenses belong in overhead')
     p.add_argument('--floor',type=amount,default=D(20),help='Minimum contribution margin percentage (proposed)')
     p.add_argument('--setup',type=amount,help='Override proposed regional setup charge')
     p.add_argument('--renewal',type=amount,help='Override proposed annual renewal rate')
@@ -37,7 +37,7 @@ def main():
     currency,setup,renewal=MARKETS[a.market]
     try: price,cost,fees,profit,margin,minimum=calculate(a.hardware,a.setup if a.setup is not None else setup,a.renewal if a.renewal is not None else renewal,a.months,a.markup,a.labor,a.support,a.shipping,a.warranty,a.overhead,a.fee_pct,a.floor)
     except ValueError as e: p.error(str(e))
-    for k,v in [('Proposed selling price (pre-tax)',price),('Direct cost before payment fee',cost),('Payment fee allowance',fees),('Estimated contribution',profit),('Minimum price for margin floor',minimum)]:
+    for k,v in [('Proposed selling price (pre-tax)',price),('Direct cost before payment fee',cost),('Payment fee allowance (cash default zero)',fees),('Estimated contribution',profit),('Minimum price for margin floor',minimum)]:
         print(f'{k}: {currency} {v:,.2f}')
     print(f'Contribution margin: {margin:.2f}%')
     print('REVIEW REQUIRED: below target margin' if margin<a.floor else 'Margin target met (subject to verified inputs)')
