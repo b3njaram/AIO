@@ -35,3 +35,5 @@ Copy generated review.csv (or verified.example.csv) outside GitHub. Fill exact m
 Replace example FX with actual quote rate. Confirmed BOM chooses cheapest complete combination among confirmed offers. Other accessories, backup, labor, overhead and warranty reserve must be included separately in business/order.py. Private reports are saved outside Git. No API calls in offline mode. Live API results have not been verified with your credentials.
 
 Provider docs: https://developer.ebay.com/develop/api/buy/browse_api/item/search .
+
+Computer search runs one query per target OptiPlex model rather than requiring all model numbers in one title. The console prints per-market/part candidate, review and reject counts and eBay query coverage. New drives require an explicit new seller condition; compatibility-style titles such as `FOR Western Digital` are review-only even if marked new. Candidate means preliminary, not verified genuine or ready to order. Duplicate tracking URLs for the same eBay item and price are collapsed. No change to the upstream DealCompare checkout.

@@ -14,11 +14,24 @@ class TestSourcing(unittest.TestCase):
     def test_condition(self):
         def check(title,condition='',variant=False):
             return screen(self.drive,row('US',self.drive,'eBay',title,'https://www.ebay.com/itm/12345',Decimal(50),condition=condition,variant=variant),'family')[0]
-        self.assertEqual(check('WD40EFPX 4TB NEW'),'candidate')
+        self.assertEqual(check('WD40EFPX 4TB NEW','New'),'candidate')
         self.assertEqual(check('WD40EFPX 4TB refurbished'),'reject')
         self.assertEqual(check('WD40EFPX 4TB'),'review')
         self.assertEqual(check('WD40EFPX enclosure'),'reject')
         self.assertEqual(check('WD40EFPX NEW',variant=True),'review')
+        self.assertEqual(check('FOR Western Digital Red Plus WD40EFPX 4TB','New'),'review')
+        self.assertEqual(check('1PC FOR Western Digital Red Plus WD40EFPX 4TB','New'),'review')
+        self.assertEqual(check('WD40EFPX NEW','New other (see details)'),'review')
+        self.assertEqual(check('WD40EFPX NEW'),'review')
+    def test_towers(self):
+        part=self.parts[0]
+        self.assertEqual(len(part['queries']),3)
+        self.assertTrue(all(sum(str(m) in q for m in (7060,7070,7080))==1 for q in part['queries']))
+        def check(title):return screen(part,row('US',part,'eBay',title,'https://www.ebay.com/itm/123456789',Decimal(150)),'family')[0]
+        self.assertEqual(check('Dell OptiPlex 7060 MT i5-8500 16GB RAM 256GB SSD'),'candidate')
+        self.assertEqual(check('Dell OptiPlex 7070 Tower i5 16G 500G SSD'),'candidate')
+        self.assertEqual(check('Dell OptiPlex 7080 SFF i5 16GB 256GB SSD'),'reject')
+        self.assertEqual(check('Dell OptiPlex 7060 MT i5 8GB 256GB SSD'),'review')
     def test_supplier(self):
         self.assertEqual(supplier_for('US','B&H Photo Video'),'B&H')
         self.assertIsNone(supplier_for('US','unknown','https://amazon.com.evil.test/'))

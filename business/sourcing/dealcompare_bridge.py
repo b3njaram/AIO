@@ -25,10 +25,10 @@ def search(engine,api,part,allow_html=False):
     state=api.credential_state()
     if state!='configured' and not (state=='missing' and allow_html):
         return [],['eBay API credentials '+state+'; no HTML request sent']
-    queries=part.get('models') or [part['query']]
+    queries=part.get('queries') or part.get('models') or [part['query']]
     rows=[];warnings=[]
     for query in queries:
         items,notes=engine.search_ebay(query,1500 if part['kind']=='drive' else 2500,pages=1,both_ends=False,use_cache=True)
-        rows.extend(items);warnings.extend(notes)
+        rows.extend(items);warnings.append(f'Query {query}: {len(items)} returned');warnings.extend(notes)
         if any('rate limit' in n.lower() or 'denied access' in n.lower() or 'paused' in n.lower() or 'challenge' in n.lower() for n in notes):break
     return rows,warnings

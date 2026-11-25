@@ -7,8 +7,19 @@
         {
           "id": "computer",
           "quantity": 1,
-          "query": "Dell OptiPlex 7060 7070 7080 tower i5 16GB 256GB SSD refurbished",
-          "kind": "computer"
+          "query": "Dell OptiPlex tower i5 16GB SSD",
+          "kind": "computer",
+          "queries": [
+            "Dell OptiPlex 7060 tower 16GB SSD",
+            "Dell OptiPlex 7070 tower 16GB SSD",
+            "Dell OptiPlex 7080 tower 16GB SSD"
+          ],
+          "models_allowed": [
+            7060,
+            7070,
+            7080
+          ],
+          "ram": 16
         },
         {
           "id": "hdd",
@@ -29,8 +40,19 @@
         {
           "id": "computer",
           "quantity": 1,
-          "query": "Dell OptiPlex 7060 7070 7080 tower i5 16GB 256GB SSD refurbished",
-          "kind": "computer"
+          "query": "Dell OptiPlex tower i5 16GB SSD",
+          "kind": "computer",
+          "queries": [
+            "Dell OptiPlex 7060 tower 16GB SSD",
+            "Dell OptiPlex 7070 tower 16GB SSD",
+            "Dell OptiPlex 7080 tower 16GB SSD"
+          ],
+          "models_allowed": [
+            7060,
+            7070,
+            7080
+          ],
+          "ram": 16
         },
         {
           "id": "hdd",
@@ -51,8 +73,19 @@
         {
           "id": "computer",
           "quantity": 1,
-          "query": "Dell OptiPlex 7060 7070 7080 tower i5 16GB 256GB SSD refurbished",
-          "kind": "computer"
+          "query": "Dell OptiPlex tower i5 16GB SSD",
+          "kind": "computer",
+          "queries": [
+            "Dell OptiPlex 7060 tower 16GB SSD",
+            "Dell OptiPlex 7070 tower 16GB SSD",
+            "Dell OptiPlex 7080 tower 16GB SSD"
+          ],
+          "models_allowed": [
+            7060,
+            7070,
+            7080
+          ],
+          "ram": 16
         },
         {
           "id": "hdd",
@@ -73,8 +106,19 @@
         {
           "id": "computer",
           "quantity": 1,
-          "query": "Dell OptiPlex 7060 7070 7080 tower i5 32GB 256GB SSD refurbished",
-          "kind": "computer"
+          "query": "Dell OptiPlex tower i5 32GB SSD",
+          "kind": "computer",
+          "queries": [
+            "Dell OptiPlex 7060 tower 32GB SSD",
+            "Dell OptiPlex 7070 tower 32GB SSD",
+            "Dell OptiPlex 7080 tower 32GB SSD"
+          ],
+          "models_allowed": [
+            7060,
+            7070,
+            7080
+          ],
+          "ram": 32
         },
         {
           "id": "hdd",

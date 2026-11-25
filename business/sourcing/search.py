@@ -53,25 +53,28 @@ def row(market,part,seller,title,url,price=None,shipping=None,condition='',origi
       'condition':str(condition)[:120],'origin':origin,'variant':bool(variant),'notes':str(notes)[:400]}
 def screen(part,r,profile):
     t=r['title'].upper()
+    condition=r['condition'].strip().upper()
     if re.search(r'\b(?:CADDY|TRAY|BRACKET|CABLE|ADAPTER|POWER SUPPLY|ENCLOSURE|DOCK|EMPTY|FOR PARTS|NOT WORKING|BARE[B ]?BONE|CASE ONLY|REPLACEMENT|SOPORTE|GABINETE VAC[IÍ]O)\b',t):
         return 'reject','Accessory, bare system or defective listing'
     if r['variant'] or re.search(r'\b(?:CHOOSE|SELECT|YOUR CHOICE|VARIATION|ELIGE|A ELEGIR)\b',t):
         return 'review','Variable listing: exact option and price required'
     if part['kind']=='drive':
+        if re.search(r'^(?:(?:\d+\s*(?:PC|PCS|PIECE|PIECES|UNITS?)|NEW)\s+)*FOR\b|\b(?:COMPATIBLE WITH|REPLACEMENT FOR|OEM EQUIVALENT|GENERIC|SIN MARCA)\b',t):
+            return 'review','Compatibility-style wording; genuine manufacturer identity not established'
         models=[m for m in part['models'] if re.search(r'(?<![A-Z0-9])'+re.escape(m)+r'(?![A-Z0-9])',t)]
         if not models: return 'review','Exact approved NAS drive model not established'
         if re.search(r'\b(?:USED|RENEWED|REFURBISHED|RECERTIFIED|REMANUFACTURED|PULL|REACONDICIONADO|USADO)\b',t+' '+r['condition'].upper()):
             return 'reject','Customer data drive must be new'
-        if not re.search(r'\b(?:NEW|NUEVO|SEALED)\b',t+' '+r['condition'].upper()):
-            return 'review','New condition not established'
+        if condition not in ('NEW','NUEVO','BRAND NEW','NEWCONDITION'):
+            return 'review','Explicit new seller condition not established; title alone is insufficient'
         if re.search(r'\b(?:LOT|PACK|BUNDLE|2X|2 X|2-PACK|LOTE)\b',t):
             return 'review','Confirm per-drive price and pack count'
         return 'candidate','Exact model and new condition indicated; verify warranty, stock, seller, quantity'
+    if re.search(r'\b(?:MICRO|MINI PC|SFF|SMALL FORM FACTOR)\b',t): return 'reject','Not the target tower form factor'
     if not re.search(r'\b(?:7060|7070|7080)\b',t) or 'OPTIPLEX' not in t or not re.search(r'\b(?:TOWER|MT|MINI TOWER|TORRE)\b',t):
         return 'review','Exact tower model/form factor not established'
-    if re.search(r'\b(?:MICRO|MINI PC|SFF|SMALL FORM FACTOR)\b',t): return 'reject','Not the target tower form factor'
-    ram=32 if profile=='plus' else 16
-    if not re.search(r'\b'+str(ram)+r'\s*GB\b',t) or not re.search(r'\b(?:I5|I7)\b',t) or not re.search(r'\b(?:256|512)\s*GB\b|\b1\s*TB\b',t) or 'SSD' not in t:
+    ram=part.get('ram',32 if profile=='plus' else 16)
+    if not re.search(r'\b'+str(ram)+r'\s*(?:GB|G)\b',t) or not re.search(r'\b(?:I5|I7)\b',t) or not re.search(r'\b(?:240|250|256|480|500|512|960|1000|1024)\s*(?:GB|G)\b|\b1\s*TB\b',t) or not re.search(r'\b(?:SSD|NVME|M\.2)\b',t):
         return 'review','CPU/RAM/SSD configuration not established'
     return 'candidate','Check physical SATA bays, PSU connectors, cooling, RAM, SSD and warranty'
 def import_verified(path,parts,target,fx):
@@ -211,7 +214,9 @@ def main():
         else:status.append(('Offline mode','No live search'))
         seen=set();unique=[]
         for r in rows:
-            k=(r['market'],r['part'],r['supplier'],r['url'],r['title'],r['price'])
+            # eBay search tracking parameters vary by query; use the actual listing ID.
+            item=re.search(r'/itm/(?:[^/]+/)?(\d{8,})(?:/|$)',u.urlsplit(r['url']).path) if r['supplier']=='eBay' else None
+            k=(r['market'],r['part'],r['supplier'],item.group(1) if item else r['url'],r['price'])
             if k in seen:continue
             seen.add(k);part=next(x for x in parts if x['id']==r['part'])
             r['decision'],r['reason']=screen(part,r,a.profile);unique.append(r)
@@ -230,6 +235,12 @@ def main():
                 # Leave all landed prices blank; indexed prices are not checkout prices.
                 writer.writerow({'part':r['part'],'market':r['market'],'supplier':r['supplier'],'url':r['url'],'currency':r['currency'],'confirmed':'no','compatibility_checked':'no'})
         print('Report:',dest/'report.html');print('Search leads:',len(unique),'| Complete confirmed build:',bool(bom),'| Authorized retailer searches:',calls)
+        for m in markets:
+            for part in parts:
+                group=[r for r in unique if r['market']==m and r['part']==part['id']]
+                print(m,part['id'],':',', '.join(f'{key}={sum(r["decision"]==key for r in group)}' for key in ('candidate','review','reject')))
+        for entry in status:
+            if 'DealCompare' in ' '.join(entry):print(' | '.join(entry))
         if not unique and not bom:print('No offers retrieved. See supplier search links, configure eBay or add confirmed quotes; no prices fabricated.')
     except (OSError,ValueError,KeyError,TypeError,InvalidOperation) as e:p.exit(1,'Error: '+str(e)+'\n')
 if __name__=='__main__': main()
