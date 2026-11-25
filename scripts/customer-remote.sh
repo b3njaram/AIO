@@ -14,7 +14,7 @@ grep -Fxq 'deb [signed-by=/usr/share/keyrings/tailscale-archive-keyring.gpg] htt
 if grep -Ev '^[[:space:]]*(#.*)?$|^deb \[signed-by=/usr/share/keyrings/tailscale-archive-keyring.gpg\] https://pkgs.tailscale.com/stable/ubuntu noble main$' "$tmp/list" | grep -q .; then echo 'Unexpected repository data'; exit 1; fi
 for item in key list; do
   if [[ "$item" == key ]]; then dest=/usr/share/keyrings/tailscale-archive-keyring.gpg; else dest=/etc/apt/sources.list.d/tailscale.list; fi
-  if [[ -L "$dest" ]] || [[ -e "$dest" ]] && ! cmp -s "$tmp/$item" "$dest"; then echo "Existing repository config differs: $dest"; exit 1; fi
+  if [[ -L "$dest" ]] || { [[ -e "$dest" ]] && ! cmp -s "$tmp/$item" "$dest"; }; then echo "Existing repository config differs: $dest"; exit 1; fi
   install -m 0644 "$tmp/$item" "$dest"
 done
 apt-get update

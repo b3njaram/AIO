@@ -43,7 +43,15 @@ PY
 cloud-localds seed.iso user-data meta-data
 # KVM when available; software emulation otherwise.
 accel=(-accel tcg,thread=multi -cpu max)
-if [[ -r /dev/kvm && -w /dev/kvm ]]; then accel=(-accel kvm -cpu host); fi
+if [[ -r /dev/kvm && -w /dev/kvm ]]; then
+  # Device permissions alone do not establish nested virtualization support.
+  set +e
+  timeout 3 qemu-system-x86_64 -accel kvm -cpu host -S -display none -nodefaults >/dev/null 2>&1
+  kvm_status=$?
+  set -e
+  if [[ "$kvm_status" == 124 ]]; then accel=(-accel kvm -cpu host); fi
+fi
+echo "VM acceleration: ${accel[*]}"
 start(){
   local extra=()
   if [[ "${1:-with-data}" == with-data ]]; then extra=(-drive file=data.img,format=raw,if=virtio); fi
@@ -69,7 +77,7 @@ hard_stop(){
 }
 start
 wait_ssh
-for _ in $(seq 1 160); do
+for _ in $(seq 1 240); do
   if guest 'sudo test -f /var/lib/jobbi/first-boot-complete'; then break; fi
   sleep 5
 done

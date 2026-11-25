@@ -8,6 +8,7 @@ def main():
     i=a.instance.resolve()
     apps={x['id'] for x in json.loads((i/'dashboard.json').read_text())['apps']}
     services=['dashboard']+[v for k,v in [('music','jobbi-music'),('movies','backend'),('passwords','vaultwarden'),('tasks','vikunja')] if k in apps]
+    if 'movies' in apps:services.append('frontend')
     access=[sys.executable,str(ROOT/'scripts/private-access.py'),str(i),'--https-base',str(a.https_base)]
     ctl=['bash',str(ROOT/'scripts/ctl.sh'),str(i),'up','-d','--force-recreate','--no-deps','--no-build','--pull','never',*services]
     def run(command):subprocess.run(command,check=True)

@@ -13,7 +13,7 @@ APPS={
 'navidrome':('Navidrome','Music library and first admin setup','Biblioteca y primer administrador','NAV_PORT','http://navidrome:4533/'),
 'movies':('StreamHub','Personal movie and TV library','Biblioteca de películas y series','MOVIE_PORT','http://frontend/'),
 'photos':('Immich','Photos and videos','Fotos y videos','PHOTO_PORT','http://immich-server:2283/'),
-'files':('Nextcloud','Private files','Archivos privados','CLOUD_PORT','http://nextcloud/'),
+'files':('Nextcloud','Private files','Archivos privados','CLOUD_PORT','http://nextcloud/status.php'),
 'passwords':('Vaultwarden','Password manager','Gestor de contraseñas','VAULT_PORT','http://vaultwarden/'),
 'tasks':('Vikunja','Tasks and projects','Tareas y proyectos','TASK_PORT','http://vikunja:3456/'),
 'dns':('Pi-hole','Network DNS filtering','Filtrado DNS','DNS_WEB_PORT','http://pihole/admin/'),
