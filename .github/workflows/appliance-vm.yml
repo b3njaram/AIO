@@ -1,0 +1,18 @@
+name: Headless Ubuntu first-boot VM
+on:
+  workflow_dispatch:
+  push:
+    paths: ['scripts/**','deploy/**','.github/workflows/appliance-vm.yml']
+jobs:
+  vm:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[vm-pilot]')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils cloud-image-utils e2fsprogs openssh-client
+          # CI-only access to KVM; the VM script also supports software emulation.
+          if test -c /dev/kvm; then sudo setfacl -m "u:$(id -un):rw" /dev/kvm; fi
+      - run: bash scripts/vm-pilot.sh

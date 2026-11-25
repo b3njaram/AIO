@@ -13,7 +13,7 @@ def validate(a):
     if not apps or any(x not in set(APPS)-{'dns','navidrome'} for x in apps) or apps==['remote']:raise ValueError('Select core apps; DNS is separate')
     return apps
 def mount_unit(uuid,path):
-    return '[Unit]\nDescription=Jobbi approved existing filesystem\n[Mount]\nWhat=/dev/disk/by-uuid/'+uuid+'\nWhere='+path+'\nType=auto\nOptions=defaults,nosuid,nodev\n[Install]\nWantedBy=local-fs.target\n'
+    return '[Unit]\nDescription=Jobbi approved existing filesystem\n[Mount]\nWhat=/dev/disk/by-uuid/'+uuid+'\nWhere='+path+'\nType=auto\nOptions=defaults,nosuid,nodev,nofail\n[Install]\nWantedBy=local-fs.target\n'
 def config(a,password_hash):
     apps=validate(a)
     # UUIDs refer to existing volumes; no storage layout or wipe instructions.
@@ -27,6 +27,9 @@ if [[ ! -d "$ROOT/.git" ]]; then
   test ! -e "$ROOT"
   git init "$ROOT"
   git -C "$ROOT" remote add origin https://github.com/b3njaram/AIO.git
+fi
+test "$(git -C "$ROOT" remote get-url origin)" = https://github.com/b3njaram/AIO.git
+if ! git -C "$ROOT" rev-parse --verify HEAD >/dev/null 2>&1; then
   git -C "$ROOT" fetch --depth 1 origin '''+a.commit+'''
   git -C "$ROOT" checkout --detach FETCH_HEAD
 fi

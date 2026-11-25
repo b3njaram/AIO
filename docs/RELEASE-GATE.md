@@ -21,3 +21,7 @@ The operator may continue developing AIO without modifying personal production r
 ## Release candidate regression gate
 
 The full pilot must pass at the exact candidate revision, not just the PR's short isolation-only workflow. Verify the full-stack, library-recovery, media-recovery, office-recovery, infrastructure-recovery and staged-upgrade job conclusions individually. Check static and owner-dashboard browser results too. The library pilot must confirm both public and private playlist changes using the pinned Navidrome version; the task pilot requires actual registration denial, login and task persistence. Do not revert security patches merely to make tests green. Physical hardware, customer-owned tailnet access, actual device clients and local business obligations remain manual acceptance gates.
+
+## Appliance boot and customer UI gate
+
+Require passing unit tests of seed generation and guard rules, all three UI browser suites, Docker preview regression, functional app setup/recovery, and the dedicated headless Ubuntu VM boot/missing-disk workflow at the proposed release. Validate the generated ISO through actual Subiquity interactive disk selection on a disposable VM and then boot the physical candidate. Use the private qualification evidence collector plus real measured wall power, thermal/load tests, backup restore, physical reboot, missing-disk behavior and second-device customer ACL/TLS verification. A VM pass is not a hardware pass. Do not create a stable commercial tag until those gates are satisfied.

@@ -63,6 +63,11 @@ def main():
     # explicit dedicated-host guard before provisioning customer containers.
     guard=Path('/etc/systemd/system/docker.service.d/90-jobbi-storage.conf')
     if not guard.is_file():run(['sudo',sys.executable,str(ROOT/'scripts/boot-guard.py'),str(instance.parent),'--apply'])
+    from importlib.util import spec_from_file_location,module_from_spec
+    spec=spec_from_file_location('boot_guard',ROOT/'scripts/boot-guard.py');module=module_from_spec(spec);spec.loader.exec_module(module)
+    target,uuid=module.mount(instance.parent)
+    expected='ExecStartPre=/usr/bin/findmnt --noheadings --mountpoint '+target+' --source UUID='+uuid
+    if guard.is_symlink() or guard.stat().st_uid!=0 or guard.stat().st_mode&0o022 or expected not in guard.read_text().splitlines():raise ValueError('Existing boot guard does not match the approved data filesystem')
     run(install)
     for attempt in range(12):
         if subprocess.run(verify,check=False).returncode==0:break
