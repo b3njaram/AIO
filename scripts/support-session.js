@@ -1,0 +1,5 @@
+'use strict';
+const $=x=>document.getElementById(x);let token='';
+function clear(){token='';$('report').replaceChildren();$('code').value='';$('refresh').hidden=true;$('clear').hidden=true}
+async function refresh(){try{const r=await fetch('/api/report',{headers:{Authorization:'Bearer '+token},cache:'no-store'});if(!r.ok)throw Error();const data=await r.json();$('report').replaceChildren();for(const [label,value] of Object.entries(data)){const term=document.createElement('dt'),detail=document.createElement('dd');term.textContent=label;detail.textContent=value===null?'Not checked':String(value);$('report').append(term,detail)}$('message').textContent='Report received. No changes can be made here.';$('refresh').hidden=false;$('clear').hidden=false}catch{clear();$('message').textContent='Session unavailable, expired, or code invalid.'}}
+$('unlock').onsubmit=e=>{e.preventDefault();token=$('code').value;$('code').value='';refresh()};$('refresh').onclick=refresh;$('clear').onclick=()=>{clear();$('message').textContent='Local view cleared.'};

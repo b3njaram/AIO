@@ -8,6 +8,8 @@ jobs:
       - uses: actions/setup-node@v4
         with: {node-version: '22'}
       - run: python3 -m unittest discover -s scripts -p 'test_maintenance_alerts.py' -v
+      - run: python3 -m unittest discover -s scripts -p 'test_support_session.py' -v
+      - run: node --check scripts/support-session.js
       - run: node --check quote/app.js
       - run: python3 -m py_compile scripts/install.py scripts/connect-movies.py deploy/dashboard/server.py
       - run: for script in scripts/*.sh; do bash -n "$script"; done
