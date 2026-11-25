@@ -1,5 +1,31 @@
 'use strict';
 const spanish = new Map(`
+Overview|Resumen
+WORKSPACE|ESPACIO DE TRABAJO
+What needs your attention today?|¿Qué necesita tu atención hoy?
+Quick actions|Acciones rápidas
+Find and verify equipment|Busca y verifica equipo
+Manage orders and payments|Administra pedidos y pagos
+Plan customer servers|Planea servidores de clientes
+Review open cases|Revisa casos abiertos
+Generate customer PDFs|Genera documentos PDF
+Upcoming renewals|Próximos vencimientos
+Active orders|Pedidos activos
+Installations in progress|Instalaciones en curso
+Open support cases|Casos abiertos
+Delivered|Entregados
+Documents|Documentos
+Verification requirements|Requisitos de verificación
+Verify a purchase option|Verificar una oferta
+Create or edit order|Crear o editar pedido
+Warranty and payment terms|Condiciones de garantía y pago
+Create installation plan|Crear plan de instalación
+Installation log|Bitácora de instalación
+Component warranties|Garantías por componente
+Create or edit support case|Crear o editar caso
+Plain text draft|Borrador de texto
+Payment history and notes|Historial de pagos y notas
+Screening details|Detalles de evaluación
 JOBBISOFT / PRIVATE OPERATIONS|JOBBISOFT / OPERACIONES PRIVADAS
 Business dashboard|Panel de administración
 Cash only · Private|Solo efectivo · Privado
