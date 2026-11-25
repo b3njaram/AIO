@@ -59,3 +59,7 @@ Run `python3 scripts/preflight.py --data-root /path/to/mounted/data --apps music
 ## Private owner dashboard
 
 [Business dashboard setup](business/dashboard/README.md): hardware searches, confirmed landed BOM, costing, cash ledger, orders and warranty tracking. Localhost plus SSH forwarding; no public site changes.
+
+## Customer operations
+
+The private owner dashboard includes installation planning, support cases, expiry reminders and bilingual handoff drafts. [Maintenance guide](docs/MAINTENANCE.md) covers read-only diagnostics, opt-in cold backup scheduling and supervised updates/recovery. No unattended upgrade or deletion is enabled. Hardware qualification remains a real-device task.

@@ -25,3 +25,15 @@ On the customer host, use its systemd user timer or equivalent. Example user uni
 
 ## Physical pilot
 Follow HARDWARE-QUALIFICATION.md and business/ACCEPTANCE.md. Record actual wall power, thermals, simultaneous workloads, installation time and recovery. No CI run certifies physical hardware.
+
+## Optional schedule generator
+
+On the actual customer host, preview first:
+
+    python3 scripts/schedule-backups.py /path/to/customer-instance /path/to/mounted-backups
+
+After explicit approval of weekly downtime, actual mount independence and sufficient free space:
+
+    python3 scripts/schedule-backups.py /path/to/customer-instance /path/to/mounted-backups --hour 3 --enable
+
+It refuses existing conflicting units and same-filesystem backups. It only creates a user timer for the specified validated instance. No system-wide changes or automatic retention. Check user manager startup and backup log after the first scheduled run. A backup or restart failure returns nonzero; examine maintenance.json and journal. Never run this against the owner production server merely to test.

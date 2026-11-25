@@ -14,7 +14,16 @@ SERVICES="$(ctl ps --status running --services)"
 mapfile -t RUNNING <<< "$SERVICES"
 [[ -n "$SERVICES" ]] || { echo 'No running services'; exit 1; }
 (( ${#RUNNING[@]} )) || { echo "No running services"; exit 1; }
-trap 'ctl start "${RUNNING[@]}" || echo "Restart failed; inspect instance" >&2' EXIT
+restart_on_exit(){
+  local status=$?
+  trap - EXIT
+  if ! ctl start "${RUNNING[@]}"; then
+    echo 'Restart failed; inspect instance immediately' >&2
+    exit 1
+  fi
+  exit "$status"
+}
+trap restart_on_exit EXIT
 ctl stop "${RUNNING[@]}"
 docker run --rm -v "$INSTANCE:/src:ro" -v "$OUT:/backup:rw" alpine:3.22 sh -c 'cd /src; set -- .env dashboard.json data; for p in release.json deployment onboarding.json; do if test -e "$p"; then set -- "$@" "$p"; fi; done; tar czf /backup/instance.tar.gz "$@"'
 VOLUMES="$(docker volume ls -q --filter "label=com.docker.compose.project=$PROJECT")"
