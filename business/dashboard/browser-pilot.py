@@ -89,6 +89,7 @@ def main():
                 expect(page.locator('#applianceList')).to_contain_text('No report')
                 from datetime import datetime,timezone
                 payload={'schema':1,'kind':'jobbi-health-share','appliance_id':'HOME1','at':datetime.now(timezone.utc).isoformat(),'release':'a'*40,'free_percent':60,'temperature_c':40,'alerts':0,'backup':'verified','raid':'healthy','updates':'current'}
+                page.get_by_text('Import shared report',exact=True).click()
                 page.locator('#healthFile').set_input_files({'name':'health.json','mimeType':'application/json','buffer':json.dumps(payload).encode()})
                 page.locator('#healthImport button').click()
                 expect(page.locator('#applianceList')).to_contain_text('No reported alerts')

@@ -1,9 +1,9 @@
 name: Owner dashboard browser checks
 on:
   push:
-    paths: ['business/**','quote/**','deploy/dashboard/**','scripts/preview.sh','.github/workflows/browser.yml']
+    paths: ['business/**','quote/**','deploy/dashboard/**','scripts/preview.sh','scripts/setup-web*','scripts/setup-accounts.py','.github/workflows/browser.yml']
   pull_request:
-    paths: ['business/**','quote/**','deploy/dashboard/**','scripts/preview.sh','.github/workflows/browser.yml']
+    paths: ['business/**','quote/**','deploy/dashboard/**','scripts/preview.sh','scripts/setup-web*','scripts/setup-accounts.py','.github/workflows/browser.yml']
   workflow_dispatch:
 jobs:
   browser:
@@ -20,6 +20,8 @@ jobs:
         run: python quote/browser-pilot.py
       - if: success() || failure()
         run: python deploy/dashboard/browser-pilot.py
+      - if: success() || failure()
+        run: python scripts/setup-web-browser.py
 
   docker-preview:
     runs-on: ubuntu-24.04
