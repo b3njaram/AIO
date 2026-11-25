@@ -60,7 +60,7 @@ def record(i,state):
         out.flush();os.fsync(out.fileno())
     os.replace(tmp,i/'recovery-state.json')
 def main():
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('action',choices=['catalog','verify','retention','restore','stage','start-trial','rollback']);p.add_argument('instance',type=Path);p.add_argument('backup_root',type=Path);p.add_argument('--mount-id',required=True);p.add_argument('--keep',type=int,default=3);p.add_argument('--days',type=int,default=30);p.add_argument('--backup');p.add_argument('--candidate');p.add_argument('--base-port',type=int);p.add_argument('--to-commit');p.add_argument('--apply',action='store_true');p.add_argument('--confirm-no-candidate-writes',action='store_true',help='Acknowledge trial has no customer writes, or these were separately reconciled');a=p.parse_args()
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('action',choices=['catalog','verify','retention','restore','stage','start-trial','rollback']);p.add_argument('instance',type=Path);p.add_argument('backup_root',type=Path);p.add_argument('--mount-id',required=True);p.add_argument('--minimum-free-gib',type=int,default=50);p.add_argument('--keep',type=int,default=3);p.add_argument('--days',type=int,default=30);p.add_argument('--backup');p.add_argument('--candidate');p.add_argument('--base-port',type=int);p.add_argument('--to-commit');p.add_argument('--apply',action='store_true');p.add_argument('--confirm-no-candidate-writes',action='store_true',help='Acknowledge trial has no customer writes, or these were separately reconciled');a=p.parse_args()
     i=a.instance.resolve();b=a.backup_root.resolve();e=env(i);independent(i,b,a.mount_id)
     if a.action=='catalog':
         print(json.dumps([{'name':x.name,'completed_manifest':True,'integrity':'not_checked'} for x in candidates(i,b)],indent=2));return
@@ -73,7 +73,10 @@ def main():
     t=i.parent/a.candidate if a.candidate else None
     if a.action in ('stage','restore'):
         if not t or t.exists() or t.is_symlink() or not a.base_port or not 1024<=a.base_port<=65524:p.error('Use a fresh candidate name and unused port range')
+    if a.minimum_free_gib<1:p.error('Positive free-space limit required')
     if a.action=='restore':
+        import shutil
+        if shutil.disk_usage(i.parent).free<a.minimum_free_gib*1024**3:p.error('Insufficient restore space; assess full uncompressed backup size')
         path,_=verified(i,b,a.backup)
         cmd=[sys.executable,str(ROOT/'scripts/restore.py'),str(path),'--require-exact-images','--data-root',str(i.parent),'--name',a.candidate,'--base-port',str(a.base_port)]
         print(shlex.join(cmd))
@@ -82,7 +85,7 @@ def main():
     if a.action=='stage':
         if not a.to_commit or not re.fullmatch('[a-f0-9]{40}',a.to_commit):p.error('Provide an explicitly reviewed full target commit')
         old=json.loads((i/'release.json').read_text())['aio_commit']
-        cmd=[sys.executable,str(ROOT/'scripts/stage-upgrade.py'),str(i),str(b),'--from-commit',old,'--to-commit',a.to_commit,'--name',a.candidate,'--base-port',str(a.base_port),'--hold-source']
+        cmd=[sys.executable,str(ROOT/'scripts/stage-upgrade.py'),str(i),str(b),'--from-commit',old,'--to-commit',a.to_commit,'--name',a.candidate,'--base-port',str(a.base_port),'--minimum-free-gib',str(a.minimum_free_gib),'--hold-source']
         run(*cmd)
         if not a.apply:return
         if not sys.stdin.isatty() and os.environ.get('GITHUB_ACTIONS')!='true':p.error('Use a trusted local interactive terminal')

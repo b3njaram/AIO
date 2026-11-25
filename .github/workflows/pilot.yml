@@ -262,7 +262,7 @@ jobs:
           bash scripts/ctl.sh /tmp/jobbi-upgrade/trial stop
           curl --retry 20 --retry-all-errors --retry-delay 1 -fsS http://127.0.0.1:19200/healthz
           mountid="$(python3 -c 'import sys;sys.path.insert(0,"scripts");from backup_mount import mount_identity;print(mount_identity(sys.argv[1]))' /tmp/jobbi-upgrade-backups)"
-          recover=(/tmp/jobbi-upgrade/original /tmp/jobbi-upgrade-backups --mount-id "$mountid" --candidate held)
+          recover=(/tmp/jobbi-upgrade/original /tmp/jobbi-upgrade-backups --mount-id "$mountid" --candidate held --minimum-free-gib 1)
           sleep 2
           python3 scripts/recovery-center.py stage "${recover[@]}" --base-port 19400 --to-commit "$(git rev-parse HEAD)" --apply
           test -z "$(bash scripts/ctl.sh /tmp/jobbi-upgrade/original ps -q --status running)"
