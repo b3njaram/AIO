@@ -59,6 +59,10 @@ def main():
     if subprocess.run(['docker','info','--format','{{.ServerVersion}}'],check=False).returncode:
         raise ValueError('Docker access required. On this dedicated host only, grant the operator Docker access with sudo usermod -aG docker "$USER", then log out/in and rerun. Docker access is root-equivalent.')
     run(pre)
+    # First boot already installs this guard. Manual guided installs require an
+    # explicit dedicated-host guard before provisioning customer containers.
+    guard=Path('/etc/systemd/system/docker.service.d/90-jobbi-storage.conf')
+    if not guard.is_file():run(['sudo',sys.executable,str(ROOT/'scripts/boot-guard.py'),str(instance.parent),'--apply'])
     run(install)
     for attempt in range(12):
         if subprocess.run(verify,check=False).returncode==0:break

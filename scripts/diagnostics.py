@@ -32,7 +32,10 @@ def smart_device(device):
     import re,stat
     # Explicit block devices only. No implicit enumeration or sudo.
     p=Path(device)
-    if not re.fullmatch(r'/dev/(?:sd[a-z]+|nvme\d+n\d+|hd[a-z]+)',str(p)) or not stat.S_ISBLK(p.stat().st_mode):raise ValueError('Specify an exact whole block device, e.g. /dev/sda')
+    if re.fullmatch(r'/dev/disk/by-id/[A-Za-z0-9_.:+-]+',str(p)):
+        try:p=p.resolve(strict=True)
+        except OSError:return {'device':device,'state':'unknown','reason':'Approved drive missing'}
+    if not re.fullmatch(r'/dev/(?:sd[a-z]+|nvme\d+n\d+|hd[a-z]+)',str(p)) or not p.exists() or not stat.S_ISBLK(p.stat().st_mode):return {'device':device,'state':'unknown','reason':'Approved block device unavailable'}
     if not shutil.which('smartctl'):return {'device':str(p),'state':'unknown','reason':'smartctl unavailable'}
     try:
         r=subprocess.run(['smartctl','-j','-H','-A',str(p)],capture_output=True,text=True,timeout=30)

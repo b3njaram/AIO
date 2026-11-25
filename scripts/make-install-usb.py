@@ -17,7 +17,7 @@ def mount_unit(uuid,path):
 def config(a,password_hash):
     apps=validate(a)
     # UUIDs refer to existing volumes; no storage layout or wipe instructions.
-    settings={'name':a.name,'operator':a.operator,'commit':a.commit,'data_uuid':a.data_uuid,'backup_uuid':a.backup_uuid,'apps':','.join(apps)}
+    settings={'name':a.name,'operator':a.operator,'commit':a.commit,'data_uuid':a.data_uuid,'backup_uuid':a.backup_uuid,'apps':','.join(apps),'weekly_backup':getattr(a,'weekly_backup',False)}
     # First boot does not rely on a graphical login. Pin checkout before executing.
     boot='''#!/bin/bash
 set -euo pipefail
@@ -52,7 +52,7 @@ WantedBy=multi-user.target
     # Literal backslash in the escaped mount unit name; JSON serializes safely.
     return {'autoinstall':{'version':1,'interactive-sections':['storage'],'identity':{'hostname':a.name,'username':a.operator,'password':password_hash},'ssh':{'install-server':True,'allow-pw':False,'authorized-keys':[a.ssh_key]},'packages':['docker.io','docker-compose-v2','git','python3','curl','smartmontools','util-linux'],'user-data':{'write_files':files,'runcmd':[['systemctl','daemon-reload'],['systemctl','enable','--now','docker'],['systemctl','enable','srv-jobbi\\x2ddata.mount','mnt-jobbi\\x2dbackup.mount'],['systemctl','enable','jobbi-first-boot.service'],['systemctl','start','--no-block','jobbi-first-boot.service']]}}}
 def main():
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--name',required=True);p.add_argument('--operator',default='jobbi');p.add_argument('--commit',required=True);p.add_argument('--data-uuid',required=True);p.add_argument('--backup-uuid',required=True);p.add_argument('--apps',default=DEFAULT);p.add_argument('--ssh-key-file',type=Path,required=True);p.add_argument('--out',type=Path,required=True);p.add_argument('--ubuntu-iso',type=Path);p.add_argument('--iso-sha256');a=p.parse_args()
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--name',required=True);p.add_argument('--operator',default='jobbi');p.add_argument('--commit',required=True);p.add_argument('--data-uuid',required=True);p.add_argument('--backup-uuid',required=True);p.add_argument('--apps',default=DEFAULT);p.add_argument('--weekly-backup',action='store_true',help='Customer approved weekly cold backup downtime');p.add_argument('--ssh-key-file',type=Path,required=True);p.add_argument('--out',type=Path,required=True);p.add_argument('--ubuntu-iso',type=Path);p.add_argument('--iso-sha256');a=p.parse_args()
     validate(a)
     a.ssh_key=a.ssh_key_file.read_text().strip()
     if '\n' in a.ssh_key or not re.fullmatch(r'(?:ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp256) [A-Za-z0-9+/=]+(?: [^\r\n]+)?',a.ssh_key):p.error('Use a single authorized public SSH key')

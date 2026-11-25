@@ -3,6 +3,9 @@
 import base64,os,secrets,subprocess,time,urllib.error,urllib.request
 from pathlib import Path
 import pilot_fixture as fixture
+import importlib.util
+spec=importlib.util.spec_from_file_location('account_setup',Path(__file__).with_name('setup-accounts.py'))
+account_setup=importlib.util.module_from_spec(spec);spec.loader.exec_module(account_setup)
 ROOT=Path(__file__).resolve().parents[1]
 def main():
     instance=fixture.location()
@@ -18,11 +21,11 @@ def main():
         user,pw=fixture.load('files')
     else:
         for _ in range(30):
-            r=subprocess.run(occ+args,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=120)
-            if r.returncode==0:break
-            time.sleep(3)
-        else:raise RuntimeError('Nextcloud setup did not complete')
-        subprocess.run(occ+['config:system:set','trusted_domains','1','--value=127.0.0.1'],check=True,stdout=subprocess.DEVNULL)
+            try:
+                account_setup.create(instance,'files',user,'pilot@example.invalid',pw)
+                break
+            except (OSError,ValueError):time.sleep(3)
+        else:raise RuntimeError('Nextcloud guided account setup did not complete')
     base='http://127.0.0.1:'+env['CLOUD_PORT']
     url=base+'/remote.php/dav/files/'+user+'/jobbi-pilot.txt'
     auth='Basic '+base64.b64encode((user+':'+pw).encode()).decode()

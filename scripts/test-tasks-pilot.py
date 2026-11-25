@@ -3,6 +3,9 @@
 import json,os,secrets,subprocess,urllib.request,urllib.error,time
 from pathlib import Path
 import pilot_fixture as fixture
+import importlib.util
+spec=importlib.util.spec_from_file_location('account_setup',Path(__file__).with_name('setup-accounts.py'))
+account_setup=importlib.util.module_from_spec(spec);spec.loader.exec_module(account_setup)
 ROOT=Path(__file__).resolve().parents[1]
 def main():
     i=fixture.location()
@@ -34,7 +37,7 @@ def main():
     if recover:
         user,pw,task=fixture.load('tasks')
     else:
-        subprocess.run(['bash',str(ROOT/'scripts/ctl.sh'),str(i),'exec','-T','vikunja','/app/vikunja/vikunja','user','create','--username',user,'--email',email,'--password',pw],check=True,stdout=subprocess.DEVNULL)
+        account_setup.create(i,'tasks',user,email,pw)
     code,login=request('/login','POST',{'username':user,'password':pw});assert code==200 and login.get('token')
     token=login['token']
     if not recover:

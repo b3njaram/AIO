@@ -2,6 +2,9 @@
 """Synthetic media test for disposable CI instances only. Never run on a customer."""
 import argparse,hashlib,http.cookiejar,json,os,secrets,subprocess,sys,urllib.error,urllib.request
 from pathlib import Path
+import importlib.util
+spec=importlib.util.spec_from_file_location('account_setup',Path(__file__).with_name('setup-accounts.py'))
+account_setup=importlib.util.module_from_spec(spec);spec.loader.exec_module(account_setup)
 ROOT=Path(__file__).resolve().parents[1]
 def run(*args):subprocess.run(args,check=True)
 def main():
@@ -23,7 +26,10 @@ def main():
         if a.fixture.exists() or media.exists():p.error('Existing fixture')
         username='pilot_'+secrets.token_hex(5); password=secrets.token_urlsafe(24)
         # Only disposable generated credentials, never logged by the test.
-        run(*ctl,'exec','-T','backend','node','create-user.js',username,password)
+        account_setup.create(instance,'movies',username,'pilot@example.invalid',password)
+        try:account_setup.create(instance,'movies',username,'pilot@example.invalid','wrong-password-fixture-123')
+        except ValueError:pass
+        else:raise AssertionError('Existing StreamHub account password reset unexpectedly')
         run('ffmpeg','-hide_banner','-loglevel','error','-f','lavfi','-i','color=c=blue:s=160x120:r=10','-t','2','-c:v','libx264','-pix_fmt','yuv420p','-movflags','+faststart',str(media))
         os.umask(0o077)
         a.fixture.write_text(json.dumps({'username':username,'password':password,'sha256':hashlib.sha256(media.read_bytes()).hexdigest()}))

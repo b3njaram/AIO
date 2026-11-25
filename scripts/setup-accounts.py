@@ -3,12 +3,13 @@
 import argparse,getpass,http.cookiejar,json,re,subprocess,sys,urllib.error,urllib.request
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
+LOCAL=urllib.request.build_opener(urllib.request.ProxyHandler({}))
 def request(base,path,payload=None,opener=None):
     headers={'Accept':'application/json','Origin':base}
     raw=None
     if payload is not None:headers['Content-Type']='application/json';raw=json.dumps(payload).encode()
     q=urllib.request.Request(base+path,data=raw,headers=headers)
-    try:r=(opener or urllib.request).open(q,timeout=20)
+    try:r=(opener or LOCAL).open(q,timeout=20)
     except urllib.error.HTTPError as e:r=e
     with r:
         data=r.read(1024*1024)
@@ -35,7 +36,7 @@ def create(instance,app,user,email,pw):
     ctl=['bash',str(ROOT/'scripts/ctl.sh'),str(instance)]
     def cmd(*a):return subprocess.run(ctl+list(a),stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=180).returncode
     if app=='music':
-        user=env['MUSIC_ADMIN'];url=base('MUSIC_PORT');jar=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+        user=env['MUSIC_ADMIN'];url=base('MUSIC_PORT');jar=urllib.request.build_opener(urllib.request.ProxyHandler({}),urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
         login=lambda:request(url,'/api/login',{'username':user,'password':pw},jar)
         code,body=login()
         if code!=200:
@@ -58,11 +59,19 @@ def create(instance,app,user,email,pw):
         url=base('MOVIE_PORT');login=lambda:request(url,'/api/auth/login',{'username':user,'password':pw,'remember':False})
         code,body=login()
         if code!=200:
-            # Refuse overwrite by checking the pinned application's user database CLI
-            # only on a newly initialized instance with no account-creation journal.
-            require(not (instance/'.account-movies-attempted').exists(),'Prior movie setup attempted; verify existing credentials manually')
-            (instance/'.account-movies-attempted').touch(mode=0o600,exist_ok=False)
-            require(cmd('exec','-T','backend','node','create-user.js',user,pw)==0,'Movie user creation failed; inspect locally')
+            # Upstream create-user.js also resets existing passwords; use a
+            # guarded SQLite transaction that refuses ANY pre-existing users.
+            script="""import { db, getUserByUsername, createUser, ensureDefaultProfile } from './db.js';
+import { hashPassword } from './auth.js';
+import fs from 'node:fs';
+const {username,password}=JSON.parse(fs.readFileSync(0,'utf8'));
+db.transaction(()=>{
+  if(db.prepare('SELECT COUNT(*) n FROM users').get().n!==0)throw Error('Existing users; no changes made');
+  createUser(username,hashPassword(password));
+  ensureDefaultProfile(getUserByUsername(username));
+}).immediate();"""
+            result=subprocess.run(ctl+['exec','-T','backend','node','--input-type=module','-e',script],input=json.dumps({'username':user,'password':pw}),text=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=60)
+            require(result.returncode==0,'Movie first owner creation refused; no existing password reset')
             code,body=login()
         require(code==200 and body.get('isAdmin') is True,'Movie owner login not confirmed')
     elif app=='tasks':
@@ -80,10 +89,11 @@ def create(instance,app,user,email,pw):
         require(code==200 and isinstance(info.get('installed'),bool),'Nextcloud status unknown')
         if not info['installed']:
             require(cmd('exec','-T','-u','www-data','nextcloud','php','occ','maintenance:install','--database=pgsql','--database-host=nextcloud-db','--database-name=nextcloud','--database-user=nextcloud','--database-pass='+env['CLOUD_DB_PASSWORD'],'--admin-user='+user,'--admin-pass='+pw)==0,'Nextcloud install failed; inspect locally')
+            require(cmd('exec','-T','-u','www-data','nextcloud','php','occ','config:system:set','trusted_domains','1','--value=127.0.0.1')==0,'Nextcloud local origin not configured')
         import base64
         q=urllib.request.Request(url+'/remote.php/dav/files/'+user+'/',method='PROPFIND',headers={'Authorization':'Basic '+base64.b64encode((user+':'+pw).encode()).decode(),'Depth':'0'})
         try:
-            with urllib.request.urlopen(q,timeout=20) as r:require(r.status==207,'Nextcloud WebDAV authentication not confirmed')
+            with LOCAL.open(q,timeout=20) as r:require(r.status==207,'Nextcloud WebDAV authentication not confirmed')
         except urllib.error.HTTPError as e:raise ValueError('Nextcloud WebDAV authentication refused (HTTP '+str(e.code)+')') from None
     else:raise ValueError('Use the app native setup for this service')
 def main():
@@ -94,6 +104,7 @@ def main():
     print('Selected accounts:',', '.join(selected))
     print('Vaultwarden, Uptime Kuma and customer Tailscale enrollment remain native setup steps. Passwords are prompted separately; trusted Docker admins may see CLI arguments transiently.')
     if not a.apply:return
+    if not sys.stdin.isatty():p.error('Use a trusted interactive terminal; passwords must not be echoed or piped')
     import os,fcntl
     os.umask(0o077)
     with (i/'.account-setup.lock').open('a') as lock:

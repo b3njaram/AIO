@@ -45,6 +45,7 @@ def main():
         cmd('docker','compose','version')
         if Path(docker_root).is_dir():
             docker_free=gib(shutil.disk_usage(docker_root).free)
+            if a.backup_root and a.backup_root.is_dir() and Path(docker_root).stat().st_dev==a.backup_root.stat().st_dev:errors.append('Backup shares the Docker data filesystem')
             if docker_free<a.minimum_docker_free_gib: errors.append('Docker filesystem below configured free-space target')
         else: warnings.append('Docker data filesystem not locally inspectable')
     except (OSError,subprocess.CalledProcessError): errors.append('Docker daemon or Compose unavailable')

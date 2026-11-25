@@ -28,9 +28,10 @@ def summarize(instance,dest,expected,devices=(),check_updates=False):
         else:
             m=json.loads((instance/'maintenance.json').read_text())
             stamp=m.get('verified_backup')
-            if stamp:
+            if stamp and re.fullmatch(re.escape(diag['project'])+r'-\d{8}T\d{6}Z',stamp) and (dest/stamp/'SHA256SUMS').is_file():
                 when=dt.datetime.strptime(stamp.rsplit('-',1)[-1],'%Y%m%dT%H%M%SZ').replace(tzinfo=dt.timezone.utc)
                 backup={'state':'stale' if (now()-when).days>=8 else 'verified','at':when.isoformat()}
+            elif stamp:backup={'state':'review'}
             if any('backup' in x.lower() and ('fail' in x.lower() or 'older' in x.lower()) for x in m.get('alerts',[])):backup['state']='review'
     except (OSError,ValueError,KeyError,subprocess.SubprocessError):pass
     smart=diag['smart'] if isinstance(diag['smart'],list) else []
