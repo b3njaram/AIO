@@ -1,0 +1,59 @@
+{
+  "source": "https://github.com/louislam/uptime-kuma/blob/2.5.12/package-lock.json",
+  "packages": [
+    {
+      "path": "/app/node_modules/ws",
+      "name": "ws",
+      "from": "8.19.0",
+      "to": "8.21.3",
+      "url": "https://registry.npmjs.org/ws/-/ws-8.21.3.tgz",
+      "integrity": "sha512-201TZ/kPWxoPr/OKWjquZR1SWKXcvxdH+e1xrx89b3YbmzLMFCLfnaG1HFIgWzJOEWZ7MvpK++odZufgYR50Rw==",
+      "upstreamLockKey": "node_modules/engine.io-client/node_modules/ws"
+    },
+    {
+      "path": "/app/node_modules/redbean-node/node_modules/lodash",
+      "name": "lodash",
+      "from": "4.17.23",
+      "to": "4.18.1",
+      "url": "https://registry.npmjs.org/lodash/-/lodash-4.18.1.tgz",
+      "integrity": "sha512-dMInicTPVE8d1e5otfwmmjlxkZoUpiVLwyeTdUsi/Caj/gfzzblBcCE5sRHV/AsjuCmxWrte2TNGSYuCeCq+0Q==",
+      "upstreamLockKey": "node_modules/lodash"
+    },
+    {
+      "path": "/app/node_modules/minimatch",
+      "name": "minimatch",
+      "from": "9.0.3",
+      "to": "9.0.9",
+      "url": "https://registry.npmjs.org/minimatch/-/minimatch-9.0.9.tgz",
+      "integrity": "sha512-OBwBN9AL4dqmETlpS2zasx+vTeWclWzkblfZk7KTA5j3jeOONz/tRCnZomUyvNg83wL5Zv9Ss6HMJXAgL8R2Yg==",
+      "upstreamLockKey": "node_modules/archiver-utils/node_modules/minimatch"
+    },
+    {
+      "path": "/usr/local/lib/node_modules/npm/node_modules/brace-expansion",
+      "name": "brace-expansion",
+      "from": "2.0.2",
+      "to": "2.1.7",
+      "url": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-2.1.7.tgz",
+      "integrity": "sha512-uZbew1NqdmPDTMJ8ah1y+b+9QEJrfkXFk3RcTQw3X0jW/xRUvFKsg1CfQdSYGdTbXZWExtU3J3ccxtnfw1Fi0g==",
+      "upstreamLockKey": "node_modules/brace-expansion"
+    },
+    {
+      "path": "/usr/local/lib/node_modules/npm/node_modules/picomatch",
+      "name": "picomatch",
+      "from": "4.0.3",
+      "to": "4.0.7",
+      "url": "https://registry.npmjs.org/picomatch/-/picomatch-4.0.7.tgz",
+      "integrity": "sha512-qcJu88Q2IWqJsDD529JKMdwGm/dvInW4HvQnRwiH9JtihJvzGOscDtHE3x1pBKeUOTysQ8kVmLnJ2kJu7yhcGA==",
+      "upstreamLockKey": "node_modules/rollup-plugin-visualizer/node_modules/picomatch"
+    },
+    {
+      "path": "/usr/local/lib/node_modules/npm/node_modules/ip-address",
+      "name": "ip-address",
+      "from": "10.1.0",
+      "to": "10.7.5",
+      "url": "https://registry.npmjs.org/ip-address/-/ip-address-10.7.5.tgz",
+      "integrity": "sha512-t2v0rkILYv9WXmSL7TpAaU3HXgaFYOPUcH3QHgwQ++gpJuH3bqyMy4Fvt/DJCTKwzH3Cf+bAp5W/mFL39KPLzA==",
+      "upstreamLockKey": "node_modules/ip-address"
+    }
+  ]
+}
