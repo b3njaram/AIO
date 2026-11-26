@@ -15,20 +15,20 @@ def missing(desired,existing):
     return {k:v for k,v in desired.items() if v not in urls}
 def configure(e,desired,user,pw,apply):
     import socketio
-    c=socketio.Client(reconnection=False,request_timeout=15)
+    c=socketio.Client(reconnection=False,request_timeout=65)
     arrived=threading.Event();seen={}
     @c.on('monitorList')
     def received(rows):
         if isinstance(rows,dict):seen.clear();seen.update(rows);arrived.set()
     try:
         c.connect('http://127.0.0.1:'+e['MONITOR_PORT'],transports=['polling'],wait_timeout=15)
-        if not c.call('login',{'username':user,'password':pw},timeout=20).get('ok'):raise ValueError('Owner login rejected')
+        if not c.call('login',{'username':user,'password':pw},timeout=60).get('ok'):raise ValueError('Owner login rejected')
         arrived.clear()
-        if not c.call('getMonitorList',timeout=20).get('ok') or not arrived.wait(10):raise ValueError('Cannot verify existing monitors')
+        if not c.call('getMonitorList',timeout=60).get('ok') or not arrived.wait(10):raise ValueError('Cannot verify existing monitors')
         new=missing(desired,seen)
         if apply:
             for k,url in new.items():
-                result=c.call('add',{'name':'Jobbi Home · '+k,'type':'http','url':url,'interval':60,'accepted_statuscodes':['200-399','401-403'],'notificationIDList':{},'active':True,'conditions':[],'kafkaProducerBrokers':[],'kafkaProducerSaslOptions':{},'rabbitmqNodes':[]},timeout=20)
+                result=c.call('add',{'name':'Jobbi Home · '+k,'type':'http','url':url,'interval':60,'accepted_statuscodes':['200-399','401-403'],'notificationIDList':{},'active':True,'conditions':[],'kafkaProducerBrokers':[],'kafkaProducerSaslOptions':{},'rabbitmqNodes':[]},timeout=60)
                 if not result.get('ok'):raise ValueError('Monitor creation refused; existing monitors untouched')
         return {'missing':sorted(new),'created':sorted(new) if apply else [],'scope':'HTTP reachability only, no application data or external notifications'}
     finally:

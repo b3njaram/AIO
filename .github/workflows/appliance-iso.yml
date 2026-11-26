@@ -11,3 +11,13 @@ jobs:
       - uses: actions/checkout@v4
       - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends xorriso
       - run: bash scripts/iso-pilot.sh
+      - name: Verify reproducible source package
+        run: |
+          bash scripts/package-source.sh "$RUNNER_TEMP/pilot"
+          bash scripts/package-source.sh "$RUNNER_TEMP/rebuild"
+          diff -r "$RUNNER_TEMP/pilot" "$RUNNER_TEMP/rebuild"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jobbi-home-pilot-source-${{ github.sha }}
+          path: ${{ runner.temp }}/pilot/
+          if-no-files-found: error

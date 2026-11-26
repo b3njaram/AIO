@@ -65,3 +65,7 @@ Run `python3 scripts/preflight.py --data-root /path/to/mounted/data --apps music
 ## Customer operations
 
 The private owner dashboard includes installation planning, support cases, expiry reminders and bilingual handoff drafts. [Maintenance guide](docs/MAINTENANCE.md) covers read-only diagnostics, opt-in cold backup scheduling and supervised updates/recovery. No unattended upgrade or deletion is enabled. Hardware qualification remains a real-device task.
+
+## Development handoff
+
+Current qualification evidence, open failures and the continuation checklist are in [the development tracker](docs/DEVELOPMENT-TRACKER.md).

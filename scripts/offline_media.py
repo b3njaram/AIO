@@ -67,7 +67,14 @@ def build(bundle,out):
     if not list(repo.glob('*.deb')):raise ValueError('APT returned no packages')
     with (repo/'Packages').open('xb') as f:
         subprocess.run(['dpkg-scanpackages','--multiversion','.','/dev/null'],cwd=repo,stdout=f,check=True)
+    # APT's unprivileged reader needs to traverse the media root. Only package
+    # files are readable; keep the release bundle and application payload private.
+    os.chmod(out,0o711)
+    os.chmod(repo,0o755)
+    for package in repo.iterdir():
+        package.chmod(0o644)
     shutil.copytree(bundle,out/'applications')
+    (out/'applications').chmod(0o700)
     (out/'media.json').write_text(json.dumps({'schema':1,'commit':sha,'apps':sorted(release['apps']),'os':'ubuntu-24.04-amd64'}))
     (out/'SHA256SUMS').write_text(inventory(out))
     print('Verified private media manifest',verify_media(out,sha,release['apps']))
