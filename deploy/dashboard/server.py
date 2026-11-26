@@ -30,6 +30,9 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == '/':
             self.send(HTML, 'text/html; charset=utf-8')
+        elif self.path in ('/manifest.webmanifest','/home.svg'):
+            name,mime={'/manifest.webmanifest':('manifest.webmanifest','application/manifest+json'),'/home.svg':('home.svg','image/svg+xml')}[self.path]
+            self.send((Path('/app')/name).read_bytes(),mime)
         elif self.path == '/api/config':
             safe = {'name':CONFIG['name'], 'apps':[{k:v for k,v in a.items() if k!='probe'} for a in CONFIG['apps']]}
             self.send(json.dumps(safe).encode(), 'application/json')

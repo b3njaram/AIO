@@ -23,6 +23,21 @@ def verified(i,b,name):
     path=b/name;archives=verified_archives(path);e,_,release=metadata(archives['instance.tar.gz'])
     if e['COMPOSE_PROJECT_NAME']!=env(i)['COMPOSE_PROJECT_NAME'] or e['INSTANCE_DIR']!=str(i):raise ValueError('Backup identity mismatch')
     return path,release
+def detailed_catalog(i,b,check=False,kit=None):
+    rows=[]
+    for path in candidates(i,b):
+        files=[x for x in path.iterdir() if x.is_file() and not x.is_symlink() and x.name.endswith('.tar.gz')]
+        row={'name':path.name,'bytes':sum(x.stat().st_size for x in files),'archives':len(files),'full_images':any(x.name=='all-images.tar.gz' for x in files),'integrity':'not_checked','kit':'not_checked'}
+        if check:
+            try:
+                _,release=verified(i,b,path.name);row['integrity']='verified';row['release']=release['aio_commit']
+                if kit:
+                    from offline_kit import verify
+                    try:verify(kit,release);row['kit']='matching' if row['full_images'] else 'requires_all_images'
+                    except (OSError,ValueError,KeyError):row['kit']='not_matching'
+            except (OSError,ValueError,KeyError):row['integrity']='review'
+        rows.append(row)
+    return {'backups':rows,'total_bytes':sum(x['bytes'] for x in rows),'note':'Checksum verification is not a restore test.'}
 def retention(i,b,keep,days):
     """Preview only; require multiple independently checksum-verified recent copies."""
     if keep<3 or days<30:raise ValueError('Keep at least three backups and thirty days')
@@ -71,10 +86,10 @@ def approval(i,t,u,path):
     if not isinstance(d['apps'],dict) or set(d['apps'])!=apps or any(v!='passed' for v in d['apps'].values()):raise ValueError('Require functional acceptance of each selected application')
     return d
 def main():
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('action',choices=['catalog','verify','retention','restore','stage','start-trial','accept-trial','rollback']);p.add_argument('instance',type=Path);p.add_argument('backup_root',type=Path);p.add_argument('--mount-id',required=True);p.add_argument('--minimum-free-gib',type=int,default=50);p.add_argument('--keep',type=int,default=3);p.add_argument('--days',type=int,default=30);p.add_argument('--backup');p.add_argument('--candidate');p.add_argument('--base-port',type=int);p.add_argument('--to-commit');p.add_argument('--acceptance',type=Path,help='Private exact trial acceptance JSON');p.add_argument('--apply',action='store_true');p.add_argument('--confirm-no-candidate-writes',action='store_true',help='Acknowledge trial has no customer writes, or these were separately reconciled');a=p.parse_args()
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('action',choices=['catalog','verify','retention','restore','stage','start-trial','accept-trial','rollback']);p.add_argument('instance',type=Path);p.add_argument('backup_root',type=Path);p.add_argument('--mount-id',required=True);p.add_argument('--minimum-free-gib',type=int,default=50);p.add_argument('--keep',type=int,default=3);p.add_argument('--days',type=int,default=30);p.add_argument('--backup');p.add_argument('--verify-all',action='store_true');p.add_argument('--offline-kit',type=Path);p.add_argument('--candidate');p.add_argument('--base-port',type=int);p.add_argument('--to-commit');p.add_argument('--acceptance',type=Path,help='Private exact trial acceptance JSON');p.add_argument('--apply',action='store_true');p.add_argument('--confirm-no-candidate-writes',action='store_true',help='Acknowledge trial has no customer writes, or these were separately reconciled');a=p.parse_args()
     i=a.instance.resolve();b=a.backup_root.resolve();e=env(i);independent(i,b,a.mount_id)
     if a.action=='catalog':
-        print(json.dumps([{'name':x.name,'completed_manifest':True,'integrity':'not_checked'} for x in candidates(i,b)],indent=2));return
+        print(json.dumps(detailed_catalog(i,b,a.verify_all,a.offline_kit),indent=2));return
     if a.action=='retention':
         if a.apply:p.error('Retention is preview-only; no automatic deletion')
         print(json.dumps(retention(i,b,a.keep,a.days),indent=2));return
@@ -90,6 +105,7 @@ def main():
         if shutil.disk_usage(i.parent).free<a.minimum_free_gib*1024**3:p.error('Insufficient restore space; assess full uncompressed backup size')
         path,_=verified(i,b,a.backup)
         cmd=[sys.executable,str(ROOT/'scripts/restore.py'),str(path),'--require-exact-images','--data-root',str(i.parent),'--name',a.candidate,'--base-port',str(a.base_port)]
+        if a.offline_kit:cmd+=['--offline-kit',str(a.offline_kit.absolute())]
         print(shlex.join(cmd))
         if a.apply:run(*cmd)
         return
