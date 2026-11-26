@@ -31,6 +31,9 @@ fi
 [[ ! -e "$INSTANCE/.upgrade-hold.json" ]] || { echo "Upgrade hold active; do not back up or restart original until reconciled" >&2; exit 1; }
 [[ ! -e "$JOURNAL" ]] || { echo 'Interrupted backup. Inspect the instance, then run backup.sh INSTANCE --resume.' >&2; exit 1; }
 [[ -d "$DEST" && "$DEST" != "$INSTANCE" && "$DEST" != "$INSTANCE/"* && "$INSTANCE" != "$DEST/"* ]] || { echo 'Separate backup directory required'; exit 1; }
+helper="$(python3 "$ROOT/scripts/offline_kit.py" "$INSTANCE")"
+pull_flags=()
+if [[ "$helper" == sha256:* ]]; then pull_flags=(--pull never); fi
 OUT="$DEST/$PROJECT-$(date -u +%Y%m%dT%H%M%SZ)"
 mkdir "$OUT"
 # Preserve the actual running/stopped image identities, not merely mutable tags.
@@ -81,12 +84,12 @@ trap restart_on_exit EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 ctl stop "${RUNNING[@]}"
-docker run --rm --network none -v "$INSTANCE:/src:ro" -v "$OUT:/backup:rw" alpine:3.22@sha256:49340b346798875b5592e5d420241f2f9cfba5f47e62ebb1446a1b34734e898f sh -c 'cd /src; set -- .env dashboard.json data; for p in release.json deployment onboarding.json image-inventory.json; do if test -e "$p"; then set -- "$@" "$p"; fi; done; tar czf /backup/instance.tar.gz "$@"'
+docker run --rm "${pull_flags[@]}" --network none -v "$INSTANCE:/src:ro" -v "$OUT:/backup:rw" "$helper" sh -c 'cd /src; set -- .env dashboard.json data; for p in release.json deployment onboarding.json image-inventory.json; do if test -e "$p"; then set -- "$@" "$p"; fi; done; tar czf /backup/instance.tar.gz "$@"'
 VOLUMES="$(docker volume ls -q --filter "label=com.docker.compose.project=$PROJECT")"
 while IFS= read -r volume; do
   [[ -n "$volume" ]] || continue
   [[ "$volume" == "$PROJECT"_* ]] || { echo "Unexpected volume"; exit 1; }
-  docker run --rm --network none -v "$volume:/src:ro" -v "$OUT:/backup:rw" alpine:3.22@sha256:49340b346798875b5592e5d420241f2f9cfba5f47e62ebb1446a1b34734e898f sh -c 'tar czf "/backup/$1.tar.gz" -C /src .' sh "$volume"
+  docker run --rm "${pull_flags[@]}" --network none -v "$volume:/src:ro" -v "$OUT:/backup:rw" "$helper" sh -c 'tar czf "/backup/$1.tar.gz" -C /src .' sh "$volume"
 done <<< "$VOLUMES"
 (cd "$OUT" && sha256sum ./*.tar.gz > SHA256SUMS.tmp && sha256sum -c SHA256SUMS.tmp && mv SHA256SUMS.tmp SHA256SUMS)
 if $hold; then

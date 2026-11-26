@@ -7,7 +7,7 @@ from pathlib import Path,PurePosixPath
 from install import PORTS, reserve, APPS
 from customer_patches import apply
 from recovery_images import stage
-from offline_kit import HELPER,verify as verify_kit,extract_source,load_helper
+from offline_kit import HELPER,verify as verify_kit,extract_source,load_helper,retain_sources
 ROOT=Path(__file__).resolve().parents[1]
 ALLOWED_REPOS={'navidrome','movies'}
 def run(*args):subprocess.run(args,check=True)
@@ -115,6 +115,7 @@ def main():
         if app.get('port') in oldports:app['port']=oldports[app['port']]
     (dest/'dashboard.json').write_text(json.dumps(cfg,indent=2)+'\n');(dest/'dashboard.json').chmod(0o644)
     # Clone only known source repositories from the captured release.
+    if kit:retain_sources(dest,kit,kit_info)
     (dest/'sources').mkdir()
     oldmask=os.umask(0o022)
     try:
@@ -152,7 +153,7 @@ def main():
     for suffix,path in volumes.items():
         volume=project+'_'+suffix
         if volume not in available:raise ValueError('Backup volume not defined in new project: '+suffix)
-        run('docker','run','--rm','--network','none','-v',str(backup)+':/backup:ro','-v',volume+':/dst:rw',helper,'sh','-c','find /dst -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +; tar xzf "/backup/$1" -C /dst','sh',path.name)
+        run('docker','run','--rm',*(['--pull','never'] if kit else []),'--network','none','-v',str(backup)+':/backup:ro','-v',volume+':/dst:rw',helper,'sh','-c','find /dst -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +; tar xzf "/backup/$1" -C /dst','sh',path.name)
     print('Restored into stopped project: '+project)
     print('Inspect release, image versions, ports, credentials and domains. Then explicitly start with ctl.sh INSTANCE up -d.')
     print('Never expose a recovered copy while the original is serving users. Verify application data and customer ownership.')

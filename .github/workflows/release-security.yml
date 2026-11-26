@@ -23,6 +23,11 @@ jobs:
         run: |
           mkdir -p /tmp/jobbi-security-pilot
           python3 scripts/install.py --name audit --data-root /tmp/jobbi-security-pilot --apps music,movies,photos,files,passwords,tasks,monitor,dns --local-dns-port 10553 --prepare-only
+          export COMPOSE_PARALLEL_LIMIT=3
+          for delay in 5 15 30; do
+            if bash scripts/ctl.sh /tmp/jobbi-security-pilot/audit pull --ignore-buildable; then break; fi
+            sleep "$delay"
+          done
           bash scripts/ctl.sh /tmp/jobbi-security-pilot/audit create --build
       - name: Scan locally created image IDs
         run: python3 scripts/scan-release.py /tmp/jobbi-security-pilot/audit --scanner "$RUNNER_TEMP/jobbi-scanner/trivy" --output "$RUNNER_TEMP/jobbi-security-evidence"

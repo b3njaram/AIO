@@ -91,13 +91,14 @@ def main():
     release={'aio_commit':subprocess.check_output(['git','-C',str(ROOT),'rev-parse','HEAD'],text=True).strip(),'customer_patch_version':VERSION,'source_pins':{k:v for k,v in PINS.items() if ('music' if k=='navidrome' else 'movies') in apps}}
     if a.offline_bundle:
         from install_bundle import check
-        from offline_kit import load_helper
+        from offline_kit import load_helper,retain_sources
         if 'dns' in apps or not ip.is_loopback:p.error('Offline bundle requires core loopback deployment')
         if subprocess.check_output(['git','-C',str(ROOT),'status','--porcelain'],text=True).strip():p.error('Use clean matching release checkout')
         bundle=a.offline_bundle.absolute();inventory,kit=check(bundle,release,apps)
         helper=load_helper(bundle/'kit',kit)
     os.umask(0o077)
     instance.mkdir()
+    if bundle:retain_sources(instance,bundle/"kit",kit)
     progress(instance,"preparing instance")
     shutil.copytree(ROOT/'deploy',instance/'deployment')
     (instance/'release.json').write_text(json.dumps(release,indent=2)+'\n')

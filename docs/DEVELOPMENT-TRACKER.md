@@ -11,6 +11,8 @@ The integration branch is `release/exact-recovery`, [PR 2](https://github.com/b3
 | 4d4457e8 added isolated application container removal and recreation with exact mount and image checks, pinned Alpine Valkey, named the photo queue and blocked upgrades from unmanaged photo queues | [Lifecycle pilot](https://github.com/b3njaram/AIO/actions/runs/45758577689) exposed a Kuma owner-session timeout | Repeat lifecycle and application data checks on the exact proposed release |
 | Pilot source packaging | ISO workflow emits a source archive, manifest and SHA256SUMS after comparing two builds | Source artifact is for inspection. Build personalized media privately from the reviewed checkout |
 
+The complete [4d4457e8 scan](https://github.com/b3njaram/AIO/actions/runs/45758577676) recorded 2,036 findings at gated severities. The media, library, office, isolation, full-stack and staged-upgrade jobs passed on that revision. Infrastructure recovery failed during Kuma monitor configuration. New offline installations and recoveries now preserve original upstream archives and the local helper ID so they can generate the next independent recovery kit. Verify the chained recovery in the media pilot and the fresh disconnected installation in its own workflow.
+
 ## Continuation by product area
 
 Use the repository phase grouping in the linked guides. Keep customer-specific evidence off Git.

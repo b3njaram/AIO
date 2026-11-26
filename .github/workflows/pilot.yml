@@ -129,6 +129,8 @@ jobs:
           SH
           chmod +x /tmp/jobbi-offline-bin/docker
           PATH="/tmp/jobbi-offline-bin:$PATH" GIT_ALLOW_PROTOCOL=file python3 scripts/restore.py "$BACKUP" --offline-kit /tmp/jobbi-media-kit --data-root /tmp/jobbi-media --name recovered --base-port 18500
+          PATH="/tmp/jobbi-offline-bin:$PATH" GIT_ALLOW_PROTOCOL=file python3 scripts/make-recovery-kit.py /tmp/jobbi-media/recovered --output /tmp/jobbi-next-kit --apply
+          cmp /tmp/jobbi-media-kit/movies-source.tar.gz /tmp/jobbi-next-kit/movies-source.tar.gz
           test -z "$(bash scripts/ctl.sh /tmp/jobbi-media/recovered ps --status running -q)"
           echo 'PASS: exact stopped recovery with source kit and no explicit image pulls'
           bash scripts/ctl.sh /tmp/jobbi-media/recovered up -d

@@ -42,3 +42,47 @@ def load_helper(kit,m):
     subprocess.run(['docker','image','tag',identity,alias],check=True)
     if cmd('docker','image','inspect','--format','{{.Id}}',alias)!=identity:raise ValueError('Restore helper image identity mismatch')
     return alias
+
+def retain_sources(instance,kit,manifest):
+    """Retain the verified original inputs for the next offline recovery kit."""
+    import shutil
+    cache=instance/'recovery-inputs'
+    cache.mkdir(mode=0o700)
+    for name in manifest['source_pins']:
+        archive_name=name+'-source.tar.gz'
+        shutil.copyfile(kit/archive_name,cache/archive_name)
+    (cache/'kit.json').write_text(json.dumps(manifest))
+
+def retained_manifest(instance,release):
+    cache=instance/'recovery-inputs'
+    if not cache.exists():
+        return None
+    m=json.loads((cache/'kit.json').read_text())
+    if (cache.is_symlink() or m.get('schema')!=1 or m.get('release')!=release['aio_commit']
+            or m.get('source_pins')!=release['source_pins'] or m.get('helper_reference')!=HELPER
+            or not re.fullmatch(r'sha256:[0-9a-f]{64}',m.get('helper_id',''))):
+        raise ValueError('Retained kit differs from installed release')
+    return m
+
+def helper_reference(instance,release):
+    m=retained_manifest(instance,release)
+    if m is None:return HELPER
+    image=m['helper_id']
+    if cmd('docker','image','inspect','--format','{{.Id}}',image)!=image:
+        raise ValueError('Retained restore helper unavailable')
+    return image
+
+def retained_archive(instance,name,manifest):
+    path=instance/'recovery-inputs'/(name+'-source.tar.gz')
+    if name not in REPOS or path.is_symlink() or digest(path)!=manifest['files'][path.name]:
+        raise ValueError('Retained source checksum mismatch')
+    with tarfile.open(path,'r:gz') as tar:
+        if tar.pax_headers.get('comment')!=manifest['source_pins'][name]:
+            raise ValueError('Retained source commit mismatch')
+    return path
+
+if __name__=='__main__':
+    import sys
+    instance=Path(sys.argv[1])
+    release=json.loads((instance/'release.json').read_text()) if (instance/'recovery-inputs').exists() else {}
+    print(helper_reference(instance,release))
