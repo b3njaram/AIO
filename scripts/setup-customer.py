@@ -12,6 +12,7 @@ def args():
     p.add_argument('--base-port',type=int,default=18080)
     p.add_argument('--apps')
     p.add_argument('--quote',type=Path)
+    p.add_argument('--offline-bundle',type=Path)
     p.add_argument('--tz',default='America/Ciudad_Juarez')
     p.add_argument('--minimum-free-gib',type=int,default=50)
     p.add_argument('--minimum-docker-free-gib',type=int,default=20)
@@ -41,6 +42,7 @@ def plan(a):
     common=['--apps',','.join(apps)]
     pre=[sys.executable,str(ROOT/'scripts/preflight.py'),'--data-root',str(data),'--backup-root',str(backup),*common,'--minimum-free-gib',str(a.minimum_free_gib),'--minimum-docker-free-gib',str(a.minimum_docker_free_gib)]
     install=[sys.executable,str(ROOT/'scripts/install.py'),'--name',a.name,'--data-root',str(data),'--base-port',str(a.base_port),'--tz',a.tz,*common]
+    if getattr(a,'offline_bundle',None):install+=['--offline-bundle',str(a.offline_bundle.absolute())]
     verify=['bash',str(ROOT/'scripts/verify.sh'),str(instance)]
     onboard=[sys.executable,str(ROOT/'scripts/onboard.py'),str(instance)]
     return instance,pre,install,verify,onboard
@@ -57,12 +59,15 @@ def main():
     release=platform.freedesktop_os_release()
     if platform.machine()!='x86_64' or release.get('ID')!='ubuntu' or release.get('VERSION_ID')!='24.04':raise ValueError('Automated host setup requires Ubuntu Server 24.04 x86-64')
     if subprocess.check_output(['git','-C',str(ROOT),'status','--porcelain'],text=True).strip():raise ValueError('Use a clean reviewed release checkout')
-    if not shutil.which('docker'):run(['sudo','bash',str(ROOT/'scripts/customer-prerequisites.sh'),'--install'])
+    if not shutil.which('docker'):
+        if a.offline_bundle:raise ValueError('Install offline host prerequisites first')
+        run(['sudo','bash',str(ROOT/'scripts/customer-prerequisites.sh'),'--install'])
     if subprocess.run(['docker','info','--format','{{.ServerVersion}}'],check=False).returncode:
         raise ValueError('Docker access required. On this dedicated host only, grant the operator Docker access with sudo usermod -aG docker "$USER", then log out/in and rerun. Docker access is root-equivalent.')
     run(pre)
-    if not a.defer_health_to_first_boot and 'remote' in install[-1].split(',') and not shutil.which('tailscale'):
-        run(['sudo','bash',str(ROOT/'scripts/customer-remote.sh')])
+    if not a.defer_health_to_first_boot and 'remote' in install[install.index('--apps')+1].split(',') and not shutil.which('tailscale'):
+        if a.offline_bundle:print('Private remote enrollment deferred until network access is available.')
+        else:run(['sudo','bash',str(ROOT/'scripts/customer-remote.sh')])
     # First boot already installs this guard. Manual guided installs require an
     # explicit dedicated-host guard before provisioning customer containers.
     guard=Path('/etc/systemd/system/docker.service.d/90-jobbi-storage.conf')
@@ -80,7 +85,7 @@ def main():
     run(onboard)
     if not a.defer_health_to_first_boot:
         import pwd
-        run(['sudo',sys.executable,str(ROOT/'scripts/install-health-service.py'),str(instance),str(a.backup_root.expanduser().resolve()),'--operator',pwd.getpwuid(os.getuid()).pw_name,'--check-updates',*(['--weekly-backup'] if a.weekly_backup else []),'--apply'])
+        run(['sudo',sys.executable,str(ROOT/'scripts/install-health-service.py'),str(instance),str(a.backup_root.expanduser().resolve()),'--operator',pwd.getpwuid(os.getuid()).pw_name,*(['--check-updates'] if not a.offline_bundle else []),*(['--weekly-backup'] if a.weekly_backup else []),'--apply'])
     print('Services installed; customer onboarding and functional acceptance remain pending.')
     print('Local dashboard: http://127.0.0.1:'+str(a.base_port))
     print('Next: docs/HANDOFF.md, docs/PRIVATE-ACCESS.md, then independent backup and reboot/restore acceptance.')

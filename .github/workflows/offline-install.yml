@@ -1,0 +1,32 @@
+name: Fresh offline application install
+on:
+  push:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  fresh:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[release-gate]') || contains(github.event.head_commit.message, '[offline-pilot]')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          mkdir -p /tmp/jobbi-fresh /tmp/jobbi-fresh-backups
+          python3 scripts/install.py --name reference --data-root /tmp/jobbi-fresh --apps monitor --base-port 19600
+          bash scripts/backup.sh /tmp/jobbi-fresh/reference /tmp/jobbi-fresh-backups --all-images
+          python3 scripts/make-install-bundle.py /tmp/jobbi-fresh/reference --output /tmp/jobbi-install-bundle --apply
+          GIT_ALLOW_PROTOCOL=file python3 scripts/install.py --name clean --data-root /tmp/jobbi-fresh --apps monitor --base-port 19700 --offline-bundle /tmp/jobbi-install-bundle
+          python3 - <<'PY'
+          from pathlib import Path
+          def env(name):return dict(x.split('=',1) for x in (Path('/tmp/jobbi-fresh')/name/'.env').read_text().splitlines() if '=' in x)
+          a,b=env('reference'),env('clean')
+          for k in ('MUSIC_DB_PASSWORD','MOVIE_SECRET','VAULT_ADMIN_TOKEN','TASK_DB_PASSWORD','DNS_PASSWORD'):assert a[k]!=b[k]
+          PY
+          curl --retry 30 --retry-all-errors --retry-delay 2 -fsS http://127.0.0.1:19700/healthz
+          curl --retry 30 --retry-all-errors --retry-delay 2 -fsS http://127.0.0.1:19710/ -o /dev/null
+      - if: always()
+        run: |
+          for n in reference clean; do
+            if test -f "/tmp/jobbi-fresh/$n/.env"; then bash scripts/ctl.sh "/tmp/jobbi-fresh/$n" down -v; fi
+          done

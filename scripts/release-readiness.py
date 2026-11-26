@@ -10,7 +10,9 @@ GATES={
     'appliance-iso.yml':('iso',),
     'appliance-vm.yml':('vm',),
     'storage-raid.yml':('raid',),
-    'release-security.yml':('image-scan',)}
+    'release-security.yml':('image-scan',),
+    'unit-regression.yml':('units',),
+    'offline-install.yml':('fresh',)}
 def api(path):
     token=os.environ.get('GITHUB_TOKEN')
     headers={'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28','User-Agent':'Jobbi-release-readiness'}
