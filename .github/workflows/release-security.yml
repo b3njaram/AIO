@@ -26,6 +26,14 @@ jobs:
           bash scripts/ctl.sh /tmp/jobbi-security-pilot/audit create --build
       - name: Scan locally created image IDs
         run: python3 scripts/scan-release.py /tmp/jobbi-security-pilot/audit --scanner "$RUNNER_TEMP/jobbi-scanner/trivy" --output "$RUNNER_TEMP/jobbi-security-evidence"
+      - name: Retain synthetic candidate scan and software bills of materials
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-security-${{ github.sha }}
+          path: ${{ runner.temp }}/jobbi-security-evidence/
+          if-no-files-found: warn
+          retention-days: 14
       - name: Review finding counts
         if: always()
         run: |

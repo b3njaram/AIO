@@ -177,7 +177,7 @@ services:
     volumes: [nextcloud-db:/var/lib/postgresql/data]
   vaultwarden:
     profiles: [passwords]
-    image: vaultwarden/server:1.37.5@sha256:4fe17f415f90087377d37c755e0ea3cf189dcc6794e49cdd2a9adbb4937d9e1f
+    image: vaultwarden/server:1.37.5-alpine@sha256:bbe684a02d6b0db54256ff88eac9754f4519284a7b26314afc241fd7d0918191
     restart: unless-stopped
     environment:
       SIGNUPS_ALLOWED: "false"

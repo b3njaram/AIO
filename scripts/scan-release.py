@@ -29,10 +29,15 @@ def scan(instance,scanner,destination):
     for image,services in sorted(groups.items()):
         with tempfile.TemporaryDirectory(prefix='jobbi-scan-') as tmp:
             raw=Path(tmp)/'scan.json'
-            cmd=[scanner,'image','--image-src','docker','--scanners','vuln,license','--format','json','--output',str(raw),'--timeout','15m',image]
+            cmd=[scanner,'image','--image-src','docker','--scanners','vuln,license','--list-all-pkgs','--format','json','--output',str(raw),'--timeout','15m',image]
             # Do not ignore unfixed findings or use an unreviewed ignore file in the repo.
             subprocess.run(cmd,cwd=tmp,check=True,timeout=950)
             result=summarize(json.loads(raw.read_text()))
+            sbom=image.removeprefix('sha256:')+'.cdx.json'
+            subprocess.run([scanner,'convert','--format','cyclonedx','--output',str(out/sbom),str(raw)],check=True,timeout=180)
+            if not json.loads((out/sbom).read_text()).get('components'):
+                raise ValueError('Scanner produced no SBOM components')
+            result['sbom']=sbom
         reports.append({'image':image,'services':sorted(services),**result})
         print('Scanned',','.join(sorted(services)),':',len(result['vulnerabilities']),'high/critical/unknown findings',flush=True)
     payload={'schema':1,'at':dt.datetime.now(dt.timezone.utc).isoformat(),'release':release['aio_commit'],'scanner':version.strip(),'images':reports,'policy':'All high, critical and unknown-severity findings require release review; license discovery is not a compliance determination.'}
