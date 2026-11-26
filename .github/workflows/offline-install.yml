@@ -11,6 +11,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
       - run: |
           mkdir -p /tmp/jobbi-fresh /tmp/jobbi-fresh-backups
           python3 scripts/install.py --name reference --data-root /tmp/jobbi-fresh --apps monitor --base-port 19600
@@ -25,6 +26,23 @@ jobs:
           PY
           curl --retry 30 --retry-all-errors --retry-delay 2 -fsS http://127.0.0.1:19700/healthz
           curl --retry 30 --retry-all-errors --retry-delay 2 -fsS http://127.0.0.1:19710/ -o /dev/null
+      - name: Resolve fresh Ubuntu host packages from private offline media
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dpkg-dev
+          python3 scripts/offline_media.py /tmp/jobbi-install-bundle --out /tmp/jobbi-host-media
+          docker pull ubuntu:24.04
+          docker run --rm -i --network none -v /tmp/jobbi-host-media:/var/lib/jobbi-offline:ro -e EXPECTED_SHA="$GITHUB_SHA" ubuntu:24.04 bash -eu <<'EOF'
+          cd /var/lib/jobbi-offline
+          sha256sum --quiet -c SHA256SUMS
+          printf '%s\n' 'deb [trusted=yes] file:/var/lib/jobbi-offline/packages ./' >/etc/apt/jobbi-offline.list
+          opts=(-o Dir::Etc::sourcelist=/etc/apt/jobbi-offline.list -o Dir::Etc::sourceparts=-)
+          apt-get "${opts[@]}" update
+          DEBIAN_FRONTEND=noninteractive apt-get "${opts[@]}" -y --no-install-recommends install docker.io docker-compose-v2 git python3 curl openssh-server smartmontools util-linux python3-socketio mdadm age
+          git clone --branch appliance /var/lib/jobbi-offline/release.bundle /opt/jobbi-aio
+          test "$(git -C /opt/jobbi-aio rev-parse HEAD)" = "$EXPECTED_SHA"
+          docker compose version
+          EOF
       - if: always()
         run: |
           for n in reference clean; do

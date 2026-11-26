@@ -37,10 +37,20 @@ def main():
             raise ValueError('Existing or partial installation detected; inspect without overwriting')
         run('runuser','-u',user.pw_name,'--','bash',str(ROOT/'scripts/verify.sh'),str(instance),env=env)
     else:
-        if 'remote' in cfg['apps'].split(','):run('bash',str(ROOT/'scripts/customer-remote.sh'))
+        if not cfg.get('offline') and 'remote' in cfg['apps'].split(','):run('bash',str(ROOT/'scripts/customer-remote.sh'))
+        offline=[]
+        if cfg.get('offline'):
+            media=Path('/var/lib/jobbi-offline')
+            bundle=media/'applications'
+            # Private payload is root-owned and readable by this customer operator.
+            for item in [media,bundle,*bundle.rglob('*')]:
+                if item.is_symlink() or item.stat().st_uid!=0:raise ValueError('Unexpected offline media ownership')
+                os.chown(item,0,user.pw_gid)
+                item.chmod(0o750 if item.is_dir() else 0o640)
+            offline=['--offline-bundle',str(bundle)]
         run('usermod','-aG','docker',user.pw_name)
         run(sys.executable,str(ROOT/'scripts/boot-guard.py'),str(roots[0]),'--apply')
-        run('runuser','-u',user.pw_name,'--',sys.executable,str(ROOT/'scripts/setup-customer.py'),'--name',cfg['name'],'--data-root',str(roots[0]),'--backup-root',str(roots[1]),'--apps',cfg['apps'],'--tz',cfg.get('tz','America/Ciudad_Juarez'),'--base-port',str(cfg.get('base_port',18080)),'--defer-health-to-first-boot','--apply',env=env)
+        run('runuser','-u',user.pw_name,'--',sys.executable,str(ROOT/'scripts/setup-customer.py'),'--name',cfg['name'],'--data-root',str(roots[0]),'--backup-root',str(roots[1]),'--apps',cfg['apps'],'--tz',cfg.get('tz','America/Ciudad_Juarez'),'--base-port',str(cfg.get('base_port',18080)),'--defer-health-to-first-boot',*offline,'--apply',env=env)
     # Only stable by-id aliases for whole disks backing the explicitly approved
     # filesystems. Do not auto-select USB devices, other disks or partitions.
     devices=set()
@@ -58,7 +68,7 @@ def main():
     for disk in devices:
         matches=sorted(x for x in Path('/dev/disk/by-id').glob('*') if re.fullmatch(r'[A-Za-z0-9_.:+-]+',x.name) and x.resolve()==disk)
         if matches:aliases+=['--smart-device',str(matches[0])]
-    run(sys.executable,str(ROOT/'scripts/install-health-service.py'),str(roots[0]/cfg['name']),str(roots[1]),'--operator',user.pw_name,'--check-updates',*aliases,*(['--weekly-backup'] if cfg.get('weekly_backup') else []),'--apply')
+    run(sys.executable,str(ROOT/'scripts/install-health-service.py'),str(roots[0]/cfg['name']),str(roots[1]),'--operator',user.pw_name,*([] if cfg.get('offline') else ['--check-updates']),*aliases,*(['--weekly-backup'] if cfg.get('weekly_backup') else []),'--apply')
     state=Path('/var/lib/jobbi');state.mkdir(mode=0o700,exist_ok=True)
     (state/'first-boot-complete').write_text('Provisioned; onboarding and acceptance pending\n')
     print('First boot completed; operator must finish customer onboarding.')
