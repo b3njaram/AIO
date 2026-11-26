@@ -89,7 +89,7 @@ db.transaction(()=>{
         except ImportError:raise ValueError('Install python3-socketio on the dedicated Ubuntu appliance')
         client=socketio.Client(reconnection=False,request_timeout=10)
         try:
-            client.connect(base('MONITOR_PORT'),transports=['polling'],wait_timeout=15)
+            client.connect(base('MONITOR_PORT'),transports=['websocket'],wait_timeout=15)
             login=lambda:client.call('login',{'username':user,'password':pw},timeout=20)
             result=login()
             if not result.get('ok'):

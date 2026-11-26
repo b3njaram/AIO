@@ -14,7 +14,7 @@ from install_bundle import check
 from offline_kit import digest
 
 ROOT=Path(__file__).resolve().parents[1]
-PACKAGES=['docker.io','docker-compose-v2','git','python3','curl','openssh-server','smartmontools','util-linux','python3-socketio','mdadm','age']
+PACKAGES=['docker.io','docker-compose-v2','git','python3','curl','openssh-server','smartmontools','util-linux','python3-socketio','python3-websocket','mdadm','age']
 
 def inventory(root):
     result={}

@@ -82,6 +82,7 @@ def monitor(instance,env,fixture,recover):
         assert version=='156.0.8078.108-1~deb12u1', 'Unexpected embedded browser package version'
     dom=subprocess.check_output([*ctl,'chromium','--headless','--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--dump-dom','data:text/html,<p>jobbi-browser-fixture</p>'],text=True,timeout=60,stderr=subprocess.DEVNULL)
     assert 'jobbi-browser-fixture' in dom
+    subprocess.run([*ctl,'/app/extra/healthcheck'],check=True,timeout=35)
     print('PASS patched Chromium package and embedded browser functionality')
     base='http://127.0.0.1:'+env['MONITOR_PORT']
     if not recover:
@@ -89,7 +90,7 @@ def monitor(instance,env,fixture,recover):
         account_setup.create(instance,'monitor','pilot','pilot@example.invalid',fixture['password'])
     client=socketio.Client(reconnection=False)
     def connect():
-        try:client.connect(base,transports=['polling']);return True
+        try:client.connect(base,transports=['websocket']);return True
         except socketio.exceptions.ConnectionError:return False
     wait(connect)
     try:

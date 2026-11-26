@@ -1,3 +1,8 @@
+# syntax=docker/dockerfile:1
+FROM golang:1.27.3-alpine@sha256:fa3d596898d9f126af7c01d14ee7597bab3f39cccf392ef36b69fe77cd681f18 AS healthcheck
+ADD --checksum=sha256:d16fd78404ed92d7e8b61f535790f4f508d807d5d76c2d9fbb275e2cd86f3f9e https://raw.githubusercontent.com/louislam/uptime-kuma/5aa5dec425f8a955b54e150636979a6927745ec5/extra/healthcheck.go /src/healthcheck.go
+RUN --network=none CGO_ENABLED=0 GOTOOLCHAIN=local go build -trimpath -o /out/healthcheck /src/healthcheck.go
+
 # Keep the full upstream release, including browser monitoring and MariaDB.
 FROM louislam/uptime-kuma:2.5.12@sha256:8e4b6bef96417ec98a35dc103c99cc64fc229a01e584e56d95d9004d2003c02a
 
@@ -17,3 +22,5 @@ RUN set -eu; \
     for item in "$@"; do test "$(dpkg-query -W -f='${Version}' "${item%=*}")" = "$version"; done; \
     chromium --version; \
     rm -f /tmp/jobbi-security.list; rm -rf /var/lib/apt/lists/*
+
+COPY --from=healthcheck --chmod=0755 /out/healthcheck /app/extra/healthcheck

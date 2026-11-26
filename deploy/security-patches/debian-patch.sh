@@ -26,7 +26,7 @@ apt() {
     "$command" -o Dir::Etc::sourcelist="$work/sources.list" \
       -o Dir::Etc::sourceparts=- -o Dir::State::lists="$work/lists" \
       -o Dir::Cache::pkgcache= -o Dir::Cache::srcpkgcache= \
-      -o Acquire::Retries=4 -o APT::Update::Error-Mode=any "$@"
+      -o Acquire::https::CaInfo=/tmp/jobbi-build-ca.pem -o Acquire::Retries=4 -o APT::Update::Error-Mode=any "$@"
 }
 apt apt-get update
 set --

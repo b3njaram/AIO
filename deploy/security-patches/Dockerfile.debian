@@ -1,8 +1,10 @@
 # syntax=docker/dockerfile:1
 # Keep upstream runtime, entrypoint, user, application version and data format.
 ARG BASE_IMAGE
+FROM golang:1.27.3-alpine@sha256:fa3d596898d9f126af7c01d14ee7597bab3f39cccf392ef36b69fe77cd681f18 AS build_trust
 FROM ${BASE_IMAGE}
 ARG DEBIAN_CODENAME
 ARG PACKAGE_FLOORS
-RUN --mount=type=bind,source=debian-patch.sh,target=/tmp/jobbi-patch.sh,ro \
+RUN --mount=type=bind,from=build_trust,source=/etc/ssl/certs/ca-certificates.crt,target=/tmp/jobbi-build-ca.pem,ro \
+    --mount=type=bind,source=debian-patch.sh,target=/tmp/jobbi-patch.sh,ro \
     /bin/sh /tmp/jobbi-patch.sh "$DEBIAN_CODENAME" "$PACKAGE_FLOORS"

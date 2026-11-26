@@ -42,7 +42,7 @@ jobs:
           printf '%s\n' 'deb [trusted=yes] file:/var/lib/jobbi-offline/packages ./' >/etc/apt/jobbi-offline.list
           opts=(-o Dir::Etc::sourcelist=/etc/apt/jobbi-offline.list -o Dir::Etc::sourceparts=-)
           apt-get "${opts[@]}" update
-          DEBIAN_FRONTEND=noninteractive apt-get "${opts[@]}" -y --no-install-recommends install docker.io docker-compose-v2 git python3 curl openssh-server smartmontools util-linux python3-socketio mdadm age
+          DEBIAN_FRONTEND=noninteractive apt-get "${opts[@]}" -y --no-install-recommends install docker.io docker-compose-v2 git python3 curl openssh-server smartmontools util-linux python3-socketio python3-websocket mdadm age
           git clone --branch appliance /var/lib/jobbi-offline/release.bundle /opt/jobbi-aio
           test "$(git -C /opt/jobbi-aio rev-parse HEAD)" = "$EXPECTED_SHA"
           docker compose version

@@ -15,7 +15,7 @@ if command -v docker >/dev/null; then
   echo 'Existing Docker installation detected. Existing package configuration retained.'
   exit 0
 fi
-packages=(docker.io docker-compose-v2 python3 git curl util-linux smartmontools python3-socketio mdadm age)
+packages=(docker.io docker-compose-v2 python3 git curl util-linux smartmontools python3-socketio python3-websocket mdadm age)
 printf 'Customer host packages: %s\n' "${packages[*]}"
 [[ "$mode" == --install ]] || exit 0
 [[ $EUID -eq 0 ]] || { echo 'Run --install with sudo on the dedicated customer host.' >&2; exit 1; }
