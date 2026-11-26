@@ -11,7 +11,7 @@ with tempfile.TemporaryDirectory() as tmp:
         with sync_playwright() as pw:
             browser=pw.chromium.launch();page=browser.new_page(viewport={'width':390,'height':844})
             page.goto(server.origin);page.locator('#code').fill(session.token);page.locator('#unlockButton').click()
-            expect(page.locator('#appTitle')).to_have_text('Jobbi Music')
+            expect(page.locator('#appTitle')).to_have_text('All supported accounts')
             page.locator('#email').fill('owner@example.invalid');page.locator('#password').fill('fixture-password');page.locator('#confirm').fill('fixture-password')
             page.locator('#createButton').click();expect(page.locator('#appTitle')).to_have_text('Vaultwarden')
             expect(page.locator('#passwordFields')).to_be_hidden();expect(page.locator('#password')).to_have_value('')

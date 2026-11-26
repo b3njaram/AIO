@@ -52,6 +52,7 @@ def main():
     subprocess.run(['systemctl','daemon-reload'],check=True)
     subprocess.run(['systemctl','enable','--now',*[x for x in result if x.endswith('.timer')]],check=True)
     subprocess.run(['systemctl','enable',*[x for x in result if x.endswith(('-resume.service','-boot-recover.service'))]],check=True)
+    subprocess.run(['systemctl','start',next(x for x in result if x.endswith('-health.service'))],check=True)
 if __name__=='__main__':
     try:main()
     except (OSError,ValueError,KeyError,subprocess.SubprocessError) as e:sys.exit('Health setup stopped: '+str(e))

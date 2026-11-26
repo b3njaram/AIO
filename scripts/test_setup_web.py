@@ -23,7 +23,7 @@ class Tests(unittest.TestCase):
                 self.assertEqual(req('/api/create',payload,origin='https://evil.example')[0],403)
                 self.assertEqual(req('/api/create',{**payload,'app':'movies'})[0],400)
                 adapter.create.assert_not_called()
-                self.assertEqual(req('/api/create',payload)[0],200)
+                self.assertEqual(req('/api/create',{**payload,'app':'all'})[0],200)
                 adapter.create.assert_called_once_with(Path(tmp),'music','owner','owner@example.invalid','fixture-password')
                 self.assertEqual(req('/api/create',payload)[0],400)
                 self.assertEqual(req('/api/create',{**payload,'app':'passwords'})[0],400)

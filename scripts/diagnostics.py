@@ -61,6 +61,13 @@ def inspect(instance,smart=()):
                 temperatures.append({'sensor':(p/'type').read_text().strip(),'celsius':value})
                 if value>=85:alerts.append('High thermal-zone reading; check sensor-specific limits')
         except (OSError,ValueError):pass
+    for p in Path('/sys/class/hwmon').glob('hwmon*/temp*_input'):
+        try:
+            value=round(int(p.read_text())/1000,1)
+            if -20<=value<=150:
+                temperatures.append({'sensor':p.parent.name,'celsius':value})
+                if value>=85:alerts.append('High hardware-sensor reading; check sensor-specific limits')
+        except (OSError,ValueError):pass
     services=run('bash',str(Path(__file__).resolve().parent/'ctl.sh'),str(instance),'ps','-a','--format','json')
     parsed=[]
     if services is not None:
