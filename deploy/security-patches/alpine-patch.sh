@@ -10,7 +10,12 @@ work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 # Refuse rolling edge repositories rather than mixing incompatible branches.
 if grep -Eq '(^|/)edge(/|$)' /etc/apk/repositories; then exit 1; fi
-apk info | sort -u > "$work/before"
+# APK 2 and 3 both store installed package records as P:/V: fields.
+# Human-readable "apk info" output changes by apk version and verbosity.
+db=/lib/apk/db/installed
+test -s "$db"
+names() { awk '/^P:/ {print substr($0,3)}' "$db" | sort -u; }
+names > "$work/before"
 set --
 for spec in $floors; do
     pkg="${spec%%=*}"; minimum="${spec#*=}"
@@ -20,12 +25,12 @@ for spec in $floors; do
     set -- "$@" "$pkg>=$minimum"
 done
 apk add --no-cache --upgrade "$@"
-apk info | sort -u > "$work/after"
+names > "$work/after"
 test -z "$(comm -23 "$work/before" "$work/after")"
 for spec in $floors; do
     pkg="${spec%%=*}"; minimum="${spec#*=}"
-    actual="$(apk info -v "$pkg" | head -n 1)"
-    case "$actual" in "$pkg"-*) actual="${actual#"$pkg"-}";; *) exit 1;; esac
+    actual="$(awk -v pkg="$pkg" '/^P:/ {name=substr($0,3)} /^V:/ && name==pkg {print substr($0,3); exit}' "$db")"
+    test -n "$actual" || { echo "Missing installed version for $pkg" >&2; exit 1; }
     case "$(apk version -t "$actual" "$minimum")" in "="|">") ;; *) exit 1;; esac
     printf 'Jobbi security package %s %s (minimum %s)\n' "$pkg" "$actual" "$minimum"
 done
