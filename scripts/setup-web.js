@@ -1,22 +1,46 @@
 'use strict';
-const $=id=>document.getElementById(id);let es=false,token='',state,selected,busy=false;const tr=(en,sp)=>es?sp:en;
+const $=id=>document.getElementById(id);let es=false,token='',state,selected,busy=false,current='',failedApps=[];const tr=(en,sp)=>es?sp:en;
 const names={all:'All supported accounts',music:'Jobbi Music',movies:'StreamHub',photos:'Immich',files:'Nextcloud',tasks:'Vikunja',monitor:'Uptime Kuma',passwords:'Vaultwarden'};
-async function api(path,data){const r=await fetch('/api/'+path,{method:data===undefined?'GET':'POST',headers:{Authorization:'Bearer '+token,...(data===undefined?{}:{'Content-Type':'application/json','X-Jobbi-Setup':'1'})},...(data===undefined?{}:{body:JSON.stringify(data)})});if(!r.ok)throw Error('setup');return r.json()}
+async function api(path,data){const r=await fetch('/api/'+path,{method:data===undefined?'GET':'POST',headers:{Authorization:'Bearer '+token,...(data===undefined?{}:{'Content-Type':'application/json','X-Jobbi-Setup':'1'})},...(data===undefined?{}:{body:JSON.stringify(data)})});if(!r.ok){const err=Error('setup');err.httpStatus=r.status;throw err;}return r.json()}
 function text(id,en,sp){$(id).textContent=tr(en,sp)}
 function clearPassword(){$('password').value='';$('confirm').value=''}
 function render(){
  document.documentElement.lang=es?'es':'en';text('lang','Español','English');text('title','Set up your home','Configura tu hogar');text('lead','One private session. Your accounts stay on your server.','Una sesión privada. Tus cuentas permanecen en tu servidor.');text('unlockTitle','Unlock setup','Desbloquear configuración');text('codeLabel','Setup code','Código de configuración');text('unlockButton','Continue','Continuar');text('usernameLabel','Owner username','Usuario propietario');text('emailLabel','Owner email','Correo del propietario');text('passwordLabel','New or existing password','Contraseña nueva o existente');text('confirmLabel','Confirm password','Confirma contraseña');text('finish','Close setup session','Cerrar sesión de configuración');text('nextNote','After setup, finish native encryption, private access and actual application tests with your technician.','Después, termina el cifrado nativo, acceso privado y pruebas reales con tu técnico.');
- if(!state)return;$('progress').max=state.apps.length||1;$('progress').value=state.done.length;$('progressText').textContent=state.done.length+' / '+state.apps.length+' '+tr('account steps completed','pasos de cuenta completados');
+ if(!state)return;$('progress').max=state.apps.length||1;$('progress').value=state.done.length;$('progressText').textContent=state.done.length+' / '+state.apps.length+' '+tr('account steps completed','pasos de cuenta completados')+(current?' · '+tr('Configuring ','Configurando ')+names[current]+'…':'');
  $('steps').replaceChildren();for(const app of [...(state.apps.some(a=>a!=='passwords'&&!state.done.includes(a))?['all']:[]),...state.apps]){const b=document.createElement('button');b.type='button';b.textContent=(state.done.includes(app)?'✓ ':'')+(app==='all'?tr('Set up all','Configurar todas'):names[app]);b.disabled=busy||state.done.includes(app);b.setAttribute('aria-current',app===selected?'step':'false');b.onclick=()=>{selected=app;clearPassword();render()};$('steps').append(b)}
- $('finish').disabled=busy;$('accountForm').hidden=!selected||state.done.includes(selected);if($('accountForm').hidden)return;
+ $('finish').disabled=busy;for(const id of ['email','password','confirm'])$(id).disabled=busy;$('accountForm').hidden=!selected||state.done.includes(selected);if($('accountForm').hidden)return;
  $('appTitle').textContent=names[selected];const vault=selected==='passwords';$('passwordFields').hidden=vault;for(const id of ['password','confirm'])$(id).required=!vault;
- $('username').disabled=selected==='music';if(selected==='music')$('username').value=state.music_username;
+ $('username').disabled=busy||selected==='music';if(selected==='music')$('username').value=state.music_username;
  if(selected==='all'){text('createButton','Create / verify all accounts','Crear / verificar todas las cuentas');text('appHelp','One password for supported apps; unique passwords are safer. Music uses the configured username '+state.music_username+'. Existing accounts are not reset. Vaultwarden remains separate.','Una contraseña para las aplicaciones compatibles; se recomiendan contraseñas únicas. Música usa '+state.music_username+'. No se restablecen cuentas existentes. Vaultwarden es separado.');$('createButton').disabled=busy;return;}
  text('createButton',vault?'Invite owner':'Verify account',vault?'Invitar propietario':'Verificar cuenta');text('appHelp',vault?'Create your master password only in the native encrypted client.':'If the account already exists, enter its current password. Setup does not intentionally reset it.',vault?'Crea tu contraseña maestra solo en el cliente cifrado nativo.':'Si ya existe la cuenta, usa su contraseña actual. No se restablece intencionalmente.');
  $('createButton').disabled=busy;
 }
 $('lang').onclick=()=>{es=!es;render()};
 $('unlockForm').onsubmit=async e=>{e.preventDefault();token=$('code').value;$('code').value='';try{state=await api('status');$('unlock').hidden=true;$('wizard').hidden=false;$('username').value='owner';selected=state.apps.some(a=>a!=='passwords'&&!state.done.includes(a))?'all':state.apps.find(a=>!state.done.includes(a));$('status').textContent='';render()}catch{token='';text('status','Invalid or expired setup code.','Código inválido o vencido.')}};
-$('accountForm').onsubmit=async e=>{e.preventDefault();if(busy)return;busy=true;render();const data={app:selected,username:$('username').value,email:$('email').value,password:$('password').value,confirm:$('confirm').value};try{state=await api('create',data);selected=state.apps.find(a=>!state.done.includes(a));if(state.failed?.length) $('status').textContent=tr('Needs individual review: ','Revisión individual: ')+state.failed.map(a=>names[a]).join(', ');else text('status','Account step completed. Functional acceptance is still required.','Paso de cuenta completado. Falta la prueba funcional.')}catch{text('status','Setup failed. Check the owner details or ask your technician.','Error de configuración. Revisa los datos o consulta a tu técnico.')}finally{data.password='';data.confirm='';clearPassword();busy=false;render()}};
+$('accountForm').onsubmit=async e=>{
+ e.preventDefault();if(busy)return;
+ const data={username:$('username').value,email:$('email').value,password:$('password').value,confirm:$('confirm').value};
+ if(selected!=='passwords'&&data.password!==data.confirm){text('status','Passwords do not match.','Las contraseñas no coinciden.');return}
+ const queue=selected==='all'?state.apps.filter(a=>a!=='passwords'&&!state.done.includes(a)):[selected];
+ busy=true;failedApps=[];clearPassword();render();
+ try{
+  for(const app of queue){
+   current=app;render();text('status','Configuring '+names[app]+'…','Configurando '+names[app]+'…');
+   try{
+    state=await api('create',{...data,app});
+   }catch(err){
+    // A lost response does not prove failure. Reconcile with the authenticated server
+    // before advancing. If even status is unavailable, stop and retain prior results.
+    state=await api('status');
+    if(!state.done.includes(app)){if(err.httpStatus!==400)throw err;failedApps.push(app);}
+   }
+   render();
+  }
+  selected=state.apps.find(a=>!state.done.includes(a));
+  if(failedApps.length)$('status').textContent=tr('Needs individual review: ','Revisión individual: ')+failedApps.map(a=>names[a]).join(', ');
+  else text('status','Account steps completed. Functional acceptance is still required.','Pasos de cuenta completados. Faltan las pruebas funcionales.');
+ }catch{text('status','Connection interrupted. Check the server and reopen setup to reconcile existing accounts.','Conexión interrumpida. Revisa el servidor y vuelve a abrir la configuración.')}
+ finally{data.password='';data.confirm='';current='';clearPassword();busy=false;render()}
+};
 $('finish').onclick=async()=>{if(busy)return;try{await api('finish',{});token='';state=null;clearPassword();$('wizard').hidden=true;text('status','Setup session closed.','Sesión cerrada.')}catch{text('status','Close the local setup process in the terminal.','Cierra el proceso local en la terminal.')}};
 render();

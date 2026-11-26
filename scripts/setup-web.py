@@ -37,10 +37,14 @@ class Session:
                 if app=='all':
                     for item in self.apps:
                         if item=='passwords' or item in self.done:continue
-                        try:self.adapter.create(self.instance,item,user,email,pw);self.done.add(item)
-                        except Exception:self.failed.append(item)
+                        print('Configuring '+item,flush=True)
+                        try:self.adapter.create(self.instance,item,user,email,pw);self.done.add(item);print(item+': account verified',flush=True)
+                        except Exception:self.failed.append(item);print(item+': needs review',flush=True)
                 elif app=='passwords':self.adapter.invite_vault(self.instance,email);self.done.add(app)
-                else:self.adapter.create(self.instance,app,user,email,pw);self.done.add(app)
+                else:
+                    print('Configuring '+app,flush=True)
+                    self.adapter.create(self.instance,app,user,email,pw);self.done.add(app)
+                    print(app+': account verified',flush=True)
             return self.status()
 class Server(http.server.ThreadingHTTPServer):
     # Wait for the current approved account operation and its response before exit.

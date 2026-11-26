@@ -40,7 +40,7 @@ def main():
             page.locator('#recoveryTab').click()
             expect(page.locator('#recoveryCards')).to_contain_text('Verified')
             page.locator('#setupTab').click()
-            expect(page.locator('#setupList')).to_contain_text('Confirmed')
+            expect(page.locator('#setupList')).to_contain_text('Functionally confirmed')
             page.locator('#statusTab').click()
             page.locator('#lang').click()
             expect(page.locator('#statusLabel')).to_have_text('Estado del servidor')
