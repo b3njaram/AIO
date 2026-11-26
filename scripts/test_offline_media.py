@@ -31,3 +31,7 @@ class MediaTests(unittest.TestCase):
         self.assertTrue(json.loads(files['/etc/jobbi/install.json'])['offline'])
         self.assertNotIn('https://',files['/usr/local/sbin/jobbi-first-boot'])
         self.assertIn('release.bundle',files['/usr/local/sbin/jobbi-first-boot'])
+        commands='\n'.join(seed['late-commands'])
+        self.assertIn('chmod 0700 /target/var/lib/jobbi-offline',commands)
+        self.assertIn('file:/var/lib/jobbi-offline-packages',commands)
+        self.assertNotIn('file:/var/lib/jobbi-offline/packages',commands)

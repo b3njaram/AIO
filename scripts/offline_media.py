@@ -3,6 +3,7 @@ import argparse
 import json
 import os
 import platform
+import pwd
 import re
 import shutil
 import subprocess
@@ -47,8 +48,10 @@ def build(bundle,out):
         raise ValueError('Use a new directory outside the repository and bundle')
     sources=Path('/etc/apt/sources.list.d/ubuntu.sources')
     if not sources.is_file():raise ValueError('Standard Ubuntu deb822 package sources required')
+    if os.geteuid()==0:raise ValueError('Prepare media as the unprivileged operator, not root')
+    operator=pwd.getpwuid(os.getuid()).pw_name
     os.umask(0o077)
-    out.mkdir()
+    out.mkdir(mode=0o700)
     repo=out/'packages'
     repo.mkdir()
     with tempfile.TemporaryDirectory() as temp:
@@ -60,19 +63,17 @@ def build(bundle,out):
     # APT verifies the archives against its authenticated package indexes.
     subprocess.run(['apt-get','-y','--download-only','--no-install-recommends',
                     '-o','Dir::Etc::sourcelist='+str(sources),'-o','Dir::Etc::sourceparts=-','-o','Debug::NoLocking=1','-o','Dir::State::status=/dev/null',
-                    '-o','Dir::Cache::archives='+str(repo),'install',*PACKAGES],check=True)
+                    '-o','Dir::Cache::archives='+str(repo),'-o','APT::Sandbox::User='+operator,'install',*PACKAGES],check=True)
     for name in ('partial','auxfiles'):
         if (repo/name).is_dir():shutil.rmtree(repo/name)
     (repo/'lock').unlink(missing_ok=True)
     if not list(repo.glob('*.deb')):raise ValueError('APT returned no packages')
     with (repo/'Packages').open('xb') as f:
         subprocess.run(['dpkg-scanpackages','--multiversion','.','/dev/null'],cwd=repo,stdout=f,check=True)
-    # APT's unprivileged reader needs to traverse the media root. Only package
-    # files are readable; keep the release bundle and application payload private.
-    os.chmod(out,0o711)
-    os.chmod(repo,0o755)
+    # All media stays operator-private on the preparation workstation. The
+    # installer copies only verified public APT packages to its own staging area.
     for package in repo.iterdir():
-        package.chmod(0o644)
+        package.chmod(0o600)
     shutil.copytree(bundle,out/'applications')
     (out/'applications').chmod(0o700)
     (out/'media.json').write_text(json.dumps({'schema':1,'commit':sha,'apps':sorted(release['apps']),'os':'ubuntu-24.04-amd64'}))

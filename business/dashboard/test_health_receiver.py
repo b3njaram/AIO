@@ -23,9 +23,13 @@ class Tests(unittest.TestCase):
                 headers={'Host':hostname or r.host_header,'Content-Type':'application/json','Content-Length':str(len(body)),'Connection':'close'}
                 if token:headers['Authorization']='Bearer '+token
                 if origin:headers['Origin']=origin
-                with trust.wrap_socket(socket.create_connection(('127.0.0.1',r.server_port),5),server_hostname=host) as sock:
-                    sock.sendall((method+' '+path+' HTTP/1.1\r\n'+''.join(k+': '+v+'\r\n' for k,v in headers.items())+'\r\n').encode()+body)
-                    response=http.client.HTTPResponse(sock);response.begin();return response.status,response.read()
+                conn=http.client.HTTPSConnection(host,r.server_port,timeout=5,context=trust)
+                # Route the fixture hostname to loopback while preserving TLS hostname verification.
+                conn._create_connection=lambda addr,timeout,source_address=None: socket.create_connection(('127.0.0.1',addr[1]),timeout,source_address)
+                try:
+                    conn.request(method,path,body=body,headers=headers)
+                    response=conn.getresponse();return response.status,response.read()
+                finally:conn.close()
             try:
                 token=grant['token'];payload=report()
                 self.assertEqual(req(data=payload)[0],401)
