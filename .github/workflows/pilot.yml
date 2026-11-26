@@ -132,6 +132,7 @@ jobs:
           test -z "$(bash scripts/ctl.sh /tmp/jobbi-media/recovered ps --status running -q)"
           echo 'PASS: exact stopped recovery with source kit and no explicit image pulls'
           bash scripts/ctl.sh /tmp/jobbi-media/recovered up -d
+          python3 scripts/test-reinstall-pilot.py /tmp/jobbi-media/recovered
           for i in $(seq 1 30); do
             if bash scripts/verify.sh /tmp/jobbi-media/recovered; then break; fi
             sleep 3
@@ -170,6 +171,7 @@ jobs:
           BACKUP="$(find /tmp/jobbi-library-backups -mindepth 1 -maxdepth 1 -type d | head -1)"
           python3 scripts/restore.py "$BACKUP" --require-exact-images --data-root /tmp/jobbi-library --name recovered --base-port 18700
           bash scripts/ctl.sh /tmp/jobbi-library/recovered up -d
+          python3 scripts/test-reinstall-pilot.py /tmp/jobbi-library/recovered
           python3 scripts/test-library-pilot.py /tmp/jobbi-library/recovered --recover
           python3 scripts/test-library-pilot.py /tmp/jobbi-library/source --recover
       - if: failure()
@@ -204,6 +206,7 @@ jobs:
           python3 scripts/restore.py /tmp/jobbi-office-backups/jobbi-source-* --require-exact-images --data-root /tmp/jobbi-office --name recovered --base-port 18900
           export JOBBI_PILOT_INSTANCE=/tmp/jobbi-office/recovered
           bash scripts/ctl.sh "$JOBBI_PILOT_INSTANCE" up -d
+          python3 scripts/test-reinstall-pilot.py /tmp/jobbi-office/recovered
           python3 scripts/test-files-pilot.py
           python3 scripts/test-tasks-pilot.py
       - if: failure()
@@ -239,6 +242,7 @@ jobs:
           bash scripts/backup.sh /tmp/jobbi-infra/source /tmp/jobbi-infra-backups
           python scripts/restore.py /tmp/jobbi-infra-backups/jobbi-source-* --require-exact-images --data-root /tmp/jobbi-infra --name recovered --base-port 19100
           bash scripts/ctl.sh /tmp/jobbi-infra/recovered up -d
+          python3 scripts/test-reinstall-pilot.py /tmp/jobbi-infra/recovered
           python scripts/test-infrastructure-pilot.py /tmp/jobbi-infra/recovered
       - if: always()
         run: |

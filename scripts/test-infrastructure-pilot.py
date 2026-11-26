@@ -93,6 +93,13 @@ def monitor(instance,env,fixture,recover):
         row=client.call('getMonitor',fixture['monitor'])
         assert row['ok'] and row['monitor']['name']=='Local dashboard'
     finally:client.disconnect()
+    import importlib.util
+    spec=importlib.util.spec_from_file_location('configure_monitors',Path(__file__).with_name('configure-monitors.py'))
+    module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+    e,desired=module.targets(instance)
+    first=module.configure(e,desired,'pilot',fixture['password'],True)
+    assert set(first['created'])==(set() if recover else set(desired)-{'dashboard'}),first
+    assert module.configure(e,desired,'pilot',fixture['password'],True)['created']==[]
     print('PASS Uptime Kuma owner login, anonymous denial and saved monitor')
 
 

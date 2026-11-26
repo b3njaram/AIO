@@ -141,7 +141,8 @@ services:
     volumes: [immich-models:/cache]
   immich-redis:
     profiles: [photos]
-    image: docker.io/valkey/valkey:9@sha256:418652cfb58ef879d4978c33553735d7147016032d5aefaa14c828e611eb9dfd
+    image: docker.io/valkey/valkey:9.1.2-alpine@sha256:48332870af354a799964c0012ae1194a0bf2bf894eb508f945810596dc2d8d11
+    volumes: [immich-queue:/data]
     restart: unless-stopped
   immich-db:
     profiles: [photos]
@@ -239,6 +240,7 @@ services:
 volumes:
   jobbi-db: {}
   jobbi-stats: {}
+  immich-queue: {}
   immich-db: {}
   immich-models: {}
   nextcloud-app: {}

@@ -69,6 +69,8 @@ def main():
         p.error('Insufficient independent backup capacity')
     release=check_release(i,a.from_commit,a.to_commit)
     env=dict(x.split('=',1) for x in (i/'.env').read_text().splitlines() if '=' in x)
+    if 'photos' in env.get('COMPOSE_PROFILES','').split(',') and 'immich-queue:/data' not in (i/'deployment/compose.yaml').read_text():
+        p.error('Legacy photo queue storage requires a reviewed migration before staging; retain the original volumes')
     if env['INSTANCE_DIR']!=str(i) or env['BIND_IP']!='127.0.0.1':
         p.error('Only dedicated loopback instances support staged upgrades')
     if a.hold_source and any((i/n).exists() for n in ('.private-serve.json','.backup-running-services','.upgrade-hold.json')):p.error('Disable source private routes and reconcile existing backup or upgrade first')
