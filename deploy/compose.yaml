@@ -13,7 +13,12 @@ services:
     security_opt: [no-new-privileges:true]
   navidrome:
     profiles: [music]
-    image: deluan/navidrome:0.64.2@sha256:38dc2727bfcfd5ede290f8ada114fc90368146f265ae4701ddddbcbe2a44ee52
+    build:
+      context: ./security-patches
+      dockerfile: Dockerfile.alpine
+      args:
+        BASE_IMAGE: 'deluan/navidrome:0.64.2@sha256:38dc2727bfcfd5ede290f8ada114fc90368146f265ae4701ddddbcbe2a44ee52'
+        PACKAGE_FLOORS: 'pcre2=10.46-r1 musl=1.2.5-r13 musl-utils=1.2.5-r13 libexpat=2.10.0-r0 mbedtls=3.6.8-r0 libcrypto3=3.5.9-r2 libssl3=3.5.9-r2 gnutls=3.8.14-r0 curl=8.14.1-r4 libcurl=8.14.1-r4 zlib=1.3.2-r1'
     user: "${OWNER_UID}:${OWNER_GID}"
     restart: unless-stopped
     environment: {ND_SCANSCHEDULE: 1h}
@@ -117,7 +122,13 @@ services:
     depends_on: [backend]
   immich-server:
     profiles: [photos]
-    image: ghcr.io/immich-app/immich-server:v3.4.2@sha256:fc880c1bf665b4aab1e74c15e56ab871225989cd546536e6b77e771869af06bd
+    build:
+      context: ./security-patches
+      dockerfile: Dockerfile.debian
+      args:
+        BASE_IMAGE: 'ghcr.io/immich-app/immich-server:v3.4.2@sha256:fc880c1bf665b4aab1e74c15e56ab871225989cd546536e6b77e771869af06bd'
+        DEBIAN_CODENAME: 'trixie'
+        PACKAGE_FLOORS: 'apt=3.0.4 libapt-pkg7.0=3.0.4 libzstd1=1.5.7+dfsg-1+deb13u1 login.defs=1:4.17.4-2+deb13u1 passwd=1:4.17.4-2+deb13u1 zlib1g=1:1.3.dfsg+really1.3.1-1+deb13u1 libgssapi-krb5-2=1.21.3-5+deb13u2 libk5crypto3=1.21.3-5+deb13u2 libkrb5-3=1.21.3-5+deb13u2 libkrb5support0=1.21.3-5+deb13u2'
     restart: unless-stopped
     environment:
       DB_HOSTNAME: immich-db
@@ -134,19 +145,36 @@ services:
     depends_on: [immich-db, immich-redis, immich-machine-learning]
   immich-machine-learning:
     profiles: [photos]
-    image: ghcr.io/immich-app/immich-machine-learning:v3.4.2@sha256:739405742a79bd7447227c553bb62ed5491aa36acf00bc667af7f9c93b6fae91
+    build:
+      context: ./security-patches
+      dockerfile: Dockerfile.debian
+      args:
+        BASE_IMAGE: 'ghcr.io/immich-app/immich-machine-learning:v3.4.2@sha256:739405742a79bd7447227c553bb62ed5491aa36acf00bc667af7f9c93b6fae91'
+        DEBIAN_CODENAME: 'trixie'
+        PACKAGE_FLOORS: 'apt=3.0.4 libapt-pkg7.0=3.0.4 libzstd1=1.5.7+dfsg-1+deb13u1 login.defs=1:4.17.4-2+deb13u1 passwd=1:4.17.4-2+deb13u1 zlib1g=1:1.3.dfsg+really1.3.1-1+deb13u1'
     restart: unless-stopped
     cpu_shares: ${JOBBI_BACKGROUND_CPU_SHARES:-1024}
     environment: {MACHINE_LEARNING_MODEL_REVISION: v2}
     volumes: [immich-models:/cache]
   immich-redis:
     profiles: [photos]
-    image: docker.io/valkey/valkey:9.1.2-alpine@sha256:48332870af354a799964c0012ae1194a0bf2bf894eb508f945810596dc2d8d11
+    build:
+      context: ./security-patches
+      dockerfile: Dockerfile.alpine
+      args:
+        BASE_IMAGE: 'docker.io/valkey/valkey:9.1.2-alpine@sha256:48332870af354a799964c0012ae1194a0bf2bf894eb508f945810596dc2d8d11'
+        PACKAGE_FLOORS: 'musl=1.2.6-r3 musl-utils=1.2.6-r3 zlib=1.3.2-r1'
     volumes: [immich-queue:/data]
     restart: unless-stopped
   immich-db:
     profiles: [photos]
-    image: ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0@sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23
+    build:
+      context: ./security-patches
+      dockerfile: Dockerfile.debian
+      args:
+        BASE_IMAGE: 'ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0@sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23'
+        DEBIAN_CODENAME: 'bookworm'
+        PACKAGE_FLOORS: 'libperl5.36=5.36.0-7+deb12u4 perl=5.36.0-7+deb12u4 perl-base=5.36.0-7+deb12u4 perl-modules-5.36=5.36.0-7+deb12u4 libssl3=3.0.22-1~deb12u2 openssl=3.0.22-1~deb12u2 dirmngr=2.2.40-1.1+deb12u2 gnupg=2.2.40-1.1+deb12u2 gnupg-l10n=2.2.40-1.1+deb12u2 gnupg-utils=2.2.40-1.1+deb12u2 gpg=2.2.40-1.1+deb12u2 gpg-agent=2.2.40-1.1+deb12u2 gpg-wks-client=2.2.40-1.1+deb12u2 gpg-wks-server=2.2.40-1.1+deb12u2 gpgconf=2.2.40-1.1+deb12u2 gpgsm=2.2.40-1.1+deb12u2 gpgv=2.2.40-1.1+deb12u2 libsqlite3-0=3.40.1-2+deb12u2 libxslt1.1=1.1.35-1+deb12u3 libpcre2-8-0=10.42-1+deb12u2 apt=2.6.2 libapt-pkg6.0=2.6.2 libgnutls30=3.7.9-2+deb12u7 libgssapi-krb5-2=1.20.1-2+deb12u5 libk5crypto3=1.20.1-2+deb12u5 libkrb5-3=1.20.1-2+deb12u5 libkrb5support0=1.20.1-2+deb12u5 libcap2=1:2.66-4+deb12u3 ca-certificates=20250419~deb12u2 liblzma5=5.4.1-1+deb12u2 xz-utils=5.4.1-1+deb12u2 tzdata=2026f-0+deb12u1'
     restart: unless-stopped
     environment:
       POSTGRES_PASSWORD: ${IMMICH_DB_PASSWORD}
@@ -157,7 +185,13 @@ services:
     shm_size: 128mb
   nextcloud:
     profiles: [files]
-    image: nextcloud:32-apache@sha256:7032779c2121b26919ad36dc7bcb68b94ef37c451bfede06926e8b03b5caa1fc
+    build:
+      context: ./security-patches
+      dockerfile: Dockerfile.debian
+      args:
+        BASE_IMAGE: 'nextcloud:32-apache@sha256:7032779c2121b26919ad36dc7bcb68b94ef37c451bfede06926e8b03b5caa1fc'
+        DEBIAN_CODENAME: 'trixie'
+        PACKAGE_FLOORS: 'libzstd1=1.5.7+dfsg-1+deb13u1 login.defs=1:4.17.4-2+deb13u1 passwd=1:4.17.4-2+deb13u1'
     restart: unless-stopped
     environment:
       POSTGRES_HOST: nextcloud-db
@@ -219,7 +253,12 @@ services:
       retries: 30
   pihole:
     profiles: [dns]
-    image: pihole/pihole:2026.11.0@sha256:66c798d79a95c2691f280329c3611dba1746117c61c9f331907ca35a06a52778
+    build:
+      context: ./security-patches
+      dockerfile: Dockerfile.alpine
+      args:
+        BASE_IMAGE: 'pihole/pihole:2026.11.0@sha256:66c798d79a95c2691f280329c3611dba1746117c61c9f331907ca35a06a52778'
+        PACKAGE_FLOORS: 'libxml2=2.13.9-r3'
     restart: unless-stopped
     environment:
       TZ: ${TZ}

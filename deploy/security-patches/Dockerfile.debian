@@ -1,0 +1,8 @@
+# syntax=docker/dockerfile:1
+# Keep upstream runtime, entrypoint, user, application version and data format.
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG DEBIAN_CODENAME
+ARG PACKAGE_FLOORS
+RUN --mount=type=bind,source=debian-patch.sh,target=/tmp/jobbi-patch.sh,ro \
+    /bin/sh /tmp/jobbi-patch.sh "$DEBIAN_CODENAME" "$PACKAGE_FLOORS"

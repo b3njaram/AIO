@@ -1,0 +1,6 @@
+# syntax=docker/dockerfile:1
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG PACKAGE_FLOORS
+RUN --mount=type=bind,source=alpine-patch.sh,target=/tmp/jobbi-patch.sh,ro \
+    /bin/sh /tmp/jobbi-patch.sh "$PACKAGE_FLOORS"
