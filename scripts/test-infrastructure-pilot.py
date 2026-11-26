@@ -74,6 +74,15 @@ def vault(instance,env,fixture,recover):
 
 def monitor(instance,env,fixture,recover):
     import socketio
+    # Validate the installed package versions and retained embedded browser on
+    # both source and exact-image recovery, not merely a rebuilt test image.
+    ctl=['bash',str(Path(__file__).with_name('ctl.sh')),str(instance),'exec','-T','uptime-kuma']
+    for pkg in ('chromium','chromium-common'):
+        version=subprocess.check_output([*ctl,'dpkg-query','-W','-f=${Version}',pkg],text=True).strip()
+        assert version=='156.0.8078.108-1~deb12u1', 'Unexpected embedded browser package version'
+    dom=subprocess.check_output([*ctl,'chromium','--headless','--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--dump-dom','data:text/html,<p>jobbi-browser-fixture</p>'],text=True,timeout=60,stderr=subprocess.DEVNULL)
+    assert 'jobbi-browser-fixture' in dom
+    print('PASS patched Chromium package and embedded browser functionality')
     base='http://127.0.0.1:'+env['MONITOR_PORT']
     if not recover:
         wait(lambda:request(base+'/')[0]==200,'Kuma UI')
