@@ -1,9 +1,8 @@
 name: Owner dashboard browser checks
 on:
   push:
-    paths: ['business/**','.github/workflows/browser.yml']
   pull_request:
-    paths: ['business/**','.github/workflows/browser.yml']
+    paths: ['business/**','quote/**','deploy/dashboard/**','scripts/preview.sh','scripts/setup-web*','scripts/setup-accounts.py','.github/workflows/browser.yml']
   workflow_dispatch:
 jobs:
   browser:
@@ -13,6 +12,51 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: {python-version: '3.12'}
-      - run: python -m pip install 'playwright==1.58.0'
+      - run: python -m pip install 'playwright==1.58.0' 'reportlab==4.4.9'
       - run: python -m playwright install --with-deps chromium
+      - run: python -m unittest discover -s business/dashboard -p 'test_customers.py' -v
+      - run: python -m unittest discover -s business/dashboard -p 'test_health_receiver.py' -v
       - run: python business/dashboard/browser-pilot.py
+      - if: success() || failure()
+        run: python quote/browser-pilot.py
+      - if: success() || failure()
+        run: python deploy/dashboard/browser-pilot.py
+      - if: success() || failure()
+        run: python scripts/setup-web-browser.py
+
+  docker-preview:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Simulate owner checkout with restrictive umask
+        run: |
+          find business quote -type d -exec chmod 0700 {} +
+          find business quote -type f -exec chmod 0600 {} +
+      - run: bash scripts/preview.sh
+      - run: |
+          bash scripts/preview.sh status
+          python3 - <<'PY'
+          import json,urllib.request,urllib.error
+          base='http://127.0.0.1:8791'
+          def req(path,host='macmini2012:8791',data=None,origin=None):
+              h={'Host':host}
+              if data is not None:h.update({'Content-Type':'application/json','X-Jobbi-Request':'1','Origin':origin or 'http://macmini2012:8791'})
+              r=urllib.request.Request(base+path,headers=h,data=None if data is None else json.dumps(data).encode())
+              try:
+                  with urllib.request.urlopen(r,timeout=5) as response:return response.status,json.loads(response.read())
+              except urllib.error.HTTPError as e:return e.code,None
+          assert req('/api/init')[1]['preview'] is True
+          assert req('/api/init',host='evil.example')[0]==403
+          assert req('/api/search',data={})[0]==403
+          assert req('/api/order',data={},origin='http://evil.example')[0]==403
+          assert req('/api/orders')[1]==[]
+          PY
+          test -f "$HOME/.jobbi-preview/.jobbi-no-login-demo/cash.sqlite3"
+          bash scripts/preview.sh stop
+          bash scripts/preview.sh
+          bash scripts/preview.sh status
+      - if: always()
+        run: bash scripts/preview.sh logs || true
+      - if: always()
+        run: bash scripts/preview.sh stop || true

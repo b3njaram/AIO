@@ -7,6 +7,22 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: {node-version: '22'}
+      - run: python3 -m unittest discover -s scripts -p 'test_maintenance_alerts.py' -v
+      - run: python3 -m unittest discover -s scripts -p 'test_support_session.py' -v
+      - run: node --check scripts/support-session.js
+      - run: python3 -m unittest discover -s scripts -p test_performance.py -v
+      - run: python3 -m unittest discover -s scripts -p test_power_management.py -v
+      - run: python3 -m unittest discover -s scripts -p test_customer_delivery.py -v
+      - run: python3 -m unittest discover -s scripts -p test_launch_review.py -v
+      - run: python3 -m unittest discover -s scripts -p test_offline_kit.py -v
+      - run: python3 -m py_compile scripts/restore.py scripts/make-recovery-kit.py
+      - run: python3 -m py_compile scripts/install_bundle.py scripts/make-install-bundle.py scripts/task_storage.py
+      - run: python3 -m unittest discover -s scripts -p test_migrate_files.py -v
+      - run: python3 -m py_compile scripts/app-manager.py scripts/manage-web.py scripts/recovery-center.py
+      - run: node --check scripts/manage-web.js
+      - run: python3 -m unittest discover -s scripts -p test_delivery_pack.py -v
+      - run: python3 -m unittest discover -s scripts -p test_manage_web.py -v
+      - run: python3 -m unittest discover -s scripts -p test_install_bundle.py -v
       - run: node --check quote/app.js
       - run: python3 -m py_compile scripts/install.py scripts/connect-movies.py deploy/dashboard/server.py
       - run: for script in scripts/*.sh; do bash -n "$script"; done
@@ -29,6 +45,8 @@ jobs:
           bash scripts/ctl.sh /tmp/jobbi-ci/ci up -d --build dashboard
           curl --retry 10 --retry-all-errors --retry-delay 1 -fsS http://127.0.0.1:18080/healthz
           curl -fsS http://127.0.0.1:18080/api/config | grep -q 'Uptime Kuma'
+          curl -fsS http://127.0.0.1:18080/manifest.webmanifest | grep -q 'JobbiSoft Home'
+          curl -fsS http://127.0.0.1:18080/home.svg | grep -q '<svg'
       - run: |
           if test -f /tmp/jobbi-ci/ci/.env; then bash scripts/ctl.sh /tmp/jobbi-ci/ci down; fi
         if: always()

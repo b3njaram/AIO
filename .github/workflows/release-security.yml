@@ -1,0 +1,142 @@
+name: Exact release image security scan
+on:
+  schedule:
+    - cron: '17 7 * * 2'
+  workflow_dispatch:
+  push:
+permissions:
+  contents: read
+jobs:
+  static-analysis:
+    name: static-analysis
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (contains(github.event.head_commit.message, '[security-pilot]') || contains(github.event.head_commit.message, '[release-gate]'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@915412ff23e8b7659517e607487dbeae018f2934
+        with:
+          languages: javascript-typescript,python
+          build-mode: none
+          queries: security-extended
+      - uses: github/codeql-action/analyze@915412ff23e8b7659517e607487dbeae018f2934
+        with:
+          output: ${{ runner.temp }}/codeql
+      - name: Check high-severity static analysis findings
+        run: |
+          python3 - <<'PYCODE'
+          import json, os
+          from pathlib import Path
+          files = list((Path(os.environ['RUNNER_TEMP']) / 'codeql').glob('*.sarif'))
+          languages = set()
+          high = []
+          for path in files:
+              for run in json.loads(path.read_text())['runs']:
+                  driver = run['tool']['driver']
+                  languages.add(path.stem)
+                  tools = [driver, *run['tool'].get('extensions', [])]
+                  rules = {rule['id']: rule for tool in tools for rule in tool.get('rules', [])}
+                  for result in run['results']:
+                      rule = rules[result['ruleId']]
+                      if float(rule.get('properties', {}).get('security-severity', 0)) >= 7:
+                          for location in result.get('locations', []):
+                              physical = location.get('physicalLocation', {})
+                              print(rule['id'], physical.get('artifactLocation', {}).get('uri'),
+                                    physical.get('region', {}).get('startLine'))
+                          high.append(rule['id'])
+          if len(languages) < 2:
+              raise SystemExit('Incomplete language coverage')
+          print('High severity CodeQL results:', len(high), sorted(set(high)))
+          raise SystemExit(bool(high))
+          PYCODE
+  image-scan:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (contains(github.event.head_commit.message, '[security-pilot]') || contains(github.event.head_commit.message, '[release-gate]'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - name: Optional authenticated Docker Hub pulls
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          if [[ -n "$DOCKERHUB_USERNAME" && -n "$DOCKERHUB_TOKEN" ]]; then
+            printf '%s' "$DOCKERHUB_TOKEN" | docker login --username "$DOCKERHUB_USERNAME" --password-stdin
+          fi
+      - name: Verify pinned scanner archive
+        run: |
+          mkdir -p "$RUNNER_TEMP/jobbi-scanner"
+          cd "$RUNNER_TEMP/jobbi-scanner"
+          curl --fail --location --retry 3 --max-time 300 https://github.com/aquasecurity/trivy/releases/download/v0.76.2/trivy_0.76.2_Linux-64bit.tar.gz -o trivy.tar.gz
+          echo 'bc0fc726e017b8927a62b2d3531d7a84ee01769daf5c99ed866dced54089fdbf  trivy.tar.gz' | sha256sum -c -
+          tar xzf trivy.tar.gz trivy
+          ./trivy --version
+      - name: Audit committed dependency manifests, secrets and infrastructure
+        id: source
+        continue-on-error: true
+        run: python3 scripts/source-security.py "$RUNNER_TEMP/jobbi-scanner/trivy" "$RUNNER_TEMP/jobbi-source/report.json"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: source-security-${{ github.sha }}
+          path: ${{ runner.temp }}/jobbi-source/report.json
+          if-no-files-found: error
+      - name: Build exact candidate without exposing services
+        run: |
+          mkdir -p /tmp/jobbi-security-pilot
+          python3 scripts/install.py --name audit --data-root /tmp/jobbi-security-pilot --apps music,movies,photos,files,passwords,tasks,monitor,dns --local-dns-port 10553 --prepare-only
+          export COMPOSE_PARALLEL_LIMIT=1
+          retry() {
+            local delay
+            for delay in 15 45 90 180; do
+              if "$@"; then return 0; fi
+              sleep "$delay"
+            done
+            "$@"
+          }
+          retry bash scripts/ctl.sh /tmp/jobbi-security-pilot/audit pull --ignore-buildable
+          retry bash scripts/ctl.sh /tmp/jobbi-security-pilot/audit create --build
+      - name: Scan locally created image IDs
+        run: python3 scripts/scan-release.py /tmp/jobbi-security-pilot/audit --scanner "$RUNNER_TEMP/jobbi-scanner/trivy" --output "$RUNNER_TEMP/jobbi-security-evidence"
+      - name: Cross-check every unfixed finding against vendor status
+        if: always() && hashFiles('scripts/triage-unfixed.py') != ''
+        run: |
+          test -f "$RUNNER_TEMP/jobbi-security-evidence/report.json"
+          curl --fail --location --compressed --retry 3 --max-time 180 https://security-tracker.debian.org/tracker/data/json -o "$RUNNER_TEMP/debian-tracker.json"
+          python3 scripts/triage-unfixed.py "$RUNNER_TEMP/jobbi-security-evidence" "$RUNNER_TEMP/debian-tracker.json"
+      - name: Retain synthetic candidate scan and software bills of materials
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-security-${{ github.sha }}
+          path: ${{ runner.temp }}/jobbi-security-evidence/
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Review finding counts
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          p=Path(os.environ['RUNNER_TEMP'])/'jobbi-security-evidence/report.json'
+          if not p.is_file():print('Scan not completed');raise SystemExit(1)
+          r=json.loads(p.read_text())
+          for x in sorted(r['images'],key=lambda x:len(x['vulnerabilities']),reverse=True):
+              print(', '.join(x['services']),len(x['vulnerabilities']),'review findings; licenses:',', '.join(x['license_names']) or 'not identified')
+              for v in x['vulnerabilities']:
+                  print(v['severity'],v['id'],v['package'],v['installed'],'fix:',v['fixed'] or 'not reported')
+          print('Remediation priority (fix reported vs no fix):')
+          for x in sorted(r['images'],key=lambda x:len(x['vulnerabilities']),reverse=True):
+              fixed=sum(bool(v['fixed']) for v in x['vulnerabilities'])
+              print(', '.join(x['services']),fixed,'fix reported;',len(x['vulnerabilities'])-fixed,'no fix reported')
+          PY
+      - if: always()
+        run: |
+          if test -f /tmp/jobbi-security-pilot/audit/.env; then bash scripts/ctl.sh /tmp/jobbi-security-pilot/audit down -v; fi
+
+      - name: Enforce source security results
+        if: always() && steps.source.outcome != 'success'
+        run: exit 1

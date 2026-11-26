@@ -18,7 +18,33 @@ def schema(conn):
     conn.executescript("""CREATE TABLE IF NOT EXISTS support_cases(
     id TEXT PRIMARY KEY, order_id TEXT NOT NULL REFERENCES orders(id), category TEXT NOT NULL, subject TEXT NOT NULL,
     status TEXT NOT NULL, note TEXT NOT NULL, opened TEXT NOT NULL, updated TEXT NOT NULL);
-    CREATE TABLE IF NOT EXISTS install_plans(order_id TEXT PRIMARY KEY REFERENCES orders(id), payload TEXT NOT NULL);""")
+    CREATE TABLE IF NOT EXISTS install_plans(order_id TEXT PRIMARY KEY REFERENCES orders(id), payload TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS component_warranties(
+        order_id TEXT NOT NULL REFERENCES orders(id), component TEXT NOT NULL, provider TEXT NOT NULL,
+        expires TEXT NOT NULL, PRIMARY KEY(order_id,component));
+    CREATE TABLE IF NOT EXISTS installation_events(
+        id INTEGER PRIMARY KEY, order_id TEXT NOT NULL REFERENCES orders(id),
+        step TEXT NOT NULL, result TEXT NOT NULL, note TEXT NOT NULL, recorded TEXT NOT NULL);""")
+def warranty(conn,d):
+    order=identifier(d.get('order_id'))
+    component=string(d.get('component'),120)
+    provider=string(d.get('provider'),120)
+    if not component or not provider:raise ValueError('Component and warranty provider required')
+    expires=dt.date.fromisoformat(d['expires']).isoformat()
+    conn.execute("""INSERT INTO component_warranties VALUES(?,?,?,?) ON CONFLICT(order_id,component)
+        DO UPDATE SET provider=excluded.provider,expires=excluded.expires""",(order,component,provider,expires))
+
+def installation_event(conn,d):
+    order=identifier(d.get('order_id'))
+    step=d.get('step')
+    result=d.get('result')
+    if step not in ('hardware','storage','accounts','https','backup','handoff') or result not in ('passed','blocked','pending'):
+        raise ValueError('Choose an installation step and result')
+    note=string(d.get('note',''),500)
+    if result=='blocked' and not note:raise ValueError('Describe the installation blocker')
+    conn.execute('INSERT INTO installation_events(order_id,step,result,note,recorded) VALUES(?,?,?,?,?)',
+                 (order,step,result,note,dt.datetime.now(dt.timezone.utc).isoformat(timespec='seconds')))
+
 def plan(d):
     name=string(d.get('name',''),36)
     if not re.fullmatch('[a-z0-9][a-z0-9-]{0,35}',name):raise ValueError('Use a lowercase customer instance name')
@@ -38,9 +64,9 @@ def plan(d):
     def cmd(*a):return shlex.join(a)
     p['commands']='\n'.join(['# Run ONLY on a dedicated customer Linux host, from the reviewed AIO checkout.',
        '# Verify actual mounts, hardware, disk health, backup drive and free ports first.',
-       cmd('python3','scripts/preflight.py','--data-root',root,'--apps',','.join(apps),'--minimum-free-gib',str(max(50,int(tb*1000**4/1024**3)))),
-       '# Continue only if preflight passes and capacity/RAID are confirmed.',
-       cmd('python3','scripts/install.py','--name',name,'--data-root',root,'--base-port',str(port),'--apps',','.join(apps),'--tz',tz),
+       '# Preview first: the setup command never formats disks. Confirm real capacity/RAID separately.',
+       cmd('python3','scripts/setup-customer.py','--name',name,'--data-root',root,'--backup-root',backup,'--base-port',str(port),'--apps',','.join(apps),'--tz',tz),
+       '# Add --apply to the setup command only after the customer host and disks are approved.',
        cmd('bash','scripts/verify.sh',instance),cmd('python3','scripts/onboard.py',instance),
        cmd('python3','scripts/diagnostics.py',instance), '# After account setup and customer consent for downtime:',
        cmd('python3','scripts/maintenance.py',instance,backup,'--run-backup')])

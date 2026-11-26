@@ -51,6 +51,20 @@ def row(market,part,seller,title,url,price=None,shipping=None,condition='',origi
     return {'market':market,'part':part['id'],'supplier':seller,'title':str(title)[:300],'url':safe_url(url),'currency':MARKETS[market][0],
       'price':str(price) if price is not None else None,'shipping':str(shipping) if shipping is not None else None,
       'condition':str(condition)[:120],'origin':origin,'variant':bool(variant),'notes':str(notes)[:400]}
+def mark_ambiguous_ebay_prices(rows):
+    """Different prices for the same listing cannot establish a fixed-option quote."""
+    items={}
+    for offer in rows:
+        if offer['supplier']!='eBay':continue
+        match=re.search(r'/itm/(?:[^/]+/)?(\d{8,})(?:/|$)',u.urlsplit(offer['url']).path)
+        if match:
+            key=(offer['market'],offer['part'],match.group(1))
+            items.setdefault(key,[]).append(offer)
+    for offers in items.values():
+        prices={Decimal(o['price']) for o in offers if o['price'] is not None}
+        if len(prices)>1 or any(o['variant'] for o in offers):
+            for offer in offers:offer['variant']=True
+
 def screen(part,r,profile):
     t=r['title'].upper()
     condition=r['condition'].strip().upper()
@@ -215,6 +229,7 @@ def main():
                             status.append((m,seller,part['id'],state,str(len(offers))+' leads'))
                             if state!='ok':blocked.add(seller)
         else:status.append(('Offline mode','No live search'))
+        mark_ambiguous_ebay_prices(rows)
         seen=set();unique=[]
         for r in rows:
             # eBay search tracking parameters vary by query; use the actual listing ID.

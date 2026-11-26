@@ -6,6 +6,8 @@ import argparse,hashlib,json,os,re,shutil,subprocess,sys,tarfile
 from pathlib import Path,PurePosixPath
 from install import PORTS, reserve, APPS
 from customer_patches import apply
+from recovery_images import stage
+from offline_kit import HELPER,verify as verify_kit,extract_source,load_helper,retain_sources
 ROOT=Path(__file__).resolve().parents[1]
 ALLOWED_REPOS={'navidrome','movies'}
 def run(*args):subprocess.run(args,check=True)
@@ -54,22 +56,38 @@ def metadata(path):
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('backup',type=Path);p.add_argument('--data-root',type=Path,required=True);p.add_argument('--name',required=True);p.add_argument('--base-port',type=int,default=19080);p.add_argument('--require-exact-images',action='store_true',help='Stop before volume restore if recorded image IDs differ')
+    p.add_argument('--offline-kit',type=Path,help='Trusted matching recovery kit; requires full image archive')
     a=p.parse_args()
     if not re.fullmatch(r'[a-z0-9][a-z0-9-]{0,35}',a.name) or not 1024<=a.base_port<=65525:p.error('Invalid name or port')
     backup=a.backup.resolve();parent=a.data_root.expanduser().resolve();dest=parent/a.name;project='jobbi-'+a.name
     if not parent.is_dir() or dest.exists() or not re.fullmatch(r'/[A-Za-z0-9_./-]+',str(dest)) or not re.fullmatch(r'/[A-Za-z0-9_./-]+',str(backup)):p.error('Use existing data root, new instance path and paths without spaces')
     if dest==backup or dest in backup.parents or backup in dest.parents:p.error('Backup and restore location must be separate')
     archives=verified_archives(backup)
+    all_images=archives.pop("all-images.tar.gz",None)
+    local_images=archives.pop("local-images.tar.gz",None)
+    if all_images and local_images:p.error('Conflicting image archives')
+    image_archive=all_images or local_images
     for n,path in archives.items():validate_archive(path,n=='instance.tar.gz')
     env,cfg,release=metadata(archives['instance.tar.gz'])
     old=env.get('COMPOSE_PROJECT_NAME','')
     if not re.fullmatch(r'jobbi-[a-z0-9-]+',old) or old==project:p.error('Restore must have a new project name')
-    if 'dns' in env.get('COMPOSE_PROFILES','').split(','):p.error('DNS restores require a separate manual LAN plan')
+    dns='dns' in env.get('COMPOSE_PROFILES','').split(',')
+    if dns:
+        if 'DNS_LISTEN_PORT' not in env or a.base_port+11>65535:p.error('Legacy DNS installation requires a manual private restore')
+        reserve('127.0.0.1',a.base_port+11)
+        import socket
+        reserve('127.0.0.1',a.base_port+11,socket.SOCK_DGRAM)
+        env['DNS_LISTEN_PORT']=str(a.base_port+11)
     if env.get('OWNER_UID')!=str(os.getuid()) or env.get('OWNER_GID')!=str(os.getgid()):p.error('Restore using the original installation UID/GID; manual ownership migration otherwise')
     version=release.get('customer_patch_version',0)
-    if version not in (0,1,2):p.error('Unknown customer patch version')
+    if version not in (0,1,2,3,4,5):p.error('Unknown customer patch version')
     pins=release.get('source_pins',{})
     if any(k not in ALLOWED_REPOS or not re.fullmatch('[0-9a-f]{40}',v) for k,v in pins.items()):p.error('Unsupported source pins')
+    kit=None;kit_info=None;helper=HELPER
+    if a.offline_kit:
+        if not all_images:p.error('Offline restore requires an all-images backup')
+        kit=a.offline_kit.absolute();kit_info=verify_kit(kit,release)
+        a.require_exact_images=True
     volumes={}
     for n,path in archives.items():
         if n=='instance.tar.gz':continue
@@ -80,12 +98,13 @@ def main():
     for cmd in [('docker','ps','-a'),('docker','volume','ls'),('docker','network','ls')]:
         if output(*cmd,'-q','--filter','label=com.docker.compose.project='+project):p.error('Destination Docker project already exists')
     for port in PORTS.values():reserve('127.0.0.1',a.base_port+port)
+    if kit:helper=load_helper(kit,kit_info)
     os.umask(0o077);dest.mkdir()
     # Docker preserves original numeric ownership; archive already validated.
-    run('docker','run','--rm','--network','none','-v',str(backup)+':/backup:ro','-v',str(dest)+':/dst:rw','alpine:3.22','tar','xzf','/backup/instance.tar.gz','-C','/dst')
+    run('docker','run','--rm',*(['--pull','never'] if kit else []),'--network','none','-v',str(backup)+':/backup:ro','-v',str(dest)+':/dst:rw',helper,'tar','xzf','/backup/instance.tar.gz','-C','/dst')
     # Rewrite only non-secret installation identity and network values.
     oldports={int(env[k]):a.base_port+n for k,n in PORTS.items() if k in env}
-    env.update({'INSTANCE_DIR':str(dest),'COMPOSE_PROJECT_NAME':project,'BIND_IP':'127.0.0.1','MUSIC_HTTPS':'false',
+    env.update({'INSTANCE_DIR':str(dest),'COMPOSE_PROJECT_NAME':project,'BIND_IP':'127.0.0.1','MUSIC_HTTPS':'false','MOVIE_HTTPS':'false',
                 'VAULT_DOMAIN':'http://127.0.0.1:'+str(a.base_port+PORTS['VAULT_PORT']),
                 'TASK_REGISTRATION':'false','TASK_URL':'http://127.0.0.1:'+str(a.base_port+PORTS['TASK_PORT'])+'/'})
     env.update({k:str(a.base_port+n) for k,n in PORTS.items()})
@@ -96,21 +115,31 @@ def main():
         if app.get('port') in oldports:app['port']=oldports[app['port']]
     (dest/'dashboard.json').write_text(json.dumps(cfg,indent=2)+'\n');(dest/'dashboard.json').chmod(0o644)
     # Clone only known source repositories from the captured release.
+    if kit:retain_sources(dest,kit,kit_info)
     (dest/'sources').mkdir()
     oldmask=os.umask(0o022)
     try:
         for repo,sha in pins.items():
             folder=dest/'sources'/repo
-            run('git','init',str(folder))
-            run('git','-C',str(folder),'remote','add','origin','https://github.com/b3njaram/'+repo+'.git')
-            run('git','-C',str(folder),'fetch','--depth=1','origin',sha)
-            run('git','-C',str(folder),'checkout','--detach','FETCH_HEAD')
+            if kit:
+                folder.mkdir()
+                extract_source(kit/(repo+'-source.tar.gz'),folder)
+            else:
+                run('git','init',str(folder))
+                run('git','-C',str(folder),'remote','add','origin','https://github.com/b3njaram/'+repo+'.git')
+                run('git','-C',str(folder),'fetch','--depth=1','origin',sha)
+                run('git','-C',str(folder),'checkout','--detach','FETCH_HEAD')
             if version:apply(dest,repo,version)
     finally:os.umask(oldmask)
     ctl=['bash',str(ROOT/'scripts/ctl.sh'),str(dest)]
+    inventory=dest/'image-inventory.json'
+    if kit and not inventory.is_file():raise ValueError('Offline restore requires exact image inventory')
+    exact=inventory.is_file() and (image_archive is not None or a.require_exact_images)
+    if exact:
+        stage(json.loads(inventory.read_text()),image_archive,dest/'deployment',bool(all_images))
     run(*ctl,'config','--quiet')
     # Compose creates named volumes; no service starts before recovery is complete.
-    run(*ctl,'create','--build')
+    run(*ctl,'create',*(['--no-build','--pull','never'] if exact else ['--build']))
     available=set(output('docker','volume','ls','-q','--filter','label=com.docker.compose.project='+project).splitlines())
     expected_volumes={project+'_'+suffix for suffix in volumes}
     if available!=expected_volumes:raise ValueError('Backup volume set does not match destination; inspect before recovery')
@@ -118,13 +147,13 @@ def main():
     if inventory.exists():
         result=subprocess.run([sys.executable,str(ROOT/'scripts/release-inventory.py'),str(dest),'--compare',str(inventory)])
         if result.returncode:
-            if a.require_exact_images:raise ValueError('Image identity differs or cannot be verified; no named volume restored')
+            if exact:raise ValueError('Image identity differs or cannot be verified; no named volume restored')
             print('WARNING: image identity differs or could not be verified. Do not start until reviewed.')
     elif a.require_exact_images:raise ValueError('Backup lacks image inventory; strict recovery cannot continue')
     for suffix,path in volumes.items():
         volume=project+'_'+suffix
         if volume not in available:raise ValueError('Backup volume not defined in new project: '+suffix)
-        run('docker','run','--rm','--network','none','-v',str(backup)+':/backup:ro','-v',volume+':/dst:rw','alpine:3.22','sh','-c','find /dst -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +; tar xzf "/backup/$1" -C /dst','sh',path.name)
+        run('docker','run','--rm',*(['--pull','never'] if kit else []),'--network','none','-v',str(backup)+':/backup:ro','-v',volume+':/dst:rw',helper,'sh','-c','find /dst -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +; tar xzf "/backup/$1" -C /dst','sh',path.name)
     print('Restored into stopped project: '+project)
     print('Inspect release, image versions, ports, credentials and domains. Then explicitly start with ctl.sh INSTANCE up -d.')
     print('Never expose a recovered copy while the original is serving users. Verify application data and customer ownership.')

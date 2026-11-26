@@ -30,6 +30,9 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == '/':
             self.send(HTML, 'text/html; charset=utf-8')
+        elif self.path in ('/manifest.webmanifest','/home.svg'):
+            name,mime={'/manifest.webmanifest':('manifest.webmanifest','application/manifest+json'),'/home.svg':('home.svg','image/svg+xml')}[self.path]
+            self.send((Path('/app')/name).read_bytes(),mime)
         elif self.path == '/api/config':
             safe = {'name':CONFIG['name'], 'apps':[{k:v for k,v in a.items() if k!='probe'} for a in CONFIG['apps']]}
             self.send(json.dumps(safe).encode(), 'application/json')
@@ -38,6 +41,15 @@ class Handler(BaseHTTPRequestHandler):
                 states = list(pool.map(probe, CONFIG['apps']))
             d = shutil.disk_usage('/storage')
             self.send(json.dumps({'apps':states,'disk':{'total':d.total,'used':d.used,'free':d.free}}).encode(), 'application/json')
+        elif self.path == '/api/health':
+            try:
+                path=Path('/storage/health.json')
+                if path.is_symlink() or path.stat().st_size>65536:raise ValueError()
+                state=json.loads(path.read_text())
+                if not isinstance(state,dict):raise ValueError()
+                # Host writes a sanitized snapshot; this endpoint does not execute commands.
+                self.send(json.dumps(state).encode(),'application/json')
+            except (OSError,ValueError):self.send(b'{"state":"not_configured"}','application/json')
         elif self.path == '/healthz':
             self.send(b'ok\n','text/plain')
         else:

@@ -1,0 +1,13 @@
+# Phase 10 — launch preparation
+
+Development may continue with physical qualification deferred. Do not accept paid orders or publish a stable commercial release until actual safety, release, legal and licensing gates have been reviewed. This document is an operational checklist, not legal advice.
+
+1. Freeze an exact candidate commit and generate the current GitHub software readiness report using release-readiness.py. Review the exact image scan; unresolved high/critical/unknown findings must not be silently waived. Preserve exact image archives and source pins.
+2. Generate a private evidence checklist with `python3 scripts/launch-review.py FULL_SHA --template ~/private-launch-evidence.json`. Each item starts pending; record actual dated evidence references, not credentials or private customer information in Git. Use deferred for unavailable physical tests. Review only selected sales jurisdictions (US and/or MX). Run `python3 scripts/launch-review.py FULL_SHA --evidence ~/private-launch-evidence.json --ci-report ~/private-ci.json`. It never grants commercial approval or publishes tags.
+3. Confirm the exact hardware BOM, independent backups, actual measured energy use, operating capacity, supplier warranties and local returns procedure. Keep quotes dated and illustrative until confirmed. Do not advertise unsupported capacity, unlimited support, unverified savings or official native-app distribution.
+4. Review applicable business registration, tax collection/remittance, receipts or invoices, consumer protection, warranties, returns, privacy disclosures and cross-border/import requirements for the actual place of sale with qualified local professionals. Cash-only does not remove obligations. Do not claim compliance from the checklist alone.
+5. Review the exact upstream and dependency licenses, notices, source distribution obligations, trademarks and media-provider terms before redistribution or commercial use. No unlicensed media, credentials, indexers or paid API accounts are included.
+6. Finalize customer-approved quote, scope, hardware warranty, support hours and term, optional renewal, exclusions and escalation channel. No mandatory recurring JobbiSoft subscription. Deliver the bilingual customer guide, actual acceptance record and applicable receipt. Retain records privately.
+7. Run one supervised reference installation and recovery drill, then a limited pilot with separately agreed acceptance. No unattended production migration or automatic paid launch.
+
+See business/PLAYBOOK.md, business/ACCEPTANCE.md, RELEASE-GATE.md, PERFORMANCE.md, POWER.md and DELIVERY.md. Physical, external network, licensing and commercial evidence must be supplied by the owner; the automated tool only reviews recorded fields.

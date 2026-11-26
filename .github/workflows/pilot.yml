@@ -1,7 +1,6 @@
 name: Customer pilot checks
 on:
   push:
-    paths: ['business/**','scripts/**','deploy/**','.github/workflows/pilot.yml']
   pull_request:
     paths: ['business/**','scripts/**','deploy/**','.github/workflows/pilot.yml']
   workflow_dispatch:
@@ -26,8 +25,12 @@ jobs:
       - run: |
           mkdir -p /tmp/jobbi-pilot /tmp/jobbi-backups
           python3 scripts/preflight.py --data-root /tmp/jobbi-pilot --apps monitor --minimum-free-gib 1 --minimum-docker-free-gib 1
+          python3 scripts/setup-customer.py --name setup-preview --data-root /tmp/jobbi-pilot --backup-root /dev/shm --apps monitor --minimum-free-gib 1 --minimum-docker-free-gib 1
+          test ! -e /tmp/jobbi-pilot/setup-preview
           python3 scripts/install.py --name first --data-root /tmp/jobbi-pilot --base-port 18100 --apps monitor
           python3 scripts/install.py --name second --data-root /tmp/jobbi-pilot --base-port 18200 --apps monitor
+          python3 scripts/security-audit.py /tmp/jobbi-pilot/first
+          python3 scripts/security-audit.py /tmp/jobbi-pilot/second
           for port in 18100 18200; do
             curl --retry 20 --retry-all-errors --retry-delay 2 -fsS "http://127.0.0.1:$port/healthz"
           done
@@ -50,14 +53,14 @@ jobs:
           curl --retry 10 --retry-all-errors --retry-delay 1 -fsS http://127.0.0.1:18100/healthz
       - run: |
           printf 'pilot backup marker\n' > /tmp/jobbi-pilot/first/data/.pilot-marker
-          bash scripts/backup.sh /tmp/jobbi-pilot/first /tmp/jobbi-backups
+          bash scripts/backup.sh /tmp/jobbi-pilot/first /tmp/jobbi-backups --all-images
           BACKUP="$(find /tmp/jobbi-backups -mindepth 1 -maxdepth 1 -type d | head -1)"
           (cd "$BACKUP" && sha256sum -c SHA256SUMS)
           mkdir -p /tmp/jobbi-restore
           tar xzf "$BACKUP/instance.tar.gz" -C /tmp/jobbi-restore data/.pilot-marker release.json
           cmp /tmp/jobbi-pilot/first/data/.pilot-marker /tmp/jobbi-restore/data/.pilot-marker
           tar tzf "$BACKUP/instance.tar.gz" | grep -qx image-inventory.json
-          python3 scripts/restore.py "$BACKUP" --data-root /tmp/jobbi-pilot --name recovered --base-port 18300
+          python3 scripts/restore.py "$BACKUP" --require-exact-images --data-root /tmp/jobbi-pilot --name recovered --base-port 18300
           cmp /tmp/jobbi-pilot/first/data/.pilot-marker /tmp/jobbi-pilot/recovered/data/.pilot-marker
           bash scripts/ctl.sh /tmp/jobbi-pilot/recovered up -d
           curl --retry 10 --retry-all-errors --retry-delay 1 -fsS http://127.0.0.1:18300/healthz
@@ -72,7 +75,7 @@ jobs:
             fi
           done
   full-stack:
-    if: (github.event_name == 'workflow_dispatch' && inputs.full_stack) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[full-pilot]'))
+    if: (github.event_name == 'workflow_dispatch' && inputs.full_stack) || (github.event_name == 'push' && (contains(github.event.head_commit.message, '[full-pilot]') || contains(github.event.head_commit.message, '[release-gate]')))
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -81,7 +84,7 @@ jobs:
           mkdir -p /tmp/jobbi-full
           python3 scripts/install.py --name full --data-root /tmp/jobbi-full --apps music,movies,photos,files,passwords,tasks,monitor
           for i in $(seq 1 45); do
-            if bash scripts/verify.sh /tmp/jobbi-full/full; then python3 scripts/test-tasks-pilot.py; python3 scripts/test-files-pilot.py; exit 0; fi
+            if bash scripts/verify.sh /tmp/jobbi-full/full; then python3 scripts/security-audit.py /tmp/jobbi-full/full; python3 scripts/test-tasks-pilot.py; python3 scripts/test-files-pilot.py; exit 0; fi
             sleep 10
           done
           exit 1
@@ -89,7 +92,7 @@ jobs:
         run: |
           if test -f /tmp/jobbi-full/full/.env; then
             bash scripts/ctl.sh /tmp/jobbi-full/full ps -a
-            bash scripts/ctl.sh /tmp/jobbi-full/full logs --tail=45 jobbi-music jobbi-storage-agent
+            bash scripts/ctl.sh /tmp/jobbi-full/full logs --tail=45 jobbi-music jobbi-storage-agent vikunja vikunja-db
           fi
       - if: always()
         run: |
@@ -98,7 +101,7 @@ jobs:
           fi
 
   media-recovery:
-    if: (github.event_name == 'workflow_dispatch' && inputs.full_stack) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[full-pilot]'))
+    if: (github.event_name == 'workflow_dispatch' && inputs.full_stack) || (github.event_name == 'push' && (contains(github.event.head_commit.message, '[full-pilot]') || contains(github.event.head_commit.message, '[release-gate]')))
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
@@ -112,16 +115,40 @@ jobs:
             sleep 3
           done
           python3 scripts/test-movie-pilot.py /tmp/jobbi-media/source --fixture /tmp/jobbi-media-fixture.json
-          bash scripts/backup.sh /tmp/jobbi-media/source /tmp/jobbi-media-backups
+          bash scripts/backup.sh /tmp/jobbi-media/source /tmp/jobbi-media-backups --all-images
           BACKUP="$(find /tmp/jobbi-media-backups -mindepth 1 -maxdepth 1 -type d | head -1)"
-          python3 scripts/restore.py "$BACKUP" --data-root /tmp/jobbi-media --name recovered --base-port 18500
+          python3 scripts/make-recovery-kit.py /tmp/jobbi-media/source --output /tmp/jobbi-media-kit --apply
+          mkdir -p /tmp/jobbi-offline-bin
+          export REAL_DOCKER="$(command -v docker)"
+          cat > /tmp/jobbi-offline-bin/docker <<'SH'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          if [[ "${1:-}" == pull || ( "${1:-}" == image && "${2:-}" == pull ) ]]; then echo 'Offline pilot refused Docker pull' >&2; exit 1; fi
+          if [[ "${1:-}" == run && " $* " != *' --pull never '* ]]; then echo 'Offline pilot requires no-pull helper' >&2; exit 1; fi
+          exec "$REAL_DOCKER" "$@"
+          SH
+          chmod +x /tmp/jobbi-offline-bin/docker
+          PATH="/tmp/jobbi-offline-bin:$PATH" GIT_ALLOW_PROTOCOL=file python3 scripts/restore.py "$BACKUP" --offline-kit /tmp/jobbi-media-kit --data-root /tmp/jobbi-media --name recovered --base-port 18500
+          PATH="/tmp/jobbi-offline-bin:$PATH" GIT_ALLOW_PROTOCOL=file python3 scripts/make-recovery-kit.py /tmp/jobbi-media/recovered --output /tmp/jobbi-next-kit --apply
+          cmp /tmp/jobbi-media-kit/movies-source.tar.gz /tmp/jobbi-next-kit/movies-source.tar.gz
+          test -z "$(bash scripts/ctl.sh /tmp/jobbi-media/recovered ps --status running -q)"
+          echo 'PASS: exact stopped recovery with source kit and no explicit image pulls'
           bash scripts/ctl.sh /tmp/jobbi-media/recovered up -d
+          python3 scripts/test-reinstall-pilot.py /tmp/jobbi-media/recovered
           for i in $(seq 1 30); do
             if bash scripts/verify.sh /tmp/jobbi-media/recovered; then break; fi
             sleep 3
           done
           python3 scripts/test-movie-pilot.py /tmp/jobbi-media/recovered --fixture /tmp/jobbi-media-fixture.json --recover
           python3 scripts/test-movie-pilot.py /tmp/jobbi-media/source --fixture /tmp/jobbi-media-fixture.json --recover
+          sed -i 's/^MOVIE_HTTPS=false$/MOVIE_HTTPS=true/' /tmp/jobbi-media/recovered/.env
+          bash scripts/ctl.sh /tmp/jobbi-media/recovered up -d --no-deps --force-recreate backend
+          for i in $(seq 1 30); do
+            code="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18503/api/auth/me || true)"
+            if test "$code" = 401; then break; fi
+            sleep 2
+          done
+          python3 scripts/test-movie-pilot.py /tmp/jobbi-media/recovered --fixture /tmp/jobbi-media-fixture.json --recover --secure-cookie
       - if: always()
         run: |
           for n in source recovered; do
@@ -132,7 +159,7 @@ jobs:
           rm -f /tmp/jobbi-media-fixture.json
 
   library-recovery:
-    if: (github.event_name == 'workflow_dispatch' && inputs.full_stack) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[full-pilot]'))
+    if: (github.event_name == 'workflow_dispatch' && inputs.full_stack) || (github.event_name == 'push' && (contains(github.event.head_commit.message, '[full-pilot]') || contains(github.event.head_commit.message, '[release-gate]')))
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -144,8 +171,9 @@ jobs:
           python3 scripts/test-library-pilot.py /tmp/jobbi-library/source
           bash scripts/backup.sh /tmp/jobbi-library/source /tmp/jobbi-library-backups
           BACKUP="$(find /tmp/jobbi-library-backups -mindepth 1 -maxdepth 1 -type d | head -1)"
-          python3 scripts/restore.py "$BACKUP" --data-root /tmp/jobbi-library --name recovered --base-port 18700
+          python3 scripts/restore.py "$BACKUP" --require-exact-images --data-root /tmp/jobbi-library --name recovered --base-port 18700
           bash scripts/ctl.sh /tmp/jobbi-library/recovered up -d
+          python3 scripts/test-reinstall-pilot.py /tmp/jobbi-library/recovered
           python3 scripts/test-library-pilot.py /tmp/jobbi-library/recovered --recover
           python3 scripts/test-library-pilot.py /tmp/jobbi-library/source --recover
       - if: failure()
@@ -163,3 +191,121 @@ jobs:
             fi
           done
           rm -f /tmp/jobbi-library-fixture.json
+
+  office-recovery:
+    if: (github.event_name == 'workflow_dispatch' && inputs.full_stack) || (github.event_name == 'push' && (contains(github.event.head_commit.message, '[full-pilot]') || contains(github.event.head_commit.message, '[release-gate]')))
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          mkdir -p /tmp/jobbi-office /tmp/jobbi-office-backups
+          export JOBBI_PILOT_INSTANCE=/tmp/jobbi-office/source
+          python3 scripts/install.py --name source --data-root /tmp/jobbi-office --base-port 18800 --apps files,tasks
+          python3 scripts/test-files-pilot.py
+          python3 scripts/test-tasks-pilot.py
+          bash scripts/backup.sh "$JOBBI_PILOT_INSTANCE" /tmp/jobbi-office-backups
+          python3 scripts/restore.py /tmp/jobbi-office-backups/jobbi-source-* --require-exact-images --data-root /tmp/jobbi-office --name recovered --base-port 18900
+          export JOBBI_PILOT_INSTANCE=/tmp/jobbi-office/recovered
+          bash scripts/ctl.sh "$JOBBI_PILOT_INSTANCE" up -d
+          python3 scripts/test-reinstall-pilot.py /tmp/jobbi-office/recovered
+          python3 scripts/test-files-pilot.py
+          python3 scripts/test-tasks-pilot.py
+      - if: failure()
+        run: |
+          for n in source recovered; do
+            if test -f "/tmp/jobbi-office/$n/.env"; then
+              bash scripts/ctl.sh "/tmp/jobbi-office/$n" ps -a
+              bash scripts/ctl.sh "/tmp/jobbi-office/$n" logs --tail=60 vikunja vikunja-db
+            fi
+          done
+      - if: always()
+        run: |
+          for n in source recovered; do
+            if test -f "/tmp/jobbi-office/$n/.env"; then
+              bash scripts/ctl.sh "/tmp/jobbi-office/$n" down -v
+            fi
+          done
+
+  infrastructure-recovery:
+    if: (github.event_name == 'workflow_dispatch' && inputs.full_stack) || (github.event_name == 'push' && (contains(github.event.head_commit.message, '[full-pilot]') || contains(github.event.head_commit.message, '[release-gate]')))
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install 'python-socketio[client]==5.13.0'
+      - run: |
+          command -v dig || (sudo apt-get update && sudo apt-get install -y dnsutils)
+          mkdir -p /tmp/jobbi-infra /tmp/jobbi-infra-backups
+          python scripts/install.py --name source --data-root /tmp/jobbi-infra --base-port 19000 --apps passwords,monitor,dns --local-dns-port 19011
+          python scripts/test-infrastructure-pilot.py /tmp/jobbi-infra/source
+          bash scripts/backup.sh /tmp/jobbi-infra/source /tmp/jobbi-infra-backups
+          python scripts/restore.py /tmp/jobbi-infra-backups/jobbi-source-* --require-exact-images --data-root /tmp/jobbi-infra --name recovered --base-port 19100
+          bash scripts/ctl.sh /tmp/jobbi-infra/recovered up -d
+          python3 scripts/test-reinstall-pilot.py /tmp/jobbi-infra/recovered
+          python scripts/test-infrastructure-pilot.py /tmp/jobbi-infra/recovered
+      - if: always()
+        run: |
+          for n in source recovered; do
+            if test -f "/tmp/jobbi-infra/$n/.env"; then
+              bash scripts/ctl.sh "/tmp/jobbi-infra/$n" down -v
+            fi
+          done
+
+  staged-upgrade:
+    if: (github.event_name == 'workflow_dispatch' && inputs.full_stack) || (github.event_name == 'push' && (contains(github.event.head_commit.message, '[full-pilot]') || contains(github.event.head_commit.message, '[release-gate]')))
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - run: |
+          sudo apt-get update && sudo apt-get install -y age
+          python3 -m unittest discover -s scripts -p test_backup_export.py -v
+          mkdir -p /tmp/jobbi-upgrade /tmp/jobbi-upgrade-backups
+          sudo mount -t tmpfs -o "size=2G,uid=$(id -u),gid=$(id -g),mode=0700" tmpfs /tmp/jobbi-upgrade-backups
+          old=de0b98be2b2456dc98f29ca65a90e8c91946e6c5
+          git worktree add --detach /tmp/jobbi-old-checkout "$old"
+          python3 /tmp/jobbi-old-checkout/scripts/install.py --name original --data-root /tmp/jobbi-upgrade --base-port 19200 --apps monitor
+          args=(/tmp/jobbi-upgrade/original /tmp/jobbi-upgrade-backups --from-commit "$old" --to-commit "$(git rev-parse HEAD)" --name trial --base-port 19300 --minimum-free-gib 1)
+          python3 scripts/schedule-backups.py /tmp/jobbi-upgrade/original /tmp/jobbi-upgrade-backups --hour 4 --minimum-free-gib 1 --failure-unit notify-owner.service > /tmp/jobbi-schedule-preview
+          grep -q 'OnFailure=notify-owner.service' /tmp/jobbi-schedule-preview
+          grep -Eq -- '--expected-backup-mount [a-f0-9]{64}' /tmp/jobbi-schedule-preview
+          grep -q '04:00:00' /tmp/jobbi-schedule-preview
+          python3 scripts/stage-upgrade.py "${args[@]}"
+          python3 scripts/stage-upgrade.py "${args[@]}" --prepare
+          test -z "$(bash scripts/ctl.sh /tmp/jobbi-upgrade/trial ps -q --status running)"
+          bash scripts/ctl.sh /tmp/jobbi-upgrade/trial up -d
+          curl --retry 20 --retry-all-errors --retry-delay 1 -fsS http://127.0.0.1:19300/healthz
+          bash scripts/ctl.sh /tmp/jobbi-upgrade/trial stop
+          curl --retry 20 --retry-all-errors --retry-delay 1 -fsS http://127.0.0.1:19200/healthz
+          mountid="$(python3 -c 'import sys;sys.path.insert(0,"scripts");from backup_mount import mount_identity;print(mount_identity(sys.argv[1]))' /tmp/jobbi-upgrade-backups)"
+          recover=(/tmp/jobbi-upgrade/original /tmp/jobbi-upgrade-backups --mount-id "$mountid" --candidate held --minimum-free-gib 1)
+          sleep 2
+          python3 scripts/recovery-center.py stage "${recover[@]}" --base-port 19400 --to-commit "$(git rev-parse HEAD)" --apply
+          test -z "$(bash scripts/ctl.sh /tmp/jobbi-upgrade/original ps -q --status running)"
+          if bash scripts/ctl.sh /tmp/jobbi-upgrade/original up -d; then echo 'Held source unexpectedly allowed startup'; exit 1; fi
+          python3 scripts/recovery-center.py start-trial "${recover[@]}" --apply
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          i=Path('/tmp/jobbi-upgrade/original');t=i.parent/'held';u=json.loads((t/'upgrade.json').read_text())
+          a={'schema':1,'source':str(i),'candidate':str(t),'from':u['from'],'to':u['to'],'apps':{'monitor':'passed'},'customer_approved':True,'data_verified':True,'backup_restore_verified':True,'private_access_verified':True,'maintenance_verified':True}
+          Path('/tmp/jobbi-upgrade/acceptance.json').write_text(json.dumps(a))
+          PY
+          python3 scripts/recovery-center.py accept-trial "${recover[@]}" --acceptance /tmp/jobbi-upgrade/acceptance.json --apply
+          python3 scripts/recovery-center.py rollback "${recover[@]}" --confirm-no-candidate-writes --apply
+          test -z "$(bash scripts/ctl.sh /tmp/jobbi-upgrade/held ps -q --status running)"
+          curl --retry 20 --retry-all-errors --retry-delay 1 -fsS http://127.0.0.1:19200/healthz
+      - if: always()
+        run: |
+          for n in original trial held; do
+            if test -f "/tmp/jobbi-upgrade/$n/.env"; then
+              # Disposable CI only: remove hold to permit fixture teardown.
+              rm -f "/tmp/jobbi-upgrade/$n/.upgrade-hold.json"
+              bash scripts/ctl.sh "/tmp/jobbi-upgrade/$n" down -v
+            fi
+          done
+          if mountpoint -q /tmp/jobbi-upgrade-backups; then sudo umount /tmp/jobbi-upgrade-backups; fi

@@ -17,6 +17,8 @@ Set QUOTE_PORT or QUOTE_BIND in the environment if needed. The default is loopba
 
 ## Customer server
 
+For a dedicated headless Ubuntu Server 24.04 LTS x86-64 appliance (including customer-specific USB seed generation), see [guided installation](docs/CUSTOMER-INSTALL.md). The new `scripts/setup-customer.py` previews by default and orchestrates package installation, preflight, provisioning, reachability and onboarding with `--apply`. Keep the customer stack loopback-only until account setup and private HTTPS are verified. Never execute the customer installer on the owner production host.
+
 Recommended starting target: dedicated x86-64 Linux host or VM, Docker Engine + Compose v2, Git, Python 3, Bash, curl, 16 GB RAM for the full stack, and SSD for Docker databases. NAS-specific support and ARM compatibility are not yet validated. Format/mirror drives outside this installer. Confirm the mounted filesystem before installing.
 
     mkdir -p ~/jobbi-customers
@@ -63,3 +65,7 @@ Run `python3 scripts/preflight.py --data-root /path/to/mounted/data --apps music
 ## Customer operations
 
 The private owner dashboard includes installation planning, support cases, expiry reminders and bilingual handoff drafts. [Maintenance guide](docs/MAINTENANCE.md) covers read-only diagnostics, opt-in cold backup scheduling and supervised updates/recovery. No unattended upgrade or deletion is enabled. Hardware qualification remains a real-device task.
+
+## Development handoff
+
+Current qualification evidence, open failures and the continuation checklist are in [the development tracker](docs/DEVELOPMENT-TRACKER.md).

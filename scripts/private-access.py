@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """Plan private customer Tailscale HTTPS. Does not change tailnet or execute Serve."""
-import argparse,ipaddress,json,re,shlex,subprocess,sys
+import argparse,fcntl,ipaddress,json,re,shlex,subprocess,sys
 from pathlib import Path
+from private_origins import prepare,rollback
+from private_routes import manage
+import nextcloud_origin
 ROOT=Path(__file__).resolve().parents[1]
 APP_PORTS={'dashboard':'DASH_PORT','music':'MUSIC_PORT','navidrome':'NAV_PORT','movies':'MOVIE_PORT','photos':'PHOTO_PORT','files':'CLOUD_PORT','passwords':'VAULT_PORT','tasks':'TASK_PORT','monitor':'MONITOR_PORT'}
 def output(*args):
@@ -51,13 +54,34 @@ def commands(planned):
     return {'enable':[shlex.join(['sudo','tailscale','serve','--bg','--https='+str(r['port']),r['target']]) for r in planned.values()],
       'disable':[shlex.join(['sudo','tailscale','serve','--https='+str(r['port']),'off']) for r in planned.values()]}
 def main():
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('instance',type=Path);p.add_argument('--https-base',type=int,default=19443);p.add_argument('--verify',action='store_true',help='Read-only verify actual Serve config after enabling');a=p.parse_args()
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('instance',type=Path);p.add_argument('--https-base',type=int,default=19443);p.add_argument('--verify',action='store_true',help='Read-only verify actual Serve config after enabling')
+    mode=p.add_mutually_exclusive_group()
+    mode.add_argument('--prepare-origins',action='store_true',help='Save previous settings and write proposed origins on this customer host')
+    mode.add_argument('--rollback-origins',action='store_true',help='Restore saved settings after disabling all Serve routes')
+    mode.add_argument('--enable-routes',action='store_true',help='Apply Serve on the dedicated host after customer ACL, account and origin checks')
+    mode.add_argument('--rollback-routes',action='store_true',help='Remove exactly matching journaled private routes')
+    a=p.parse_args()
+    if a.verify and (a.prepare_origins or a.rollback_origins or a.enable_routes or a.rollback_routes):p.error('Choose one operation')
     i=a.instance.resolve();env=dict(x.split('=',1) for x in (i/'.env').read_text().splitlines() if '=' in x)
     if env.get('INSTANCE_DIR')!=str(i) or not re.fullmatch(r'jobbi-[a-z0-9-]+',env.get('COMPOSE_PROJECT_NAME','')):p.error('Invalid customer instance')
+    lock=None
+    if a.prepare_origins or a.rollback_origins or a.enable_routes or a.rollback_routes:
+        lock=(i/'.private-origins.lock').open('a')
+        fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+    if a.rollback_origins:
+        existing_conflicts(json.loads(output('tailscale','serve','status','--json')),set())
+        nextcloud_origin.rollback(i)
+        rollback(i)
+        print('Previous files restored. Recreate the dashboard and affected services on this instance.')
+        return
     config=json.loads((i/'dashboard.json').read_text())
     state=json.loads(output('tailscale','status','--json'))
     if state.get('BackendState')!='Running':p.error('Customer must enroll this device in their own tailnet first')
     host=hostname(state['Self']['DNSName'])
+    if a.rollback_routes:
+        manage(i,{},host,True,verify_config,existing_conflicts)
+        print('Removed journaled private routes. Origin rollback is now available.')
+        return
     plan=routes(env,config,host,a.https_base)
     # Manual onboarding confirmations must exist before even generating exposure instructions.
     selected={x['id'] for x in config['apps']}-{'remote','passwords'}
@@ -67,16 +91,29 @@ def main():
     status=json.loads(output('tailscale','serve','status','--json'))
     if a.verify:
         verify_config(status,plan,host)
+        if 'files' in plan:nextcloud_origin.verify(i,plan['files']['url'])
         print(json.dumps({'verified_serve_config':True,'urls':{k:v['url'] for k,v in plan.items()},'note':'Configuration check only. Verify TLS and app login from customer device, ACL denial from unauthorized account, and no public access.'},indent=2));return
     existing_conflicts(status,{x['port'] for x in plan.values()})
     c=commands(plan)
     # Output configuration proposals, never copy customer secrets or rewrite instance files.
     cfg={**config,'apps':[{**app,**({'url':plan[app['id']]['url']} if app['id'] in plan else {})} for app in config['apps']]}
     changes={}
+    if 'movies' in plan:changes['MOVIE_HTTPS']='true'
     if 'music' in plan:changes['MUSIC_HTTPS']='true'
     if 'passwords' in plan:changes['VAULT_DOMAIN']=plan['passwords']['url']
     if 'tasks' in plan:changes.update(TASK_URL=plan['tasks']['url']+'/',TASK_REGISTRATION='false')
-    print(json.dumps({'host':host,'routes':plan,'proposed_env_changes':changes,'proposed_dashboard_config':cfg,'enable_commands':c['enable'],'disable_commands':c['disable'],'note':'Preview only. Confirm Vaultwarden signups are closed and the intended owner invitation before serving; finish its acceptance after HTTPS. Configure app origins and verify ACLs before enabling routes. Never enable Funnel. Do not run on owner infrastructure.'},indent=2))
+    if a.enable_routes:
+        if any(env.get(k)!=v for k,v in changes.items()) or cfg!=config:
+            p.error('Prepare app origins before enabling routes')
+        if 'files' in plan:nextcloud_origin.verify(i,plan['files']['url'])
+        manage(i,plan,host,False,verify_config,existing_conflicts)
+        print('Private Serve configuration verified. Test TLS and ACLs from independent devices.')
+        return
+    if a.prepare_origins:
+        prepare(i,cfg,changes)
+        if 'files' in plan:nextcloud_origin.prepare(i,plan['files']['url'])
+        print('Saved previous configuration and prepared private origins. Recreate dashboard and affected services before enabling Serve.')
+    print(json.dumps({'host':host,'routes':plan,'proposed_origin_keys':sorted(changes),'dashboard_origins':{k:v['url'] for k,v in plan.items()},'enable_commands':c['enable'],'disable_commands':c['disable'],'note':'Preview only. Confirm Vaultwarden signups are closed and the intended owner invitation before serving; finish its acceptance after HTTPS. Configure app origins and verify ACLs before enabling routes. Never enable Funnel. Do not run on owner infrastructure.'},indent=2))
 if __name__=='__main__':
     try:main()
-    except (OSError,ValueError,KeyError,TypeError,subprocess.CalledProcessError,subprocess.TimeoutExpired) as e:sys.exit('Private access plan stopped: '+str(e))
+    except (OSError,ValueError,KeyError,TypeError,subprocess.CalledProcessError,subprocess.TimeoutExpired) as e:sys.exit('Private access plan stopped: '+type(e).__name__+'; inspect local configuration without copying credentials.')

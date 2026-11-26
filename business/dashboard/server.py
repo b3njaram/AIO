@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Private single-operator dashboard. Loopback only; use an SSH tunnel."""
+"""Private single-operator dashboard. Loopback only; private Serve or SSH."""
 import argparse,base64,csv,datetime as dt,hashlib,hmac,http.server,json,os,re,secrets,sqlite3,subprocess,sys,tempfile,threading
 from pathlib import Path
 from decimal import Decimal
@@ -8,6 +8,7 @@ ROOT=Path(__file__).resolve().parents[2]
 sys.path[:0]=[str(ROOT/'business'),str(ROOT/'business/sourcing')]
 import records,order
 import operations as ops
+import customers
 import search as sourcing
 from retailers import links
 HOME=Path.home()/'.local/share/jobbi-business'
@@ -28,6 +29,7 @@ def db():
     d.executescript("""CREATE TABLE IF NOT EXISTS order_details(order_id TEXT PRIMARY KEY REFERENCES orders(id), label TEXT NOT NULL, stage TEXT NOT NULL, delivered TEXT, months INTEGER NOT NULL, hardware_condition TEXT NOT NULL, note TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS confirmed_offers(profile TEXT NOT NULL,target TEXT NOT NULL,part TEXT NOT NULL,url TEXT NOT NULL,payload TEXT NOT NULL,PRIMARY KEY(profile,target,part,url));""")
     ops.schema(d)
+    customers.schema(d)
     return d
 def validate_id(v):
     if not isinstance(v,str) or not re.fullmatch(ID_RE,v):raise ValueError('Invalid order or transaction ID')
@@ -125,6 +127,8 @@ def list_orders():
                 if x['hardware_condition']=='new':x['warranty_end']=plus_months(day,12).isoformat()
                 elif x['hardware_condition']=='refurbished':x['warranty_end']=(day+dt.timedelta(days=90)).isoformat()
             x['transactions']=[dict(y) for y in conn.execute('SELECT id,kind,amount,recorded FROM cash WHERE order_id=? ORDER BY recorded,rowid',(x['id'],))]
+            x['components']=[dict(y) for y in conn.execute('SELECT component,provider,expires FROM component_warranties WHERE order_id=? ORDER BY expires,component',(x['id'],))]
+            x['installation_events']=[dict(y) for y in conn.execute('SELECT step,result,note,recorded FROM installation_events WHERE order_id=? ORDER BY id DESC',(x['id'],))]
             out.append(x)
         return out
 def save_order(d,new):
@@ -152,6 +156,12 @@ def payment(d):
     return {'ok':True}
 def operations(d,action):
     with db() as conn:
+        if action in ('appliance','sharing','health-import','reporting-enable','reporting-disable'):
+            return {'appliance':customers.save,'sharing':customers.consent,'health-import':customers.ingest,'reporting-enable':customers.enable_reporting,'reporting-disable':customers.disable_reporting}[action](conn,d)
+        if action=='component':
+            ops.warranty(conn,d);return {'ok':True}
+        if action=='installation-event':
+            ops.installation_event(conn,d);return {'ok':True}
         if action=='case':
             ops.save_case(conn,d);return {'ok':True}
         if action=='plan':
@@ -160,13 +170,37 @@ def operations(d,action):
                 i=validate_id(d['order_id']);records.balance(conn,i)
                 conn.execute('INSERT OR REPLACE INTO install_plans VALUES(?,?)',(i,json.dumps(p)))
             return p
-        if action=='handoff':
+        if action in ('handoff','document'):
             i=validate_id(d.get('order_id'))
             o=next((x for x in list_orders() if x['id']==i),None)
             if o is None:raise ValueError('Order not found')
             row=conn.execute('SELECT payload FROM install_plans WHERE order_id=?',(i,)).fetchone()
+            if action=='document':
+                from customer_documents import render
+                pdf=render(o,json.loads(row[0]) if row else None,d.get('kind'),d.get('lang'),d.get('transaction'),ops.handoff)
+                return {'pdf':base64.b64encode(pdf).decode('ascii')}
             return {'text':ops.handoff(o,json.loads(row[0]) if row else None,d.get('lang','en'))}
     raise ValueError('Invalid operation')
+def permitted_origins(port, extra=()):
+    """Explicit browser origins for a loopback-only private reverse proxy.
+    Never trust forwarded host or origin headers.
+    """
+    origins={f'http://localhost:{port}',f'http://127.0.0.1:{port}'}
+    for value in extra:
+        u=urlsplit(value)
+        host=u.hostname or ''
+        if (u.scheme not in ('http','https') or not host or u.username is not None
+                or u.password is not None or u.path or u.query or u.fragment
+                or not re.fullmatch(r'[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*',host)
+                or not ('.' not in host or host.endswith('.ts.net'))
+                or u.netloc != host+((':'+str(u.port)) if u.port is not None else '')
+                or (u.port is not None and not 1<=u.port<=65535)
+                or value != u.scheme+'://'+u.netloc
+                or (u.port == (80 if u.scheme=='http' else 443))):
+            raise ValueError('Use an exact private hostname origin, e.g. http://macmini2012:8791 or https://device.tailnet.ts.net (no path or default port)')
+        origins.add(value)
+    return {urlsplit(o).netloc: {x for x in origins if urlsplit(x).netloc==urlsplit(o).netloc} for o in origins}
+
 class Handler(http.server.BaseHTTPRequestHandler):
     def log_message(self,*args):pass
     def send(self,status,data,mime='application/json; charset=utf-8'):
@@ -176,9 +210,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         for k,v in {'Content-Type':mime,'Content-Length':str(len(data)),'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY','Referrer-Policy':'no-referrer','Content-Security-Policy':"default-src 'none'; script-src 'self'; style-src 'self'; img-src https://i.ebayimg.com; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"}.items():self.send_header(k,v)
         self.end_headers();self.wfile.write(data)
     def auth(self):
-        host=self.headers.get('Host','')
-        if host not in ('localhost:'+str(self.server.server_port),'127.0.0.1:'+str(self.server.server_port)):
-            self.send(403,{'error':'Use localhost via SSH tunnel'});return False
+        hosts=self.headers.get_all('Host',[])
+        if len(hosts)!=1 or hosts[0] not in self.server.allowed_origins:
+            self.send(403,{'error':'Unapproved private dashboard hostname'});return False
+        if self.server.preview:return True
         expected='Basic '+base64.b64encode(('owner:'+self.server.password).encode()).decode()
         if not hmac.compare_digest(self.headers.get('Authorization',''),expected):
             self.send(401,{'error':'Authentication required'});return False
@@ -187,10 +222,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not self.auth():return
         u=urlsplit(self.path);q=parse_qs(u.query)
         try:
-            if u.path in ('/','/app.js','/style.css'):
-                name={'/':'index.html','/app.js':'app.js','/style.css':'style.css'}[u.path]
-                self.send(200,(Path(__file__).parent/name).read_bytes(),{'/':'text/html; charset=utf-8','/app.js':'application/javascript; charset=utf-8','/style.css':'text/css; charset=utf-8'}[u.path]);return
-            if u.path=='/api/init':data={'profiles':PROFILES,'suppliers':sourcing.CAT['suppliers'],'reports':report_ids()}
+            if u.path in ('/','/app.js','/language.js','/style.css'):
+                name={'/':'index.html','/language.js':'language.js','/app.js':'app.js','/style.css':'style.css'}[u.path]
+                self.send(200,(Path(__file__).parent/name).read_bytes(),{'/':'text/html; charset=utf-8','/language.js':'application/javascript; charset=utf-8','/app.js':'application/javascript; charset=utf-8','/style.css':'text/css; charset=utf-8'}[u.path]);return
+            if u.path=='/api/init':data={'profiles':PROFILES,'suppliers':sourcing.CAT['suppliers'],'reports':report_ids(),'preview':self.server.preview}
             elif u.path=='/api/job':
                 with LOCK:data={**JOB,'reports':report_ids()}
             elif u.path=='/api/report':data=read_report(q.get('id',[''])[0])
@@ -199,6 +234,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 if profile not in PROFILES:raise ValueError('Invalid profile')
                 data=supplier_links(profile)
             elif u.path=='/api/orders':data=list_orders()
+            elif u.path=='/api/appliances':
+                with db() as conn:data=customers.rows(conn)
             elif u.path=='/api/cases':
                 with db() as conn:data=ops.cases(conn)
             elif u.path=='/api/plans':
@@ -209,32 +246,57 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         if not self.auth():return
         # Same-origin JSON only; no CORS and no cross-site form requests.
-        if self.headers.get('X-Jobbi-Request')!='1' or self.headers.get('Origin') not in ('http://localhost:'+str(self.server.server_port),'http://127.0.0.1:'+str(self.server.server_port)) or self.headers.get('Content-Type','').split(';')[0]!='application/json':
+        if self.headers.get('X-Jobbi-Request')!='1' or len(self.headers.get_all('Origin',[]))!=1 or self.headers.get('Origin') not in self.server.allowed_origins[self.headers['Host']] or self.headers.get('Content-Type','').split(';')[0]!='application/json':
             self.send(403,{'error':'Same-origin request required'});return
         try:
             length=int(self.headers.get('Content-Length','0'))
             if not 0<length<=65536:raise ValueError('Invalid request size')
             data=json.loads(self.rfile.read(length))
             if not isinstance(data,dict):raise ValueError('Invalid payload')
-            routes={'/api/search':start_search,'/api/cost':costing,'/api/confirmed':confirmations,'/api/confirm':lambda d:confirmations(d,save=True),'/api/remove-offer':lambda d:confirmations(d,remove=True),'/api/order':lambda d:save_order(d,True),'/api/order-update':lambda d:save_order(d,False),'/api/payment':payment,'/api/plan':lambda d:operations(d,'plan'),'/api/case':lambda d:operations(d,'case'),'/api/handoff':lambda d:operations(d,'handoff')}
+            routes={'/api/reporting-enable':lambda d:operations(d,'reporting-enable'),'/api/reporting-disable':lambda d:operations(d,'reporting-disable'),'/api/appliance':lambda d:operations(d,'appliance'),'/api/sharing':lambda d:operations(d,'sharing'),'/api/health-import':lambda d:operations(d,'health-import'),'/api/search':start_search,'/api/cost':costing,'/api/confirmed':confirmations,'/api/confirm':lambda d:confirmations(d,save=True),'/api/remove-offer':lambda d:confirmations(d,remove=True),'/api/order':lambda d:save_order(d,True),'/api/order-update':lambda d:save_order(d,False),'/api/payment':payment,'/api/plan':lambda d:operations(d,'plan'),'/api/case':lambda d:operations(d,'case'),'/api/component':lambda d:operations(d,'component'),'/api/installation-event':lambda d:operations(d,'installation-event'),'/api/handoff':lambda d:operations(d,'handoff'),'/api/document':lambda d:operations(d,'document')}
+            if self.server.preview and self.path=='/api/search':
+                self.send(403,{'error':'Live hardware search is disabled in the no-login demo.'});return
             fn=routes.get(self.path)
             if fn is None:self.send(404,{'error':'Not found'});return
             self.send(200,fn(data))
         except (ValueError,KeyError,TypeError,ArithmeticError,argparse.ArgumentTypeError,sqlite3.IntegrityError) as e:self.send(400,{'error':str(e)[:300]})
         except (OSError,sqlite3.Error):self.send(500,{'error':'Local storage operation failed'})
 def main():
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--port',type=int,default=8790);p.add_argument('--init',action='store_true');a=p.parse_args()
+    global HOME,REPORTS,CONFIG
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--port',type=int,default=8790);p.add_argument('--init',action='store_true');p.add_argument('--allow-origin',action='append',default=[],help='Exact private Tailscale browser origin; repeat for additional names');p.add_argument('--preview-no-auth',action='store_true',help='Port 8791 only; separate demo database, no live sourcing, no password');p.add_argument('--container-preview',action='store_true',help='Demo container only: publish through a host loopback mapping');p.add_argument('--password-fd',type=int,help='Read a credential from a private inherited descriptor instead of a password file');a=p.parse_args()
+    if a.password_fd is not None and (a.password_fd<3 or a.init or a.preview_no_auth):p.error('Password descriptor requires authenticated startup')
+    if a.container_preview and (not a.preview_no_auth or a.port!=8791 or not Path('/.dockerenv').exists()):p.error('Container listener requires the isolated no-login Docker demo')
     if not 1024<=a.port<=65535:p.error('Invalid port')
-    os.umask(0o077);HOME.mkdir(parents=True,exist_ok=True);CONFIG.mkdir(parents=True,exist_ok=True)
+    try:allowed=permitted_origins(a.port,a.allow_origin)
+    except ValueError as e:p.error(str(e))
+    os.umask(0o077)
+    if a.preview_no_auth:
+        if a.port!=8791 or a.init:p.error('No-login demo is limited to port 8791; do not use --init')
+        demo=Path.home()/'.jobbi-no-login-demo'
+        for directory in (demo,demo/'sourcing',demo/'config'):
+            if directory.is_symlink():p.error('Demo directory must not be a symlink')
+            directory.mkdir(mode=0o700,exist_ok=True)
+            if not directory.is_dir() or directory.stat().st_uid!=os.getuid() or directory.stat().st_mode&0o077:p.error('Demo directory must be privately owned')
+        for name in ('cash.sqlite3','cash.sqlite3-wal','cash.sqlite3-shm','cash.sqlite3-journal'):
+            path=demo/name
+            if path.is_symlink() or path.exists() and (not path.is_file() or path.stat().st_nlink!=1):p.error('Unsafe demo database path')
+        HOME=demo;REPORTS=demo/'sourcing';CONFIG=demo/'config'
+    HOME.mkdir(parents=True,exist_ok=True);CONFIG.mkdir(parents=True,exist_ok=True)
     token=CONFIG/'dashboard-password'
     if a.init:
         if not token.exists():
             fd=os.open(token,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
             with os.fdopen(fd,'w') as stream:stream.write(secrets.token_urlsafe(32)+'\n')
         print('Dashboard credentials file:',private_file(token));return
-    password=private_file(token).read_text().strip()
-    if len(password)<32:p.error('Invalid dashboard password')
+    if a.password_fd is not None:
+        with os.fdopen(a.password_fd,'r',encoding='utf-8') as credential:
+            password=credential.read(1025).strip()
+        if len(password)>1024:p.error('Invalid dashboard credential length')
+    else:
+        password=None if a.preview_no_auth else private_file(token).read_text().strip()
+    if not a.preview_no_auth and len(password)<32:p.error('Invalid dashboard password')
     with db():pass
-    server=http.server.ThreadingHTTPServer(('127.0.0.1',a.port),Handler);server.password=password
+    server=http.server.ThreadingHTTPServer(('0.0.0.0' if a.container_preview else '127.0.0.1',a.port),Handler);server.password=password;server.allowed_origins=allowed;server.preview=a.preview_no_auth
+    if a.preview_no_auth:print('NO-LOGIN DEMO: use synthetic records only; restrict Serve to your devices.',flush=True)
     print('Private dashboard on http://127.0.0.1:'+str(a.port),flush=True);server.serve_forever()
 if __name__=='__main__':main()

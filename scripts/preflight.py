@@ -10,6 +10,7 @@ def main():
     p.add_argument('--apps',default='music,movies,photos,files,passwords,tasks,monitor,remote')
     p.add_argument('--minimum-free-gib',type=float,default=50)
     p.add_argument('--minimum-docker-free-gib',type=float,default=20)
+    p.add_argument('--backup-root',type=Path,help='Check the mounted independent backup destination before installation')
     a=p.parse_args()
     apps=set(filter(None,a.apps.split(',')))
     if apps-set('music movies photos files passwords tasks dns monitor remote'.split()): p.error('Unknown app')
@@ -23,6 +24,16 @@ def main():
     disk=shutil.disk_usage(root)
     if gib(disk.free)<a.minimum_free_gib: errors.append('Insufficient data disk free space')
     if not os.access(root,os.W_OK|os.X_OK): errors.append('Data root is not writable')
+    if a.backup_root:
+        backup=a.backup_root.expanduser().resolve()
+        if not backup.is_dir() or not os.access(backup,os.W_OK|os.X_OK):
+            errors.append('Backup directory missing or unwritable')
+        elif root.stat().st_dev==backup.stat().st_dev:
+            errors.append('Data and backup share a filesystem')
+        elif root in backup.parents or backup in root.parents:
+            errors.append('Use separate backup and instance directory trees')
+        else:
+            warnings.append('Verify backup has an independent physical failure domain and remains mounted after reboot')
     mem=None
     try: mem=gib(int(next(x for x in Path('/proc/meminfo').read_text().splitlines() if x.startswith('MemTotal:')).split()[1])*1024)
     except (OSError,StopIteration,ValueError): warnings.append('Cannot measure host RAM')
@@ -34,6 +45,7 @@ def main():
         cmd('docker','compose','version')
         if Path(docker_root).is_dir():
             docker_free=gib(shutil.disk_usage(docker_root).free)
+            if a.backup_root and a.backup_root.is_dir() and Path(docker_root).stat().st_dev==a.backup_root.stat().st_dev:errors.append('Backup shares the Docker data filesystem')
             if docker_free<a.minimum_docker_free_gib: errors.append('Docker filesystem below configured free-space target')
         else: warnings.append('Docker data filesystem not locally inspectable')
     except (OSError,subprocess.CalledProcessError): errors.append('Docker daemon or Compose unavailable')
