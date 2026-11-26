@@ -28,8 +28,24 @@ button{font:inherit;font-weight:650;color:var(--ink);background:var(--card);bord
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 
 .app-tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 16px}.app-tools input{min-width:0;flex:1;font:inherit;padding:11px 14px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:12px}.favorite{padding:6px 10px;font-size:1.15rem;line-height:1.2}.favorite[aria-pressed=true]{color:var(--accent);background:var(--soft)}.app .top>div{display:flex;gap:6px;align-items:center}.welcome-mark{background:linear-gradient(145deg,var(--soft),var(--card));border:1px solid var(--line)}@media(max-width:540px){nav{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:thin;padding:4px 2px 8px;position:sticky;top:0;background:var(--bg);z-index:5}nav button{flex:0 0 auto;min-height:44px;white-space:nowrap;padding:10px 14px}.app-tools input{flex-basis:100%}.app-tools button{min-height:44px}.app a{min-height:44px}main{padding-bottom:calc(32px + env(safe-area-inset-bottom,0px))}}
+
+/* Distinct appliance launcher, not a recolored status sheet. */
+main{max-width:1280px}
+header{padding:14px 0 18px}header>b{font-size:.86rem;letter-spacing:.11em}
+.welcome{margin:22px 0;padding:28px clamp(18px,4vw,40px);border-radius:26px;border:1px solid var(--line);background:linear-gradient(125deg,var(--card),var(--soft))}
+.welcome h1{margin:8px 0}.welcome-mark{border-radius:24px}
+nav{flex-wrap:wrap;gap:6px;padding:6px;border:1px solid var(--line);background:var(--card);border-radius:16px}
+nav button{border:0;background:transparent;box-shadow:none;border-radius:11px}
+nav button[aria-current=page]{background:var(--accent);color:var(--card)}
+.app{padding:22px;min-height:195px;position:relative;overflow:hidden;border-top:3px solid var(--app-color,var(--accent))}
+.app-icon{width:58px;height:58px;border-radius:17px}.app .top{margin-bottom:6px}
+.app a{width:100%;padding:11px 13px;margin-top:auto;background:var(--soft);border-radius:10px}
+#healthCards .card,#storageCards .card,#recoveryCards .card{border-left:3px solid var(--accent)}
+#healthCards .card:nth-child(3n+2),#storageCards .card:nth-child(3n+2){border-left-color:#a78bfa}
+#healthCards .card:nth-child(3n+3),#storageCards .card:nth-child(3n+3){border-left-color:#e6a54b}
+@media(max-width:540px){nav{flex-wrap:nowrap}.welcome{padding:18px;margin:16px 0}.app{min-height:165px}}
 </style></head><body><main>
-<header><b>JOBBISOFT / HOME</b><button id="lang" type="button">Español</button></header>
+<header><b>JOBBISOFT / HOME <small aria-label="Dashboard revision">· Pilot 2</small></b><button id="lang" type="button">Español</button></header>
 <div class="welcome"><div><small id="eyebrow">PRIVATE HOME CLOUD</small><h1 id="title">Your cloud.</h1><p class="muted" id="lead"></p></div><div class="welcome-mark" id="homeIcon" aria-hidden="true"></div></div>
 <nav aria-label="Home"><button id="appsTab" type="button" aria-current="page">Your apps</button><button id="statusTab" type="button">Server status</button><button id="setupTab" type="button">Setup</button><button id="maintenanceTab" type="button">Maintenance</button><button id="storageTab" type="button">Storage</button><button id="recoveryTab" type="button">Recovery</button></nav>
 <section id="appsPage"><h2 id="appsLabel">Your applications</h2><div class="app-tools"><input id="appSearch" type="search" maxlength="80" aria-label="Find application" placeholder="Find application"><button id="favoritesOnly" type="button" aria-pressed="false">Favorites</button><button id="refreshNow" type="button">Refresh</button></div><p id="emptyApps" class="muted" hidden></p><div id="apps" class="grid"></div></section>

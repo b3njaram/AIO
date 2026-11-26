@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Short-lived local owner setup UI. Never expose this listener through Serve or a public proxy."""
-import urllib.parse
+import urllib.parse,ssl,ipaddress
 import argparse,fcntl,hmac,http.server,importlib.util,json,os,re,secrets,sys,threading,time
 from pathlib import Path
 ROOT=Path(__file__).resolve().parent
@@ -49,8 +49,9 @@ class Session:
 class Server(http.server.ThreadingHTTPServer):
     # Wait for the current approved account operation and its response before exit.
     daemon_threads=False
-    def __init__(self,port,session):
-        super().__init__(('127.0.0.1',port),Handler);self.session=session;self.origin='http://127.0.0.1:'+str(self.server_port)
+    def __init__(self,port,session,bind='127.0.0.1',tls=None):
+        super().__init__((bind,port),Handler);self.session=session;self.origin=('https://' if tls else 'http://')+bind+':'+str(self.server_port)
+        if tls:self.socket=tls.wrap_socket(self.socket,server_side=True)
 class Handler(http.server.BaseHTTPRequestHandler):
     def log_message(self,*args):pass
     def setup(self):
@@ -60,7 +61,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.send_response(status)
         for k,v in {'Content-Type':mime,'Content-Length':str(len(payload)),'Cache-Control':'no-store','Pragma':'no-cache','X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY','Referrer-Policy':'no-referrer','Content-Security-Policy':"default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; form-action 'none'; frame-ancestors 'none'; base-uri 'none'"}.items():self.send_header(k,v)
         self.end_headers();self.wfile.write(payload)
-    def host_ok(self):return self.headers.get_all('Host',[])==[self.server.origin.removeprefix('http://')]
+    def host_ok(self):return self.headers.get_all('Host',[])==[urllib.parse.urlsplit(self.server.origin).netloc]
     def authorized(self):
         s=self.server.session
         return s.active() and len(self.headers.get_all('Authorization',[]))==1 and hmac.compare_digest(self.headers['Authorization'],'Bearer '+s.token)
@@ -94,17 +95,28 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send(400,{'error':'Setup could not be completed. Check the owner details and local application state; existing passwords were not intentionally reset.'})
         except Exception:self.send(500,{'error':'Local application operation failed. Inspect the appliance privately.'})
 def main():
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('instance',type=Path);p.add_argument('--port',type=int,default=17991);p.add_argument('--minutes',type=int,default=30);a=p.parse_args()
-    if os.geteuid()==0 or not 1024<=a.port<=65535 or not 5<=a.minutes<=60 or not sys.stdout.isatty():p.error('Use original non-root operator in an interactive terminal, 5–60 minutes')
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('instance',type=Path);p.add_argument('--port',type=int,default=17991);p.add_argument('--minutes',type=int,default=30);p.add_argument('--pilot-lan',type=Path,help='Root-prepared isolated pilot TLS configuration');a=p.parse_args()
+    if os.geteuid()==0 or not 1024<=a.port<=65535 or not 5<=a.minutes<=60 or (not a.pilot_lan and not sys.stdout.isatty()):p.error('Use original non-root operator in an interactive terminal, 5–60 minutes')
     os.umask(0o077)
     session=Session(a.instance.resolve(),a.minutes)
     if session.env.get('OWNER_UID')!=str(os.getuid()):p.error('Use the original instance operator')
     if not session.apps:p.error('No supported account setup steps selected')
     if (session.instance/'.private-serve.json').exists() or any(x.get('url') for x in json.loads((session.instance/'dashboard.json').read_text())['apps']):p.error('Finish first-run accounts before enabling private HTTPS')
-    with Server(a.port,session) as server:
+    bind='127.0.0.1';tls=None
+    if a.pilot_lan:
+        import stat
+        cfg=a.pilot_lan.resolve();st=cfg.stat()
+        if st.st_uid!=0 or st.st_mode&0o022 or cfg.is_symlink():p.error('Require root-prepared pilot configuration')
+        spec=json.loads(cfg.read_text());bind=spec['address'];ip=ipaddress.IPv4Address(bind)
+        if not any(ip in ipaddress.ip_network(n) for n in ('10.0.0.0/8','172.16.0.0/12','192.168.0.0/16')):p.error('Only private IPv4 pilot addresses')
+        if spec['instance']!=str(session.instance):p.error('Pilot instance mismatch')
+        tls=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER);tls.minimum_version=ssl.TLSVersion.TLSv1_2
+        tls.load_cert_chain(spec['cert'],spec['key'])
+        print('Verify the HTTPS certificate SHA-256 fingerprint on your browser: '+spec['fingerprint'],flush=True)
+    with Server(a.port,session,bind,tls) as server:
         print('One-time setup address:',server.origin)
         print('Setup code (do not share):',session.token,flush=True)
-        print('For a remote technician browser, forward this exact loopback port over trusted SSH. Never publish via Serve/Funnel. Ctrl+C closes the session.')
+        print('Isolated pilot: use only the physically displayed HTTPS address and fingerprint.' if a.pilot_lan else 'For a remote technician browser, forward this exact loopback port over trusted SSH. Never publish via Serve/Funnel. Ctrl+C closes the session.')
         server.timeout=1
         try:
             while session.active():server.handle_request()

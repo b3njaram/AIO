@@ -24,7 +24,16 @@ def main():
     for f in files:shutil.copy2(dest/f,backup/f)
     try:
         for f in files:shutil.copy2(source/f,dest/f)
-        subprocess.run(ctl+['up','-d','--no-deps','--build','dashboard'],check=True)
+        subprocess.run(ctl+['up','-d','--no-deps','--build','--force-recreate','dashboard'],check=True)
+        import urllib.request
+        port=int(env['DASH_PORT'])
+        for attempt in range(30):
+            try:
+                with urllib.request.urlopen('http://127.0.0.1:'+str(port)+'/',timeout=3) as response:
+                    if response.read()==(source/'index.html').read_bytes():break
+            except OSError:pass
+            import time;time.sleep(1)
+        else:raise ValueError('Running dashboard did not serve the exact updated HTML')
         marker.write_text(json.dumps({'commit':rev,'baseline':BASE,'scope':'dashboard only','previous_files':backup.name})+'\n')
         print('Dashboard overlay applied; exact release image certification no longer applies. Previous dashboard files:',backup)
     except BaseException:

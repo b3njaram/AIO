@@ -1,0 +1,30 @@
+name: Laptop pilot installer ISO
+on:
+  push:
+    branches: [pilot/one-boot]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  iso:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y xorriso
+      - run: |
+          curl --fail --location --retry 3 --max-time 900 https://releases.ubuntu.com/24.04/ubuntu-24.04.5-live-server-amd64.iso -o /tmp/ubuntu.iso
+          python3 scripts/make-laptop-iso.py --ubuntu-iso /tmp/ubuntu.iso --iso-sha256 97f3d7ffb032c3eb3b23d2c8be9cc76e60c2c1f2c0146ba5ba9fe01cafae0fd8 --out /tmp/jobbi-laptop
+          cd /tmp/jobbi-laptop
+          sha256sum -c SHA256SUMS
+          xorriso -osirrox on -indev jobbi-laptop.iso -extract /autoinstall.yaml /tmp/extracted.yaml
+          cmp autoinstall.yaml /tmp/extracted.yaml
+          xorriso -indev jobbi-laptop.iso -report_el_torito plain > boot.txt 2>&1
+          grep -E 'El Torito boot img.*BIOS' boot.txt
+          grep -E 'El Torito boot img.*UEFI' boot.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jobbi-laptop-pilot-iso
+          path: /tmp/jobbi-laptop/
+          compression-level: 0
+          retention-days: 7
