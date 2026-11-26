@@ -15,9 +15,9 @@ class Session:
         self.apps=[a for a in SUPPORTED if a in self.env['COMPOSE_PROFILES'].split(',')]
         self.token=secrets.token_urlsafe(32);self.deadline=time.monotonic()+minutes*60
         from account_progress import read
-        self.done=set(read(instance))&set(self.apps);self.failed=[];self.lock=threading.Lock();self.closed=False
+        self.done=set(read(instance))&set(self.apps);self.failed=[];self.lan=None;self.lock=threading.Lock();self.closed=False
     def active(self):return not self.closed and time.monotonic()<self.deadline
-    def status(self):return {'apps':self.apps,'done':sorted(self.done),'music_username':self.env.get('MUSIC_ADMIN','owner'),'failed':self.failed}
+    def status(self):return {'apps':self.apps,'done':sorted(self.done),'music_username':self.env.get('MUSIC_ADMIN','owner'),'failed':self.failed,'lan':bool(self.lan)}
     def submit(self,d):
         if not self.active():raise ValueError('Setup session expired')
         if set(d)!={'app','username','email','password','confirm'}:raise ValueError('Invalid setup request')
@@ -51,7 +51,7 @@ class Server(http.server.ThreadingHTTPServer):
     daemon_threads=False
     def __init__(self,port,session,bind='127.0.0.1',tls=None):
         super().__init__((bind,port),Handler);self.session=session;self.origin=('https://' if tls else 'http://')+bind+':'+str(self.server_port)
-        if tls:self.socket=tls.wrap_socket(self.socket,server_side=True)
+        if tls:self.socket=tls.wrap_socket(self.socket,server_side=True,do_handshake_on_connect=False)
 class Handler(http.server.BaseHTTPRequestHandler):
     def log_message(self,*args):pass
     def setup(self):
@@ -87,8 +87,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if self.path=='/api/create':
                 self.send(200,self.server.session.submit(data))
             elif self.path=='/api/finish' and data=={}:
-                with self.server.session.lock:self.server.session.closed=True
-                self.send(200,{'closed':True})
+                with self.server.session.lock:
+                    session=self.server.session
+                    if session.lan:
+                        from private_origins import atomic_write
+                        from account_progress import read
+                        if not set(session.apps)<=set(read(session.instance)):raise ValueError('Complete or review every account step before LAN access')
+                        client=ipaddress.IPv4Address(self.client_address[0])
+                        if client not in ipaddress.IPv4Network(session.lan['network']) or client==ipaddress.IPv4Address(session.lan['address']):raise ValueError('Pair from the same isolated network')
+                        atomic_write(session.instance/'.pilot-lan-client.json',json.dumps({'client':str(client)}).encode(),0o600)
+                    session.closed=True
+                self.send(200,{'closed':True,'gateway':bool(session.lan)})
             else:self.send(404,{'error':'Not found'})
         except (OSError,ValueError,KeyError,TypeError,RuntimeError):
             # Do not echo application errors, passwords, request bodies or credentials.
@@ -107,7 +116,7 @@ def main():
         import stat
         cfg=a.pilot_lan.resolve();st=cfg.stat()
         if st.st_uid!=0 or st.st_mode&0o022 or cfg.is_symlink():p.error('Require root-prepared pilot configuration')
-        spec=json.loads(cfg.read_text());bind=spec['address'];ip=ipaddress.IPv4Address(bind)
+        spec=json.loads(cfg.read_text());session.lan=spec;bind=spec['address'];ip=ipaddress.IPv4Address(bind)
         if not any(ip in ipaddress.ip_network(n) for n in ('10.0.0.0/8','172.16.0.0/12','192.168.0.0/16')):p.error('Only private IPv4 pilot addresses')
         if spec['instance']!=str(session.instance):p.error('Pilot instance mismatch')
         tls=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER);tls.minimum_version=ssl.TLSVersion.TLSv1_2

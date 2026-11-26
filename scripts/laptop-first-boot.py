@@ -41,9 +41,9 @@ def private_ip():
     dev=rows[0]['dev'];rows=json.loads(out('ip','-j','-4','addr','show','dev',dev))
     ips=[x['local'] for row in rows for x in row.get('addr_info',[]) if x.get('scope')=='global']
     if len(ips)!=1 or not any(ipaddress.IPv4Address(ips[0]) in ipaddress.ip_network(n) for n in ('10.0.0.0/8','172.16.0.0/12','192.168.0.0/16')):raise ValueError('Require single RFC1918 IPv4 on selected interface')
-    return ips[0]
+    return ips[0],str(ipaddress.IPv4Interface(ips[0]+'/'+str(next(x['prefixlen'] for row in rows for x in row.get('addr_info',[]) if x.get('local')==ips[0]))).network)
 def setup_service(instance,user):
-    addr=private_ip();directory=Path('/etc/jobbi/pilot-tls')
+    addr,network=private_ip();directory=Path('/etc/jobbi/pilot-tls')
     directory.mkdir(parents=True,exist_ok=True,mode=0o750)
     os.chown(directory,0,user.pw_gid)
     cert=directory/'cert.pem';key=directory/'key.pem'
@@ -51,10 +51,10 @@ def setup_service(instance,user):
     run('openssl','req','-x509','-newkey','rsa:3072','-sha256','-nodes','-days','7','-subj','/CN=JobbiSoft Home Pilot','-addext','subjectAltName=IP:'+addr,'-keyout',str(key),'-out',str(cert),stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
     os.chown(key,0,user.pw_gid);key.chmod(0o640);cert.chmod(0o644)
     fp=out('openssl','x509','-in',str(cert),'-noout','-fingerprint','-sha256').split('=',1)[1]
-    cfg=directory/'setup.json';cfg.write_text(json.dumps({'address':addr,'instance':str(instance),'cert':str(cert),'key':str(key),'fingerprint':fp}));cfg.chmod(0o644)
+    cfg=directory/'setup.json';cfg.write_text(json.dumps({'address':addr,'network':network,'operator':user.pw_name,'instance':str(instance),'cert':str(cert),'key':str(key),'fingerprint':fp}));cfg.chmod(0o644)
     unit=Path('/etc/systemd/system/jobbi-pilot-setup.service')
     if unit.exists():raise ValueError('Existing setup unit; review')
-    unit.write_text('[Unit]\nDescription=Jobbi isolated LAN pairing (pilot)\nAfter=network-online.target docker.service\nWants=network-online.target\nRequires=docker.service\nConflicts=getty@tty3.service\n[Service]\nType=simple\nUser='+user.pw_name+'\nUMask=0077\nExecStart=/usr/bin/python3 '+str(ROOT/'scripts/setup-web.py')+' '+str(instance)+' --port 18080 --minutes 60 --pilot-lan '+str(cfg)+'\nStandardOutput=tty\nStandardError=tty\nTTYPath=/dev/tty3\n[Install]\nWantedBy=multi-user.target\n')
+    unit.write_text('[Unit]\nDescription=Jobbi isolated LAN pairing (pilot)\nAfter=network-online.target docker.service\nWants=network-online.target\nRequires=docker.service\nConflicts=getty@tty3.service\n[Service]\nType=simple\nUser='+user.pw_name+'\nUMask=0077\nExecStart=/usr/bin/python3 '+str(ROOT/'scripts/setup-web.py')+' '+str(instance)+' --port 18080 --minutes 60 --pilot-lan '+str(cfg)+'\nExecStopPost=+/usr/bin/python3 '+str(ROOT/'scripts/pilot-lan-gateway.py')+'\nStandardOutput=tty\nStandardError=tty\nTTYPath=/dev/tty3\n[Install]\nWantedBy=multi-user.target\n')
     run('systemctl','daemon-reload')
     # Pairing session is deliberately temporary and not enabled on every boot.
     run('systemctl','start','jobbi-pilot-setup.service')
@@ -71,7 +71,7 @@ def main():
     env={**os.environ,'GIT_CONFIG_COUNT':'1','GIT_CONFIG_KEY_0':'safe.directory','GIT_CONFIG_VALUE_0':str(ROOT),'HOME':user.pw_dir}
     prefix=['runuser','-u',user.pw_name,'--']
     run(*prefix,sys.executable,str(ROOT/'scripts/preflight.py'),'--data-root',str(DATA),'--apps',APPS,env=env)
-    run(*prefix,sys.executable,str(ROOT/'scripts/install.py'),'--name','laptop-test','--data-root',str(DATA),'--apps',APPS,'--bind','127.0.0.1',env=env)
+    run(*prefix,sys.executable,str(ROOT/'scripts/install.py'),'--name','laptop-test','--data-root',str(DATA),'--apps',APPS,'--bind','127.0.0.1','--music-admin',user.pw_name,'--tz','America/Ciudad_Juarez',env=env)
     instance=DATA/'laptop-test'
     for attempt in range(30):
         if subprocess.run([*prefix,'bash',str(ROOT/'scripts/verify.sh'),str(instance)],env=env).returncode==0:break
