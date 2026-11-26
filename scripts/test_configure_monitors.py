@@ -14,6 +14,7 @@ class Tests(unittest.TestCase):
             def __init__(self,**kw):self.connected=False;clients.append(self)
             def connect(self,*a,**kw):self.connected=True
             def call(self,*a,**kw):
+                if a[0]=='needSetup':return False
                 result=outcomes.pop(0)
                 if isinstance(result,Exception):raise result
                 return result

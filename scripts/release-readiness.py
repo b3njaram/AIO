@@ -10,7 +10,7 @@ GATES={
     'appliance-iso.yml':('iso',),
     'appliance-vm.yml':('vm',),
     'storage-raid.yml':('raid',),
-    'release-security.yml':('image-scan',),
+    'release-security.yml':('image-scan','static-analysis'),
     'unit-regression.yml':('units',),
     'offline-install.yml':('fresh',)}
 def api(path):

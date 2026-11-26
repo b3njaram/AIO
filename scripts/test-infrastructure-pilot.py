@@ -94,6 +94,8 @@ def monitor(instance,env,fixture,recover):
         except socketio.exceptions.ConnectionError:return False
     wait(connect)
     try:
+        from kuma_ready import setup_required
+        assert setup_required(client,socketio) is False
         assert client.call('getMonitorList')['ok'] is False
         assert client.call('login',{'username':'pilot','password':fixture['password']})['ok']
         if not recover:

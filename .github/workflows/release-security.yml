@@ -7,6 +7,47 @@ on:
 permissions:
   contents: read
 jobs:
+  static-analysis:
+    name: static-analysis
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (contains(github.event.head_commit.message, '[security-pilot]') || contains(github.event.head_commit.message, '[release-gate]'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@915412ff23e8b7659517e607487dbeae018f2934
+        with:
+          languages: javascript-typescript,python
+          build-mode: none
+          queries: security-extended
+      - uses: github/codeql-action/analyze@915412ff23e8b7659517e607487dbeae018f2934
+        with:
+          output: ${{ runner.temp }}/codeql
+      - name: Check high-severity static analysis findings
+        run: |
+          python3 - <<'PYCODE'
+          import json, os
+          from pathlib import Path
+          files = list((Path(os.environ['RUNNER_TEMP']) / 'codeql').glob('*.sarif'))
+          languages = set()
+          high = []
+          for path in files:
+              for run in json.loads(path.read_text())['runs']:
+                  driver = run['tool']['driver']
+                  languages.add(path.stem)
+                  tools = [driver, *run['tool'].get('extensions', [])]
+                  rules = {rule['id']: rule for tool in tools for rule in tool.get('rules', [])}
+                  for result in run['results']:
+                      rule = rules[result['ruleId']]
+                      if float(rule.get('properties', {}).get('security-severity', 0)) >= 7:
+                          high.append(rule['id'])
+          if len(languages) < 2:
+              raise SystemExit('Incomplete language coverage')
+          print('High severity CodeQL results:', len(high), sorted(set(high)))
+          raise SystemExit(bool(high))
+          PYCODE
   image-scan:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (contains(github.event.head_commit.message, '[security-pilot]') || contains(github.event.head_commit.message, '[release-gate]'))
     runs-on: ubuntu-24.04
@@ -56,6 +97,12 @@ jobs:
           retry bash scripts/ctl.sh /tmp/jobbi-security-pilot/audit create --build
       - name: Scan locally created image IDs
         run: python3 scripts/scan-release.py /tmp/jobbi-security-pilot/audit --scanner "$RUNNER_TEMP/jobbi-scanner/trivy" --output "$RUNNER_TEMP/jobbi-security-evidence"
+      - name: Cross-check every unfixed finding against vendor status
+        if: always() && hashFiles('scripts/triage-unfixed.py') != ''
+        run: |
+          test -f "$RUNNER_TEMP/jobbi-security-evidence/report.json"
+          curl --fail --location --compressed --retry 3 --max-time 180 https://security-tracker.debian.org/tracker/data/json -o "$RUNNER_TEMP/debian-tracker.json"
+          python3 scripts/triage-unfixed.py "$RUNNER_TEMP/jobbi-security-evidence" "$RUNNER_TEMP/debian-tracker.json"
       - name: Retain synthetic candidate scan and software bills of materials
         if: always()
         uses: actions/upload-artifact@v4

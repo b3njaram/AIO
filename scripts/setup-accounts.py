@@ -91,10 +91,10 @@ db.transaction(()=>{
         try:
             client.connect(base('MONITOR_PORT'),transports=['websocket'],wait_timeout=15)
             login=lambda:client.call('login',{'username':user,'password':pw},timeout=20)
-            result=login()
-            if not result.get('ok'):
+            from kuma_ready import setup_required
+            if setup_required(client,socketio):
                 require(client.call('setup',(user,pw),timeout=20).get('ok'),'Monitor setup refused; existing account unchanged')
-                result=login()
+            result=login()
             require(result.get('ok'),'Monitor owner login not confirmed')
         finally:
             if client.connected:client.disconnect()

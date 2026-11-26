@@ -22,6 +22,8 @@ def owner_session(port,user,pw,socketio,sleep=time.sleep):
         c=socketio.Client(reconnection=False,request_timeout=15)
         try:
             c.connect('http://127.0.0.1:'+port,transports=['websocket'],wait_timeout=15)
+            from kuma_ready import setup_required
+            if setup_required(c,socketio):raise ValueError('Set up the Kuma owner before configuring monitors')
             result=c.call('login',{'username':user,'password':pw},timeout=25)
             if not result.get('ok'):raise ValueError('Owner login rejected')
             return c
