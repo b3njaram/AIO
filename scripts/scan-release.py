@@ -6,16 +6,21 @@ spec=importlib.util.spec_from_file_location('inventory',Path(__file__).with_name
 inventory=importlib.util.module_from_spec(spec);spec.loader.exec_module(inventory)
 def summarize(data):
     if not isinstance(data,dict) or not isinstance(data.get('Results'),list) or not data['Results']:raise ValueError('No scanner result sections; cannot certify coverage')
-    findings=set();licenses=set()
+    findings=set();licenses=set();evidence=[]
     for section in data['Results']:
         for v in section.get('Vulnerabilities') or []:
             severity=v.get('Severity','UNKNOWN').upper()
             if severity in ('HIGH','CRITICAL','UNKNOWN'):
+                evidence.append({'id':v.get('VulnerabilityID'), 'package':v.get('PkgName'),
+                    'installed':v.get('InstalledVersion'), 'fixed':v.get('FixedVersion') or None,
+                    'severity':severity,'target':section.get('Target'),'ecosystem':section.get('Type'),
+                    'status':v.get('Status'),'advisory':v.get('PrimaryURL'),
+                    'vendor':v.get('DataSource'),'references':v.get('References') or []})
                 findings.add((v.get('VulnerabilityID','unknown'),v.get('PkgName','unknown'),v.get('InstalledVersion',''),v.get('FixedVersion',''),severity))
         for license in section.get('Licenses') or []:
             name=license.get('Name')
             if isinstance(name,str) and len(name)<200:licenses.add(name)
-    return {'vulnerabilities':[dict(zip(('id','package','installed','fixed','severity'),x)) for x in sorted(findings)],'license_names':sorted(licenses),'sections':len(data['Results'])}
+    return {'vulnerabilities':[dict(zip(('id','package','installed','fixed','severity'),x)) for x in sorted(findings)],'license_names':sorted(licenses),'sections':len(data['Results']),'advisories':evidence}
 def scan(instance,scanner,destination):
     i=instance.resolve();out=destination.expanduser().absolute()
     if out.exists() or out.is_symlink() or not out.parent.is_dir():raise ValueError('Use new report directory')

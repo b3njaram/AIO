@@ -54,7 +54,9 @@ services:
     mem_limit: 768m
   jobbi-social-db:
     profiles: [music]
-    image: postgres:17-alpine@sha256:f9cf3e1f0066f0eb0c48707d864f0ac5941e9ff454a072077d97a4d278d07d73
+    build:
+      context: ./security-patches
+      dockerfile: Dockerfile.postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: jobbi_social
@@ -96,7 +98,12 @@ services:
     ports: ["127.0.0.1:${PROWLARR_PORT}:9696"]
   torrserver:
     profiles: [movies]
-    image: yourok/torrserver:latest@sha256:245c0f6f5e3b4923d19a77c5e6b847ea02dc93d8afce9e6da5bfc443e4360290
+    build:
+      context: ./security-patches
+      dockerfile: Dockerfile.alpine
+      args:
+        BASE_IMAGE: 'yourok/torrserver:latest@sha256:245c0f6f5e3b4923d19a77c5e6b847ea02dc93d8afce9e6da5bfc443e4360290'
+        PACKAGE_FLOORS: 'libcrypto3=3.1.7-r0 libssl3=3.1.7-r0 musl=1.2.4_git20230717-r6 musl-utils=1.2.4_git20230717-r6'
     restart: unless-stopped
     volumes: ["${INSTANCE_DIR}/data/torrserver:/opt/ts/config"]
   backend:
@@ -203,7 +210,9 @@ services:
     depends_on: [nextcloud-db]
   nextcloud-db:
     profiles: [files]
-    image: postgres:17-alpine@sha256:f9cf3e1f0066f0eb0c48707d864f0ac5941e9ff454a072077d97a4d278d07d73
+    build:
+      context: ./security-patches
+      dockerfile: Dockerfile.postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: nextcloud
@@ -239,7 +248,9 @@ services:
       vikunja-db: {condition: service_healthy}
   vikunja-db:
     profiles: [tasks]
-    image: postgres:17-alpine@sha256:f9cf3e1f0066f0eb0c48707d864f0ac5941e9ff454a072077d97a4d278d07d73
+    build:
+      context: ./security-patches
+      dockerfile: Dockerfile.postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: vikunja
