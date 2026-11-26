@@ -2,9 +2,17 @@
 # Keep upstream runtime, entrypoint, user, application version and data format.
 ARG BASE_IMAGE
 FROM golang:1.27.3-alpine@sha256:fa3d596898d9f126af7c01d14ee7597bab3f39cccf392ef36b69fe77cd681f18 AS build_trust
-FROM ${BASE_IMAGE}
+FROM ${BASE_IMAGE} AS patched
 ARG DEBIAN_CODENAME
 ARG PACKAGE_FLOORS
 RUN --mount=type=bind,from=build_trust,source=/etc/ssl/certs/ca-certificates.crt,target=/tmp/jobbi-build-ca.pem,ro \
     --mount=type=bind,source=debian-patch.sh,target=/tmp/jobbi-patch.sh,ro \
     /bin/sh /tmp/jobbi-patch.sh "$DEBIAN_CODENAME" "$PACKAGE_FLOORS"
+
+FROM patched AS machine_learning
+RUN --mount=type=bind,source=immich-ml-requirements.txt,target=/tmp/requirements.txt,ro \
+    /usr/local/bin/python -m pip --python /opt/venv install --no-cache-dir --no-deps --only-binary=:all: --require-hashes -r /tmp/requirements.txt
+RUN --network=none --mount=type=bind,source=check-ml.py,target=/tmp/check-ml.py,ro \
+    /usr/local/bin/python -m pip --python /opt/venv check && /opt/venv/bin/python /tmp/check-ml.py
+
+FROM patched AS application

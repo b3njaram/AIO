@@ -42,6 +42,10 @@ jobs:
                   for result in run['results']:
                       rule = rules[result['ruleId']]
                       if float(rule.get('properties', {}).get('security-severity', 0)) >= 7:
+                          for location in result.get('locations', []):
+                              physical = location.get('physicalLocation', {})
+                              print(rule['id'], physical.get('artifactLocation', {}).get('uri'),
+                                    physical.get('region', {}).get('startLine'))
                           high.append(rule['id'])
           if len(languages) < 2:
               raise SystemExit('Incomplete language coverage')

@@ -1,0 +1,4 @@
+# CPU appliance target: Ubuntu x86-64, upstream CPython 3.13 virtual environment.
+protobuf==6.33.5 --hash=sha256:cbf16ba3350fb7b889fca858fb215967792dc125b35c7976ca4818bee3521cf0
+urllib3==2.8.0 --hash=sha256:0cf3cae568d36aa9576b28dfb35f11328f1cb974ca7647d9475ebb86c75ac6e3
+msgpack==1.2.3 --hash=sha256:07c9733089d1b176c3dd2f7fa268452f9d5d784d076473499d754a58e8d1fbbb
