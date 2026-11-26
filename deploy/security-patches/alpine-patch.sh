@@ -26,6 +26,6 @@ for spec in $floors; do
     pkg="${spec%%=*}"; minimum="${spec#*=}"
     actual="$(apk info -v "$pkg" | head -n 1)"
     case "$actual" in "$pkg"-*) actual="${actual#"$pkg"-}";; *) exit 1;; esac
-    test "$(apk version -t "$actual" "$minimum")" != '<'
+    case "$(apk version -t "$actual" "$minimum")" in "="|">") ;; *) exit 1;; esac
     printf 'Jobbi security package %s %s (minimum %s)\n' "$pkg" "$actual" "$minimum"
 done

@@ -4,7 +4,8 @@ set -eu
 suite="$1"; floors="$2"
 case "$suite" in bookworm|trixie) ;; *) exit 1;; esac
 . /etc/os-release
-test "$ID" = debian && test "$VERSION_CODENAME" = "$suite"
+test "$ID" = debian
+test "$VERSION_CODENAME" = "$suite"
 test "$(id -u)" = 0
 test -n "$floors"
 test -r /usr/share/keyrings/debian-archive-keyring.gpg
@@ -12,7 +13,7 @@ export DEBIAN_FRONTEND=noninteractive
 work="$(mktemp -d)"
 trap 'rm -rf "$work"; rm -rf /var/lib/apt/lists/*' EXIT
 # Restrict resolution to signed Debian repositories on the same release.
-# Separate list/cache directories prevent other vendor repositories from entering resolution.
+# A separate list directory and disabled package caches prevent stale vendor metadata.
 printf '%s\n' \
  "deb [signed-by=/usr/share/keyrings/debian-archive-keyring.gpg] https://deb.debian.org/debian $suite main" \
  "deb [signed-by=/usr/share/keyrings/debian-archive-keyring.gpg] https://deb.debian.org/debian $suite-updates main" \
@@ -24,6 +25,7 @@ apt() {
     command="$1"; shift
     "$command" -o Dir::Etc::sourcelist="$work/sources.list" \
       -o Dir::Etc::sourceparts=- -o Dir::State::lists="$work/lists" \
+      -o Dir::Cache::pkgcache= -o Dir::Cache::srcpkgcache= \
       -o Acquire::Retries=4 -o APT::Update::Error-Mode=any "$@"
 }
 apt apt-get update
