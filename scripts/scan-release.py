@@ -41,6 +41,16 @@ def scan(instance,scanner,destination):
         reports.append({'image':image,'services':sorted(services),**result})
         print('Scanned',','.join(sorted(services)),':',len(result['vulnerabilities']),'high/critical/unknown findings',flush=True)
     payload={'schema':1,'at':dt.datetime.now(dt.timezone.utc).isoformat(),'release':release['aio_commit'],'scanner':version.strip(),'images':reports,'policy':'All high, critical and unknown-severity findings require release review; license discovery is not a compliance determination.'}
+    # Provide a package-level action list without removing any gated findings.
+    actions={}
+    for report in reports:
+        for v in report['vulnerabilities']:
+            key=(v['package'],v['installed'],v['fixed'],v['severity'])
+            row=actions.setdefault(key,{'package':key[0],'installed':key[1],'fixed':key[2],'severity':key[3],'ids':set(),'services':set()})
+            row['ids'].add(v['id']);row['services'].update(report['services'])
+    queue=[{**row,'ids':sorted(row['ids']),'services':sorted(row['services'])} for row in actions.values()]
+    queue.sort(key=lambda x:(not bool(x['fixed']),{'CRITICAL':0,'HIGH':1,'UNKNOWN':2}.get(x['severity'],3),-len(x['ids']),x['package']))
+    (out/'remediation.json').write_text(json.dumps({'release':release['aio_commit'],'packages':queue},indent=2)+'\n')
     (out/'report.json').write_text(json.dumps(payload,indent=2)+'\n')
     count=sum(len(x['vulnerabilities']) for x in reports)
     print('Release image scan:',count,'high/critical/unknown findings; review required' if count else 'findings at gated severities')

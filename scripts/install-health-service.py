@@ -25,7 +25,8 @@ def units(i,b,user,devices,update,weekly=False):
     health='[Unit]\nDescription=Jobbi health snapshot\nAfter=docker.service\nRequiresMountsFor='+i+'\n[Service]\nType=oneshot\nUMask=0077\n'+('' if devices else 'User='+user+'\n')+'ExecStart='+python+' '+root+'/scripts/health-snapshot.py '+i+' '+b+' --expected-backup-mount '+identity+''.join(' --smart-device '+d for d in devices)+(' --check-updates' if update else '')+'\n'
     timer='[Unit]\nDescription=Refresh Jobbi health\n[Timer]\nOnBootSec=2min\nOnUnitActiveSec=15min\nUnit='+name+'-health.service\n[Install]\nWantedBy=timers.target\n'
     recovery='[Unit]\nDescription=Resume interrupted Jobbi backup\nAfter=docker.service\nRequires=docker.service\nRequiresMountsFor='+i+'\nConditionPathExists='+i+'/.backup-running-services\n[Service]\nType=oneshot\nUser='+user+'\nUMask=0077\nExecStart=/bin/bash '+root+'/scripts/backup.sh '+i+' --resume\n[Install]\nWantedBy=multi-user.target\n'
-    result={name+'-health.service':health,name+'-health.timer':timer,name+'-backup-resume.service':recovery}
+    boot='[Unit]\nDescription=Recover existing Jobbi launcher at boot\nAfter=docker.service '+name+'-backup-resume.service\nRequires=docker.service\nWants='+name+'-backup-resume.service\nRequiresMountsFor='+i+'\n[Service]\nType=oneshot\nUser='+user+'\nUMask=0077\nTimeoutStartSec=420\nExecStart='+python+' '+root+'/scripts/boot-recover.py '+i+' --expected-mount '+mount_identity(Path(i))+'\n[Install]\nWantedBy=multi-user.target\n'
+    result={name+'-health.service':health,name+'-health.timer':timer,name+'-backup-resume.service':recovery,name+'-boot-recover.service':boot}
     if weekly:
         result[name+'-backup.service']='[Unit]\nDescription=Approved weekly cold backup\nAfter=docker.service\nRequires=docker.service\nRequiresMountsFor='+i+'\n[Service]\nType=oneshot\nUser='+user+'\nUMask=0077\nTimeoutStartSec=infinity\nExecStart='+python+' '+root+'/scripts/maintenance.py '+i+' '+b+' --expected-backup-mount '+identity+' --run-backup\n'
         result[name+'-backup.timer']='[Unit]\nDescription=Weekly customer-approved backup\n[Timer]\nOnCalendar=Sun *-*-* 03:00:00\nPersistent=false\nUnit='+name+'-backup.service\n[Install]\nWantedBy=timers.target\n'
@@ -47,7 +48,7 @@ def main():
             target.chmod(0o644)
     subprocess.run(['systemctl','daemon-reload'],check=True)
     subprocess.run(['systemctl','enable','--now',*[x for x in result if x.endswith('.timer')]],check=True)
-    subprocess.run(['systemctl','enable',*[x for x in result if x.endswith('-resume.service')]],check=True)
+    subprocess.run(['systemctl','enable',*[x for x in result if x.endswith(('-resume.service','-boot-recover.service'))]],check=True)
 if __name__=='__main__':
     try:main()
     except (OSError,ValueError,KeyError,subprocess.SubprocessError) as e:sys.exit('Health setup stopped: '+str(e))

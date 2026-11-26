@@ -9,7 +9,7 @@ cd "$WORK"
 cleanup(){
   local rc=$?
   if ((rc!=0)) && [[ -f qemu.pid && -f fixture_key ]]; then
-    timeout 40 ssh -i fixture_key -p 2222 -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$WORK/known_hosts" jobbi@127.0.0.1 'sudo systemctl status docker containerd "srv-jobbi\\x2ddata.mount" "mnt-jobbi\\x2dbackup.mount" jobbi-vmhome-backup-resume --no-pager; sudo journalctl -b -u docker -u containerd -u "srv-jobbi\\x2ddata.mount" -u jobbi-vmhome-backup-resume --no-pager -n 100; lsblk -o NAME,UUID,MOUNTPOINTS; sudo docker ps -a' || true
+    timeout 40 ssh -i fixture_key -p 2222 -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$WORK/known_hosts" jobbi@127.0.0.1 'sudo systemctl status docker containerd "srv-jobbi\\x2ddata.mount" "mnt-jobbi\\x2dbackup.mount" jobbi-vmhome-backup-resume jobbi-vmhome-boot-recover --no-pager; sudo journalctl -b -u docker -u containerd -u "srv-jobbi\\x2ddata.mount" -u jobbi-vmhome-backup-resume --no-pager -n 100; lsblk -o NAME,UUID,MOUNTPOINTS; sudo docker ps -a' || true
   fi
   if [[ -f qemu.pid ]]; then kill "$(cat qemu.pid)" 2>/dev/null || true; fi
   for serial in serial-*.log; do [[ ! -f "$serial" ]] || tail -80 "$serial"; done
@@ -102,4 +102,5 @@ start
 wait_ssh
 for _ in $(seq 1 60); do if guest 'curl -fsS http://127.0.0.1:18080/healthz'; then break; fi; sleep 5; done
 guest 'curl -fsS http://127.0.0.1:18080/healthz && grep -qx "vm fixture" /srv/jobbi-data/jobbi-instances/vmhome/data/.vm-marker'
+guest 'sudo systemctl is-enabled --quiet jobbi-vmhome-boot-recover.service && sudo systemctl show -p Result --value jobbi-vmhome-boot-recover.service | grep -qx success'
 echo 'PASS: data disk reattached, original instance available'

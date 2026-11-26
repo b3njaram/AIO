@@ -11,6 +11,14 @@ jobs:
     timeout-minutes: 55
     steps:
       - uses: actions/checkout@v4
+      - name: Optional authenticated Docker Hub pulls
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          if [[ -n "$DOCKERHUB_USERNAME" && -n "$DOCKERHUB_TOKEN" ]]; then
+            printf '%s' "$DOCKERHUB_TOKEN" | docker login --username "$DOCKERHUB_USERNAME" --password-stdin
+          fi
       - name: Verify pinned scanner archive
         run: |
           mkdir -p "$RUNNER_TEMP/jobbi-scanner"
@@ -23,12 +31,17 @@ jobs:
         run: |
           mkdir -p /tmp/jobbi-security-pilot
           python3 scripts/install.py --name audit --data-root /tmp/jobbi-security-pilot --apps music,movies,photos,files,passwords,tasks,monitor,dns --local-dns-port 10553 --prepare-only
-          export COMPOSE_PARALLEL_LIMIT=3
-          for delay in 5 15 30; do
-            if bash scripts/ctl.sh /tmp/jobbi-security-pilot/audit pull --ignore-buildable; then break; fi
-            sleep "$delay"
-          done
-          bash scripts/ctl.sh /tmp/jobbi-security-pilot/audit create --build
+          export COMPOSE_PARALLEL_LIMIT=1
+          retry() {
+            local delay
+            for delay in 15 45 90 180; do
+              if "$@"; then return 0; fi
+              sleep "$delay"
+            done
+            "$@"
+          }
+          retry bash scripts/ctl.sh /tmp/jobbi-security-pilot/audit pull --ignore-buildable
+          retry bash scripts/ctl.sh /tmp/jobbi-security-pilot/audit create --build
       - name: Scan locally created image IDs
         run: python3 scripts/scan-release.py /tmp/jobbi-security-pilot/audit --scanner "$RUNNER_TEMP/jobbi-scanner/trivy" --output "$RUNNER_TEMP/jobbi-security-evidence"
       - name: Retain synthetic candidate scan and software bills of materials
@@ -48,10 +61,14 @@ jobs:
           p=Path(os.environ['RUNNER_TEMP'])/'jobbi-security-evidence/report.json'
           if not p.is_file():print('Scan not completed');raise SystemExit(1)
           r=json.loads(p.read_text())
-          for x in r['images']:
+          for x in sorted(r['images'],key=lambda x:len(x['vulnerabilities']),reverse=True):
               print(', '.join(x['services']),len(x['vulnerabilities']),'review findings; licenses:',', '.join(x['license_names']) or 'not identified')
               for v in x['vulnerabilities']:
                   print(v['severity'],v['id'],v['package'],v['installed'],'fix:',v['fixed'] or 'not reported')
+          print('Remediation priority (fix reported vs no fix):')
+          for x in sorted(r['images'],key=lambda x:len(x['vulnerabilities']),reverse=True):
+              fixed=sum(bool(v['fixed']) for v in x['vulnerabilities'])
+              print(', '.join(x['services']),fixed,'fix reported;',len(x['vulnerabilities'])-fixed,'no fix reported')
           PY
       - if: always()
         run: |

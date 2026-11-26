@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Add missing fixed private application monitors, using customer-owned Kuma login."""
-import argparse,getpass,json,os,re,sys,threading
+import argparse,getpass,json,os,re,sys,threading,time
 from pathlib import Path
 from importlib.util import spec_from_file_location,module_from_spec
 spec=spec_from_file_location('app_manager',Path(__file__).with_name('app-manager.py'));app_manager=module_from_spec(spec);spec.loader.exec_module(app_manager)
@@ -13,18 +13,36 @@ def targets(i):
 def missing(desired,existing):
     urls={x.get('url') for x in existing.values() if isinstance(x,dict) and x.get('type')=='http'}
     return {k:v for k,v in desired.items() if v not in urls}
+def owner_session(port,user,pw,socketio,sleep=time.sleep):
+    # A restored SQLite database can answer HTTP before its Socket.IO owner
+    # session is responsive. Retry only connection/ack timeouts, never an
+    # explicit credential rejection and never a potentially committed write.
+    last=None
+    for delay in (2,5,10):
+        c=socketio.Client(reconnection=False,request_timeout=15)
+        try:
+            c.connect('http://127.0.0.1:'+port,transports=['websocket'],wait_timeout=15)
+            result=c.call('login',{'username':user,'password':pw},timeout=25)
+            if not result.get('ok'):raise ValueError('Owner login rejected')
+            return c
+        except (socketio.exceptions.ConnectionError,socketio.exceptions.TimeoutError) as exc:
+            last=exc
+            if c.connected:c.disconnect()
+            sleep(delay)
+        except BaseException:
+            if c.connected:c.disconnect()
+            raise
+    raise ValueError('Kuma owner session unavailable after bounded retries') from last
+
 def configure(e,desired,user,pw,apply):
     import socketio
-    c=socketio.Client(reconnection=False,request_timeout=65)
+    c=owner_session(e['MONITOR_PORT'],user,pw,socketio)
     arrived=threading.Event();seen={}
     @c.on('monitorList')
     def received(rows):
         if isinstance(rows,dict):seen.clear();seen.update(rows);arrived.set()
     try:
-        c.connect('http://127.0.0.1:'+e['MONITOR_PORT'],transports=['polling'],wait_timeout=15)
-        if not c.call('login',{'username':user,'password':pw},timeout=60).get('ok'):raise ValueError('Owner login rejected')
-        arrived.clear()
-        if not c.call('getMonitorList',timeout=60).get('ok') or not arrived.wait(10):raise ValueError('Cannot verify existing monitors')
+        if not c.call('getMonitorList',timeout=60).get('ok') or not arrived.wait(20):raise ValueError('Cannot verify existing monitors')
         new=missing(desired,seen)
         if apply:
             for k,url in new.items():
