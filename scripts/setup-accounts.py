@@ -27,7 +27,7 @@ def env_for(instance):
     require(env.get('INSTANCE_DIR')==str(instance) and env.get('BIND_IP')=='127.0.0.1' and re.fullmatch('jobbi-[a-z0-9-]+',env.get('COMPOSE_PROJECT_NAME','')),'Use a local isolated customer instance')
     require(env.get('MUSIC_HTTPS')!='true' and env.get('MOVIE_HTTPS')!='true','Complete initial account setup before enabling private HTTPS')
     return env
-def create(instance,app,user,email,pw):
+def _create(instance,app,user,email,pw):
     env=env_for(instance)
     selected=set(env['COMPOSE_PROFILES'].split(','))
     require(app in selected,'Application is not installed')
@@ -110,6 +110,10 @@ db.transaction(()=>{
             with LOCAL.open(q,timeout=20) as r:require(r.status==207,'Nextcloud WebDAV authentication not confirmed')
         except urllib.error.HTTPError as e:raise ValueError('Nextcloud WebDAV authentication refused (HTTP '+str(e.code)+')') from None
     else:raise ValueError('Use the app native setup for this service')
+def create(instance,app,user,email,pw):
+    _create(instance,app,user,email,pw)
+    from account_progress import record
+    record(instance,app)
 def invite_vault(instance,email):
     """Send only the intended customer invitation; native client creates encryption keys."""
     import urllib.parse
@@ -129,26 +133,34 @@ def invite_vault(instance,email):
     with admin.open(req,timeout=20) as r:require(r.status==200,'Vaultwarden admin login not confirmed')
     code,_=request(base,'/admin/invite',{'email':email},admin)
     require(code==200,'Vaultwarden invitation refused; inspect the existing owner invitation locally')
+    from account_progress import record
+    record(instance,'passwords','invited')
 def main():
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('instance',type=Path);p.add_argument('--username',default='owner');p.add_argument('--email',required=True);p.add_argument('--apps',default='music,movies,photos,files,tasks,monitor');p.add_argument('--invite-vault',action='store_true',help='Explicitly invite this customer email; customer creates master password in native client');p.add_argument('--apply',action='store_true');a=p.parse_args()
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('instance',type=Path);p.add_argument('--username',default='owner');p.add_argument('--email',required=True);p.add_argument('--apps',default='music,movies,photos,files,tasks,monitor');p.add_argument('--invite-vault',action='store_true',help='Explicitly invite this customer email; customer creates master password in native client');p.add_argument('--shared-password',action='store_true',help='Explicitly use one password for selected apps; unique passwords recommended');p.add_argument('--apply',action='store_true');a=p.parse_args()
     i=a.instance.resolve();env=env_for(i)
     selected=[x for x in a.apps.split(',') if x in env['COMPOSE_PROFILES'].split(',')]
     require(all(x in ('music','movies','photos','files','tasks','monitor') for x in selected),'Unsupported automated app')
     print('Selected accounts:',', '.join(selected))
-    print('Vaultwarden master-password creation and customer Tailscale enrollment remain native setup steps. Passwords are prompted separately; trusted Docker admins may see CLI arguments transiently.')
+    print('Vaultwarden master-password creation and customer Tailscale enrollment remain native setup steps. Passwords are prompted separately unless --shared-password is selected; trusted Docker admins may see CLI arguments transiently.')
     if not a.apply:return
     if not sys.stdin.isatty():p.error('Use a trusted interactive terminal; passwords must not be echoed or piped')
     import os,fcntl
     os.umask(0o077)
     with (i/'.account-setup.lock').open('a') as lock:
         fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+        shared=password('Shared owner') if a.shared_password and selected else None
+        failed=[]
         for app in selected:
-            create(i,app,a.username,a.email,password(app))
-            print(app+': owner login verified; functional acceptance still pending.')
+            try:
+                create(i,app,a.username,a.email,shared if shared is not None else password(app))
+                print(app+': owner login verified; functional acceptance still pending.')
+            except (OSError,ValueError,KeyError,subprocess.SubprocessError,RuntimeError):
+                failed.append(app);print(app+': needs individual review; existing passwords not reset.')
         if a.invite_vault:
             invite_vault(i,a.email)
             print('Vaultwarden owner invited. Finish encryption setup in the native HTTPS client.')
-    print('Run onboard.py for remaining setup and actual acceptance; no automatic confirmation is recorded.')
+    print('Run onboard.py for actual functional acceptance; login verification is shown separately.')
+    if failed:sys.exit('Account steps needing review: '+', '.join(failed))
 if __name__=='__main__':
     try:main()
     except (OSError,ValueError,KeyError,subprocess.SubprocessError) as e:sys.exit('Account setup stopped: '+type(e).__name__+'; review local app state and credentials. No password printed.')

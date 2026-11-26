@@ -25,9 +25,10 @@ def update_status(release,check=False):
     except (OSError,subprocess.SubprocessError,ValueError):return {'state':'unknown'}
 def summarize(instance,dest,expected,devices=(),check_updates=False):
     diag=inspect(instance,devices);release=json.loads((instance/'release.json').read_text())
-    backup={'state':'not_verified'}
+    backup={'state':'not_configured' if dest is None else 'not_verified'}
     try:
-        if not dest.is_dir() or mount_identity(dest)!=expected:backup={'state':'mount_unavailable'}
+        if dest is None:pass
+        elif not dest.is_dir() or mount_identity(dest)!=expected:backup={'state':'mount_unavailable'}
         else:
             m=json.loads((instance/'maintenance.json').read_text())
             stamp=m.get('verified_backup')
@@ -46,10 +47,11 @@ def summarize(instance,dest,expected,devices=(),check_updates=False):
     # Keep raw diagnostics private. Provide only safe health categories, not hardware IDs.
     return {'at':now().isoformat(),'data_free_percent':diag['data_free_percent'],'docker_free_percent':diag['docker_free_percent'],'ram_gib':diag['ram_gib'],'temperature_c':[x['celsius'] for x in diag['thermal_zones'] if isinstance(x.get('celsius'),(int,float))],'drives':[{'state':x['state'],'temperature_c':x.get('temperature_c')} for x in smart],'storage':storage_snapshot(instance),'recovery':recovery,'service_alert_count':len(diag['alerts']),'backup':backup,'updates':update_status(release,check_updates),'onboarding':sorted(set(json.loads((instance/'onboarding.json').read_text()))&set('music navidrome movies photos files passwords tasks dns monitor remote'.split())) if (instance/'onboarding.json').exists() else []}
 def main():
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('instance',type=Path);p.add_argument('backup',type=Path);p.add_argument('--expected-backup-mount',required=True);p.add_argument('--smart-device',action='append',default=[]);p.add_argument('--check-updates',action='store_true');a=p.parse_args()
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('instance',type=Path);p.add_argument('backup',type=Path,nargs='?');p.add_argument('--expected-backup-mount');p.add_argument('--no-backup',action='store_true');p.add_argument('--smart-device',action='append',default=[]);p.add_argument('--check-updates',action='store_true');a=p.parse_args()
+    if a.no_backup != (a.backup is None) or (not a.no_backup and not a.expected_backup_mount):p.error('Provide backup and mount identity, or explicitly --no-backup')
     i=a.instance.resolve();out=i/'data/.dashboard-metrics'
     if not out.is_dir() or out.is_symlink():p.error('Metrics directory missing or unsafe')
-    payload=summarize(i,a.backup.resolve(),a.expected_backup_mount,a.smart_device,a.check_updates)
+    payload=summarize(i,a.backup.resolve() if a.backup else None,a.expected_backup_mount,a.smart_device,a.check_updates)
     payload['power']=power_snapshot(i)
     payload['notifications']={'active':alerts(payload)}
     with tempfile.NamedTemporaryFile(dir=out,delete=False) as tmp:

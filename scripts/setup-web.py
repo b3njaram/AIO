@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Short-lived local owner setup UI. Never expose this listener through Serve or a public proxy."""
+import urllib.parse
 import argparse,fcntl,hmac,http.server,importlib.util,json,os,re,secrets,sys,threading,time
 from pathlib import Path
 ROOT=Path(__file__).resolve().parent
@@ -13,27 +14,33 @@ class Session:
         self.env=adapter.env_for(instance)
         self.apps=[a for a in SUPPORTED if a in self.env['COMPOSE_PROFILES'].split(',')]
         self.token=secrets.token_urlsafe(32);self.deadline=time.monotonic()+minutes*60
-        self.done=set();self.lock=threading.Lock();self.closed=False
+        from account_progress import read
+        self.done=set(read(instance))&set(self.apps);self.failed=[];self.lock=threading.Lock();self.closed=False
     def active(self):return not self.closed and time.monotonic()<self.deadline
-    def status(self):return {'apps':self.apps,'done':sorted(self.done),'music_username':self.env.get('MUSIC_ADMIN','owner')}
+    def status(self):return {'apps':self.apps,'done':sorted(self.done),'music_username':self.env.get('MUSIC_ADMIN','owner'),'failed':self.failed}
     def submit(self,d):
         if not self.active():raise ValueError('Setup session expired')
         if set(d)!={'app','username','email','password','confirm'}:raise ValueError('Invalid setup request')
         app,user,email,pw,confirm=(d[k] for k in ('app','username','email','password','confirm'))
-        if not all(isinstance(x,str) for x in (app,user,email,pw,confirm)) or app not in self.apps or not re.fullmatch('[A-Za-z0-9_.-]{1,48}',user) or not 3<=len(email)<=254 or not re.fullmatch(r'[^@\s]+@[^@\s]+\.[^@\s]+',email):raise ValueError('Invalid owner details')
+        if not all(isinstance(x,str) for x in (app,user,email,pw,confirm)) or app not in [*self.apps,'all'] or not re.fullmatch('[A-Za-z0-9_.-]{1,48}',user) or not 3<=len(email)<=254 or not re.fullmatch(r'[^@\s]+@[^@\s]+\.[^@\s]+',email):raise ValueError('Invalid owner details')
         if app=='passwords':
             if pw or confirm:raise ValueError('Create the master password in the native Vaultwarden client')
         elif not 12<=len(pw)<=256 or pw!=confirm or '\x00' in pw:raise ValueError('Passwords must match and contain 12–256 characters')
         with self.lock:
             if not self.active():raise ValueError('Setup session expired')
-            if app in self.done:raise ValueError('This step was already completed in this session')
+            if app!='all' and app in self.done:raise ValueError('This step was already completed in this session')
             # Revalidate origin and instance before each operation. CLI uses the same lock.
             self.adapter.env_for(self.instance)
             with (self.instance/'.account-setup.lock').open('a') as guard:
                 fcntl.flock(guard,fcntl.LOCK_EX|fcntl.LOCK_NB)
-                if app=='passwords':self.adapter.invite_vault(self.instance,email)
-                else:self.adapter.create(self.instance,app,user,email,pw)
-            self.done.add(app)
+                self.failed=[]
+                if app=='all':
+                    for item in self.apps:
+                        if item=='passwords' or item in self.done:continue
+                        try:self.adapter.create(self.instance,item,user,email,pw);self.done.add(item)
+                        except Exception:self.failed.append(item)
+                elif app=='passwords':self.adapter.invite_vault(self.instance,email);self.done.add(app)
+                else:self.adapter.create(self.instance,app,user,email,pw);self.done.add(app)
             return self.status()
 class Server(http.server.ThreadingHTTPServer):
     # Wait for the current approved account operation and its response before exit.
@@ -56,8 +63,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         if not self.host_ok():self.send(403,{'error':'Use exact local setup address'});return
         if not self.server.session.active():self.send(410,{'error':'Session closed'});return
-        if self.path in ('/','/setup.js','/setup.css'):
-            name,mime={'/':('setup-web.html','text/html; charset=utf-8'),'/setup.js':('setup-web.js','application/javascript; charset=utf-8'),'/setup.css':('setup-web.css','text/css; charset=utf-8')}[self.path]
+        path=urllib.parse.urlsplit(self.path).path
+        if path in ('/','/setup.js','/setup.css'):
+            name,mime={'/':('setup-web.html','text/html; charset=utf-8'),'/setup.js':('setup-web.js','application/javascript; charset=utf-8'),'/setup.css':('setup-web.css','text/css; charset=utf-8')}[path]
             self.send(200,(ROOT/name).read_bytes(),mime);return
         if not self.authorized():self.send(401,{'error':'Local setup code required'});return
         if self.path=='/api/status':self.send(200,self.server.session.status())

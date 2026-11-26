@@ -1,6 +1,7 @@
 import concurrent.futures
 import json
 import shutil
+from urllib.parse import urlsplit
 import urllib.request
 import urllib.error
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -18,6 +19,13 @@ def probe(app):
     except Exception:
         state = 'unavailable'
     return {'id': app['id'], 'state': state}
+def account_status():
+    try:
+        p=Path('/storage/accounts.json')
+        if p.is_symlink() or p.stat().st_size>4096:return {}
+        d=json.loads(p.read_text())
+        return {k:v for k,v in d.items() if k in 'music navidrome movies photos files passwords tasks monitor'.split() and v in ('verified','invited')}
+    except (OSError,ValueError,AttributeError):return {}
 class Handler(BaseHTTPRequestHandler):
     def send(self, data, mime, status=200):
         self.send_response(status)
@@ -28,6 +36,7 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
     def do_GET(self):
+        self.path=urlsplit(self.path).path
         if self.path == '/':
             self.send(HTML, 'text/html; charset=utf-8')
         elif self.path in ('/manifest.webmanifest','/home.svg'):
@@ -49,7 +58,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not isinstance(state,dict):raise ValueError()
                 # Host writes a sanitized snapshot; this endpoint does not execute commands.
                 self.send(json.dumps(state).encode(),'application/json')
-            except (OSError,ValueError):self.send(b'{"state":"not_configured"}','application/json')
+            except (OSError,ValueError):self.send(json.dumps({'state':'not_configured','accounts':account_status()}).encode(),'application/json')
         elif self.path == '/healthz':
             self.send(b'ok\n','text/plain')
         else:
