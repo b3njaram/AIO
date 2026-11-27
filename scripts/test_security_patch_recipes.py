@@ -43,16 +43,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(len(plan['packages']),3)
         for row in plan['packages']:
             self.assertEqual(row['from'].split('.')[0],row['to'].split('.')[0])
-            self.assertRegex(row['integrity'],r'^sha512-[A-Za-z0-9+/]+=*
-        compose=(ROOT/'deploy/compose.yaml').read_text()
-        services=('prowlarr','navidrome','immich-redis','pihole','immich-db','immich-server','immich-machine-learning','nextcloud')
-        for service in services:
-            block=re.search(r'^  '+service+r':\n((?:    [^\n]*\n)+)',compose,re.M).group(1)
-            self.assertIn('context: ./security-patches',block)
-            self.assertRegex(block,r"BASE_IMAGE: '[^']+@sha256:[0-9a-f]{64}'")
-            self.assertRegex(block,r"PACKAGE_FLOORS: '[^']+=[^']+'")
-if __name__=='__main__':unittest.main()
-)
+            self.assertRegex(row['integrity'],r'^sha512-[A-Za-z0-9+/]+=*$')
             self.assertRegex(row['source'],r'/blob/[a-f0-9]{40}/')
             self.assertTrue(row['path'].endswith('/'+row['name']))
         recipe=(PATCHES/'Dockerfile.debian').read_text()
