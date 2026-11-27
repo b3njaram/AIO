@@ -9,5 +9,5 @@ jobs:
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y mdadm e2fsprogs
+      - run: bash scripts/ci-ubuntu-packages.sh mdadm e2fsprogs
       - run: sudo --preserve-env=GITHUB_ACTIONS,RUNNER_ENVIRONMENT,GITHUB_RUN_ID,GITHUB_RUN_ATTEMPT bash scripts/raid-pilot.sh

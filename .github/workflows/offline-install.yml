@@ -32,8 +32,7 @@ jobs:
           python3 scripts/make-recovery-kit.py /tmp/jobbi-fresh/clean --output /tmp/jobbi-second-kit --apply
       - name: Resolve fresh Ubuntu host packages from private offline media
         run: |
-          sudo apt-get update
-          sudo apt-get install -y dpkg-dev
+          bash scripts/ci-ubuntu-packages.sh dpkg-dev
           python3 scripts/offline_media.py /tmp/jobbi-install-bundle --out /tmp/jobbi-host-media
           PYTHONPATH=scripts python3 - <<'PYCODE'
           import hashlib

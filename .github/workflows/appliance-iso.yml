@@ -9,7 +9,7 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends xorriso
+      - run: bash scripts/ci-ubuntu-packages.sh xorriso
       - run: bash scripts/iso-pilot.sh
       - name: Verify reproducible source package
         run: |

@@ -10,6 +10,5 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils cloud-image-utils e2fsprogs openssh-client xorriso
+          bash scripts/ci-ubuntu-packages.sh qemu-system-x86 qemu-utils cloud-image-utils e2fsprogs openssh-client xorriso
       - run: bash scripts/vm-pilot.sh

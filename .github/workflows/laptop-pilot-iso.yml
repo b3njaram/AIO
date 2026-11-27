@@ -12,8 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends xorriso qemu-system-x86 ovmf
+          bash scripts/ci-ubuntu-packages.sh xorriso qemu-system-x86 ovmf
       - name: Build reusable connected installer
         run: |
           curl --fail --location --retry 3 --max-time 900 https://releases.ubuntu.com/24.04/ubuntu-24.04.5-live-server-amd64.iso -o /tmp/ubuntu.iso
