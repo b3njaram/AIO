@@ -15,4 +15,26 @@ RUN --mount=type=bind,source=immich-ml-requirements.txt,target=/tmp/requirements
 RUN --network=none --mount=type=bind,source=check-ml.py,target=/tmp/check-ml.py,ro \
     /usr/local/bin/python -m pip --python /opt/venv check && /opt/venv/bin/python /tmp/check-ml.py
 
+# Keep Immich on the same PostgreSQL package vendor and major version.
+FROM patched AS immich_server
+ADD --chmod=0644 --checksum=sha256:0144068502a1eddd2a0280ede10ef607d1ec592ce819940991203941564e8e76 https://www.postgresql.org/media/keys/ACCC4CF8.asc /tmp/jobbi-pgdg.asc
+RUN --mount=type=bind,from=build_trust,source=/etc/ssl/certs/ca-certificates.crt,target=/tmp/jobbi-build-ca.pem,ro <<'SH'
+set -eu
+. /etc/os-release
+test "$VERSION_CODENAME" = trixie
+version=17.12-1.pgdg13+1
+installed=$(dpkg-query -W -f='${Version}' postgresql-client-17)
+case "$installed" in 17.*.pgdg13+*) ;; *) exit 1;; esac
+dpkg --compare-versions "$version" ge "$installed"
+printf '%s\n' 'deb [signed-by=/tmp/jobbi-pgdg.asc] https://apt.postgresql.org/pub/repos/apt trixie-pgdg main' >/tmp/jobbi-pgdg.list
+set -- -o Dir::Etc::sourcelist=/tmp/jobbi-pgdg.list -o Dir::Etc::sourceparts=- \
+    -o Acquire::https::CaInfo=/tmp/jobbi-build-ca.pem -o Acquire::Retries=4 -o APT::Update::Error-Mode=any
+apt-get "$@" update
+DEBIAN_FRONTEND=noninteractive apt-get "$@" install -y --only-upgrade --no-remove --no-install-recommends "postgresql-client-17=$version"
+test "$(dpkg-query -W -f='${Version}' postgresql-client-17)" = "$version"
+pg_dump --version
+psql --version
+rm -rf /var/lib/apt/lists/* /tmp/jobbi-pgdg.list /tmp/jobbi-pgdg.asc
+SH
+
 FROM patched AS application
