@@ -114,6 +114,7 @@ jobs:
             if bash scripts/verify.sh /tmp/jobbi-media/source; then break; fi
             sleep 3
           done
+          python3 scripts/test-prowlarr-pilot.py /tmp/jobbi-media/source
           python3 scripts/test-movie-pilot.py /tmp/jobbi-media/source --fixture /tmp/jobbi-media-fixture.json
           bash scripts/backup.sh /tmp/jobbi-media/source /tmp/jobbi-media-backups --all-images
           BACKUP="$(find /tmp/jobbi-media-backups -mindepth 1 -maxdepth 1 -type d | head -1)"
@@ -139,6 +140,7 @@ jobs:
             if bash scripts/verify.sh /tmp/jobbi-media/recovered; then break; fi
             sleep 3
           done
+          python3 scripts/test-prowlarr-pilot.py /tmp/jobbi-media/recovered
           python3 scripts/test-movie-pilot.py /tmp/jobbi-media/recovered --fixture /tmp/jobbi-media-fixture.json --recover
           python3 scripts/test-movie-pilot.py /tmp/jobbi-media/source --fixture /tmp/jobbi-media-fixture.json --recover
           sed -i 's/^MOVIE_HTTPS=false$/MOVIE_HTTPS=true/' /tmp/jobbi-media/recovered/.env
