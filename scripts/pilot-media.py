@@ -3,7 +3,7 @@
 import argparse,fcntl,json,os,re,subprocess,sys
 from pathlib import Path
 from private_origins import atomic_write
-from pilot_media import credentials,soulseek,invidious,token,public_origin,local_fallback_source
+from pilot_media import SOULSEEK_LOGIN_PROBE,credentials,soulseek,invidious,token,public_origin,local_fallback_source
 ROOT=Path(__file__).resolve().parents[1]
 def main():
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('instance',type=Path);p.add_argument('--soulseek',action='store_true',help='Customer approves a distinct Soulseek network account and sharing only authorized files');p.add_argument('--invidious-manifest',type=Path,help='Reviewed exact images and upstream source SHA');p.add_argument('--invidious-public-url',help='Exact customer-owned private HTTPS route, already approved and configured');p.add_argument('--apply',action='store_true');a=p.parse_args()
@@ -67,11 +67,10 @@ def main():
         print('Provider containers started; external account login and playback/search still require verification.')
         if a.soulseek:
             print('Soulseek credentials saved privately in the instance. Do not share this file; do not recreate accounts on retry.')
-            probe="const r=await fetch(process.env.SLSKD_URL+'/api/v0/server',{headers:{'X-API-Key':process.env.SLSKD_API_KEY},signal:AbortSignal.timeout(5000)});if(!r.ok)process.exit(1);const j=await r.json();process.exit(j.isConnected===true||j.connected===true||String(j.state).toLowerCase()==='connected'?0:1);"
             import time
             for attempt in range(12):
-                if subprocess.run(ctl+['exec','-T','jobbi-music','node','--input-type=module','-e',probe],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode==0:
-                    print('Soulseek network connection verified');break
+                if subprocess.run(ctl+['exec','-T','jobbi-music','node','--input-type=module','-e',SOULSEEK_LOGIN_PROBE],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode==0:
+                    print('Soulseek network authentication verified');break
                 time.sleep(5)
             else:print('Soulseek login not yet verified; retain credentials and review provider state')
         if a.invidious_manifest:print('Invidious local UI started on port 18091; '+('own-instance fallback configured; verify actual route and playback' if public else 'fallback remains disabled until private HTTPS route is approved'))

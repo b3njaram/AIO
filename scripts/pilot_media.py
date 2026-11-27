@@ -2,6 +2,16 @@
 import ipaddress,json,re,secrets
 from urllib.parse import urlsplit
 SLSKD='ghcr.io/slskd/slskd:0.26.2@sha256:d0963a3e5b16facd295bf4f2156dad0182f246b1b21a032cae12f5494c694843'
+# slskd 0.26.2 reports socket connectivity and authenticated login separately.
+SOULSEEK_LOGIN_PROBE = """
+const response = await fetch(process.env.SLSKD_URL + '/api/v0/server', {
+  headers: { 'X-API-Key': process.env.SLSKD_API_KEY },
+  signal: AbortSignal.timeout(5000),
+});
+if (!response.ok) process.exit(1);
+const { isConnected, isLoggedIn } = await response.json();
+process.exit(isConnected === true && isLoggedIn === true ? 0 : 1);
+"""
 def token():return secrets.token_hex(24)
 def credentials():
     return {'username':'jobbi-'+secrets.token_hex(8),'password':token(),'api_key':token(),'ui_password':token()}
