@@ -107,6 +107,16 @@
       "integrity": "sha512-VYdnB5S7/0IeXzBacUtwNAaM6d7Y/PgYnNC7bJCI6meqA/OgnsQbZMtVW8Dt2D1PHgbHGtYmhSoEIgvt7xZ2ZA==",
       "upstreamLockKey": "node_modules/express/node_modules/qs",
       "sha256": "e4df4beb99eb51d606a03ba3e07879ca320dffcad029edd9ae63876e0df773f2"
+    },
+    {
+      "path": "/usr/local/lib/node_modules/npm/node_modules/postcss-selector-parser",
+      "name": "postcss-selector-parser",
+      "from": "7.1.1",
+      "to": "7.1.6",
+      "url": "https://registry.npmjs.org/postcss-selector-parser/-/postcss-selector-parser-7.1.6.tgz",
+      "integrity": "sha512-7qASPzhKF2l2KLboRZux8CCTRMdGiV08vWmyKzPz22qZ7ZjQBOeY7rNzNoCLSUiftJ7HUq0GERHmxw/t0dCdMw==",
+      "source": "https://github.com/postcss/postcss-selector-parser/blob/4eb3468e754f9f94d2092d103767bae98aa41438/package.json",
+      "sha256": "48c903f98c5591d8d26f16f389d5cb3435459474c645209a79f6241bf4b657b6"
     }
   ]
 }

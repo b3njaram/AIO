@@ -2,12 +2,14 @@
 # Keep upstream runtime, entrypoint, user, application version and data format.
 ARG BASE_IMAGE
 FROM scratch AS npm_archives
+ADD --checksum=sha256:48c903f98c5591d8d26f16f389d5cb3435459474c645209a79f6241bf4b657b6 https://registry.npmjs.org/postcss-selector-parser/-/postcss-selector-parser-7.1.6.tgz /archives/48c903f98c5591d8d26f16f389d5cb3435459474c645209a79f6241bf4b657b6.tgz
+ADD --checksum=sha256:051db69e7aad989abddc95fef96f19f1da68ef6890ff834d0c40a7fb48b9751d https://registry.npmjs.org/postcss-selector-parser/-/postcss-selector-parser-6.1.5.tgz /archives/051db69e7aad989abddc95fef96f19f1da68ef6890ff834d0c40a7fb48b9751d.tgz
 ADD --checksum=sha256:313c77944b719f68012fa3f114544bb0ca4e75b3107ce1954b8cbc6519b241ec https://registry.npmjs.org/systeminformation/-/systeminformation-5.33.16.tgz /archives/313c77944b719f68012fa3f114544bb0ca4e75b3107ce1954b8cbc6519b241ec.tgz
 ADD --checksum=sha256:67bb5a1b4d4a8ff497d845a0b891ffe6b7233aea2202641315cec88d0fff15eb https://registry.npmjs.org/brace-expansion/-/brace-expansion-5.0.11.tgz /archives/67bb5a1b4d4a8ff497d845a0b891ffe6b7233aea2202641315cec88d0fff15eb.tgz
 ADD --checksum=sha256:b6a535ae5fa87f6cffc90fb213b43c2ea34fdc21dc7ccad3f25caaf009d7fcaa https://registry.npmjs.org/multer/-/multer-2.5.0.tgz /archives/b6a535ae5fa87f6cffc90fb213b43c2ea34fdc21dc7ccad3f25caaf009d7fcaa.tgz
 ADD --checksum=sha256:33cceb321835a0754c60a9ac681df71dddc2ee8aafd890f763414b51574182b5 https://registry.npmjs.org/undici/-/undici-8.13.1.tgz /archives/33cceb321835a0754c60a9ac681df71dddc2ee8aafd890f763414b51574182b5.tgz
 ADD --checksum=sha256:29c4b8e0b2d86cb8795571c1959012ce057a14ecfd34858335f47c31e770a04f https://registry.npmjs.org/undici/-/undici-6.29.1.tgz /archives/29c4b8e0b2d86cb8795571c1959012ce057a14ecfd34858335f47c31e770a04f.tgz
-ADD --checksum=sha256:3fa380284be4ecbf471c1dbb8c5da6f517c95f54279f88c2037985d03fdc6d92 https://registry.npmjs.org/fast-uri/-/fast-uri-3.1.7.tgz /archives/3fa380284be4ecbf471c1dbb8c5da6f517c95f54279f88c2037985d03fdc6d92.tgz
+ADD --checksum=sha256:4f5a67f7b61110aae7b3ad38e806627f5712f4c150bd38eb804a562e69a9ee5e https://registry.npmjs.org/fast-uri/-/fast-uri-3.1.9.tgz /archives/4f5a67f7b61110aae7b3ad38e806627f5712f4c150bd38eb804a562e69a9ee5e.tgz
 
 FROM golang:1.27.3-alpine@sha256:fa3d596898d9f126af7c01d14ee7597bab3f39cccf392ef36b69fe77cd681f18 AS build_trust
 FROM ${BASE_IMAGE} AS patched

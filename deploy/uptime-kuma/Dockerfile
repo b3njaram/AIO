@@ -1,5 +1,6 @@
 # syntax=docker/dockerfile:1
 FROM scratch AS npm_archives
+ADD --checksum=sha256:48c903f98c5591d8d26f16f389d5cb3435459474c645209a79f6241bf4b657b6 https://registry.npmjs.org/postcss-selector-parser/-/postcss-selector-parser-7.1.6.tgz /archives/48c903f98c5591d8d26f16f389d5cb3435459474c645209a79f6241bf4b657b6.tgz
 ADD --checksum=sha256:df3454ef205791ce50b5b9241762dcf9bfe1aa9f7f01d3057229be7dac0c2dc3 https://registry.npmjs.org/ws/-/ws-8.21.3.tgz /archives/df3454ef205791ce50b5b9241762dcf9bfe1aa9f7f01d3057229be7dac0c2dc3.tgz
 ADD --checksum=sha256:696942c2a488c9d7428e9ca5f12ccf03b52de01dcdbfe4d4751d392f0491ae16 https://registry.npmjs.org/lodash/-/lodash-4.18.1.tgz /archives/696942c2a488c9d7428e9ca5f12ccf03b52de01dcdbfe4d4751d392f0491ae16.tgz
 ADD --checksum=sha256:7d28c9a3ef17ce542093c78ec191481503e2711d29db1bd1522062303ab40478 https://registry.npmjs.org/minimatch/-/minimatch-9.0.9.tgz /archives/7d28c9a3ef17ce542093c78ec191481503e2711d29db1bd1522062303ab40478.tgz
