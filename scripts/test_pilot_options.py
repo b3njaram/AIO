@@ -23,3 +23,12 @@ class Tests(unittest.TestCase):
         with patch.object(p,'tailnet_status',return_value={'state':'Running'}),patch.object(p.subprocess,'run') as run:
             self.assertEqual(p.tailnet_connect(),{'state':'Running'})
             run.assert_not_called()
+
+    def test_recheck_preserves_existing_state_and_never_provisions(self):
+        with tempfile.TemporaryDirectory() as d:
+            i=Path(d);(i/'deployment').mkdir()
+            (i/'.pilot-options.json').write_text('{"dns":"starting","soulseek":"review"}')
+            (i/'deployment/pilot-network.json').write_text('{"services":{"pilot-pihole":{}}}')
+            with patch.object(p,'http_ready',return_value=True),patch.object(p,'dns_ready',return_value=True),patch.object(p.subprocess,'run') as run:
+                self.assertEqual(p.reconcile(i),{'dns':'ready','soulseek':'review'})
+                run.assert_not_called()

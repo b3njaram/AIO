@@ -29,6 +29,11 @@ if [[ "${2:-}" == "--resume" ]]; then
   exit
 fi
 [[ ! -e "$INSTANCE/.upgrade-hold.json" ]] || { echo "Upgrade hold active; do not back up or restart original until reconciled" >&2; exit 1; }
+# Experimental overlays cannot yet be reconstructed by exact restore.
+# Never report an unrecoverable snapshot as verified or interrupt running apps.
+for marker in deployment/pilot-media.json deployment/pilot-network.json data/pilot-media data/pilot-pihole; do
+  [[ ! -e "$INSTANCE/$marker" && ! -L "$INSTANCE/$marker" ]] || { echo 'Optional-service backup/restore qualification required; existing data untouched' >&2; exit 1; }
+done
 [[ ! -e "$JOURNAL" ]] || { echo 'Interrupted backup. Inspect the instance, then run backup.sh INSTANCE --resume.' >&2; exit 1; }
 [[ -d "$DEST" && "$DEST" != "$INSTANCE" && "$DEST" != "$INSTANCE/"* && "$INSTANCE" != "$DEST/"* ]] || { echo 'Separate backup directory required'; exit 1; }
 helper="$(python3 "$ROOT/scripts/offline_kit.py" "$INSTANCE")"

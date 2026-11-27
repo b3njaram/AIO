@@ -1,5 +1,5 @@
 """Build a private per-appliance media extension. No owner infrastructure URLs or accounts."""
-import ipaddress,json,re,secrets
+import copy,ipaddress,json,re,secrets
 from urllib.parse import urlsplit
 SLSKD='ghcr.io/slskd/slskd:0.26.2@sha256:d0963a3e5b16facd295bf4f2156dad0182f246b1b21a032cae12f5494c694843'
 # slskd 0.26.2 reports socket connectivity and authenticated login separately.
@@ -68,3 +68,32 @@ def local_fallback_source(source):
     anchor='  const raw=[env.INVIDIOUS_URL'
     if source.count(anchor)!=1 or source.count('normalizeInvidiousResults(raw,origin)')!=1:raise ValueError('Unexpected pinned Invidious search adapter')
     return source.replace(anchor,"  if(env.JOBBI_LOCAL_INVIDIOUS==='true')return ['http://invidious:3000'];\n"+anchor).replace('normalizeInvidiousResults(raw,origin)',"normalizeInvidiousResults(raw,origin==='http://invidious:3000'?process.env.JOBBI_INVIDIOUS_PUBLIC_ORIGIN:origin)").replace('Check your yt.jobbisoft.com.mx /api/v1/search endpoint.','Check your own Invidious service.')
+
+def existing_media(overlay,state,want_soulseek,want_invidious):
+    """Allow adding the other provider; never overwrite a provider or partial state."""
+    if overlay.is_symlink() or state.is_symlink():raise ValueError('Invalid provider state path')
+    if overlay.exists():
+        if not state.is_dir() or not overlay.is_file() or overlay.stat().st_size>65536:raise ValueError('Invalid provider state')
+        config=json.loads(overlay.read_text())
+        if not isinstance(config,dict) or set(config)-{'services','volumes'} or not isinstance(config.get('services'),dict):raise ValueError('Unexpected provider overlay')
+        services=config['services']
+        if set(services)-{'slskd','jobbi-music','invidious','invidious-db','invidious-companion'}:raise ValueError('Unexpected provider service')
+        iv={'invidious','invidious-db','invidious-companion'}
+        if iv&set(services) and not iv<=set(services):raise ValueError('Incomplete Invidious overlay; retain for review')
+    else:
+        if state.exists():raise ValueError('Interrupted provider setup; retain state for review')
+        config={'services':{}}
+        services={}
+    if want_soulseek and ('slskd' in services or any((state/k).exists() or (state/k).is_symlink() for k in ('slskd','shares','downloads','incomplete','soulseek.json'))):raise ValueError('Existing Soulseek credentials or partial state retained')
+    if want_invidious and ('invidious' in services or any((state/k).exists() or (state/k).is_symlink() for k in ('invidious-source','invidious-adapter.before'))):raise ValueError('Existing Invidious or partial state retained')
+    return config
+
+def merge_services(config,new):
+    current=config['services']
+    for name,service in new.items():
+        if name not in current:current[name]=copy.deepcopy(service);continue
+        # Only the two optional provider environment fragments may share music.
+        if name!='jobbi-music' or set(current[name])!={'environment'} or set(service)!={'environment'}:raise ValueError('Refusing to replace provider service')
+        before=current[name]['environment'];after=service['environment']
+        if set(before)&set(after):raise ValueError('Conflicting music provider configuration')
+        before.update(after)

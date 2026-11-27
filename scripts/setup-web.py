@@ -33,6 +33,13 @@ class Session:
             self.adapter.env_for(self.instance)
             pilot_options.provision(self.instance,self.lan['address'],selected,pw)
         return self.status()
+    def recheck(self,data):
+        if not self.lan or not self.active() or self.done!=set(self.apps) or data!={}:raise ValueError('Complete core accounts first')
+        with self.lock:
+            if not self.active():raise ValueError('Setup expired')
+            self.adapter.env_for(self.instance)
+            pilot_options.reconcile(self.instance)
+        return self.status()
     def enroll(self,data):
         if not self.lan or not self.active() or self.done!=set(self.apps) or data!={'consent':True}:raise ValueError('Explicit customer enrollment consent required')
         with self.lock:
@@ -116,6 +123,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self.send(200,self.server.session.submit(data))
             elif self.path=='/api/options':
                 self.send(200,self.server.session.optional(data))
+            elif self.path=='/api/options-recheck':
+                self.send(200,self.server.session.recheck(data))
             elif self.path=='/api/tailnet':
                 self.send(200,self.server.session.enroll(data))
             elif self.path=='/api/finish' and data=={}:

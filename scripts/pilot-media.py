@@ -3,7 +3,7 @@
 import argparse,fcntl,json,os,re,subprocess,sys
 from pathlib import Path
 from private_origins import atomic_write
-from pilot_media import SOULSEEK_LOGIN_PROBE,credentials,soulseek,invidious,invidious_credentials,public_origin,local_fallback_source
+from pilot_media import SOULSEEK_LOGIN_PROBE,credentials,soulseek,invidious,invidious_credentials,public_origin,local_fallback_source,existing_media,merge_services
 ROOT=Path(__file__).resolve().parents[1]
 def main():
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('instance',type=Path);p.add_argument('--soulseek',action='store_true',help='Customer approves a distinct Soulseek network account and sharing only authorized files');provider=p.add_mutually_exclusive_group();provider.add_argument('--invidious',dest='invidious_manifest',action='store_const',const=ROOT/'deploy/invidious-pilot.json',help='Use the repository-pinned Invidious pilot images');provider.add_argument('--invidious-manifest',type=Path,help='Reviewed exact images and upstream source SHA');p.add_argument('--invidious-public-url',help='Exact customer-owned private HTTPS route, already approved and configured');p.add_argument('--apply',action='store_true');a=p.parse_args()
@@ -15,19 +15,19 @@ def main():
     if i.name!='laptop-test':raise ValueError('Experimental laptop pilot only')
     overlay=i/'deployment/pilot-media.json';state=i/'data/pilot-media';ctl=['bash',str(ROOT/'scripts/ctl.sh'),str(i)]
     if any((i/n).exists() for n in ('.upgrade-hold.json','.backup-running-services','deployment/recovery-images.json')):raise ValueError('Recovery or backup in progress')
-    if overlay.exists() or state.exists():raise ValueError('Existing provider setup retained; inspect rather than create another account')
+    existing_media(overlay,state,a.soulseek,bool(a.invidious_manifest))
     print('Preview: customer-only media providers; no public ports, no owner account or external fallback. Invidious UI remains loopback-only. Soulseek direct search, not downloader parity.')
     if not a.apply:return
     os.umask(0o077)
     with (i/'.backup.lock').open('a') as lock:
         fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
-        if overlay.exists() or state.exists():raise ValueError('Existing media state')
-        state.mkdir(mode=0o700)
-        config={'services':{}};services=[]
+        config=existing_media(overlay,state,a.soulseek,bool(a.invidious_manifest))
+        state.mkdir(mode=0o700,exist_ok=True)
+        services=[]
         if a.soulseek:
             for folder in ('slskd','shares','downloads','incomplete'):(state/folder).mkdir(mode=0o700)
             c=credentials();atomic_write(state/'soulseek.json',json.dumps(c).encode(),0o600)
-            config['services'].update(soulseek(i,int(e['OWNER_UID']),int(e['OWNER_GID']),c))
+            merge_services(config,soulseek(i,int(e['OWNER_UID']),int(e['OWNER_GID']),c))
             services+=['slskd','jobbi-music']
         if a.invidious_manifest:
             pins=json.loads(a.invidious_manifest.read_text());rev=pins['source_commit']
@@ -45,7 +45,7 @@ def main():
                 if item.is_symlink() or not (item.is_dir() or item.is_file()):raise ValueError('Unexpected database initialization entry')
                 item.chmod(0o755 if item.is_dir() or item.name=='init-invidious-db.sh' else 0o644)
             cfg=invidious(i,pins['images'],source,invidious_credentials())
-            config['services'].update(cfg['services']);config['volumes']=cfg['volumes'];services+=list(cfg['services'])
+            merge_services(config,cfg['services']);config.setdefault('volumes',{}).update(cfg['volumes']);services+=list(cfg['services'])
         if public:
             # AIO-only patch to the instance's frozen Jobbi Music checkout, never upstream owner repo.
             target=i/'sources/navidrome/jobbi-music/server/invidious.js'

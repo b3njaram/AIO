@@ -1,9 +1,10 @@
 import json
+import tempfile
 import shutil
 import subprocess
 import unittest
 from pathlib import Path
-from pilot_media import SOULSEEK_LOGIN_PROBE,SLSKD,credentials,soulseek,invidious,invidious_credentials,pinned
+from pilot_media import SOULSEEK_LOGIN_PROBE,SLSKD,credentials,soulseek,invidious,invidious_credentials,pinned,existing_media,merge_services
 class Tests(unittest.TestCase):
     def test_per_appliance(self):
         a,b=credentials(),credentials()
@@ -51,3 +52,15 @@ class Tests(unittest.TestCase):
         self.assertEqual(c['services']['invidious']['depends_on']['invidious-db']['condition'],'service_healthy')
         self.assertIn('127.0.0.1',c['services']['invidious-db']['healthcheck']['test'])
         with self.assertRaises(ValueError):pinned('quay.io/invidious/invidious:latest','quay.io/invidious/invidious')
+
+    def test_add_second_provider_without_replacing_credentials(self):
+        with tempfile.TemporaryDirectory() as d:
+            i=Path(d);state=i/'state';state.mkdir();overlay=i/'overlay.json'
+            overlay.write_text(json.dumps({'services':{'slskd':{},'jobbi-music':{'environment':{'SLSKD_API_KEY':'retained'}}}}))
+            config=existing_media(overlay,state,False,True)
+            merge_services(config,{'invidious':{},'jobbi-music':{'environment':{'JOBBI_LOCAL_INVIDIOUS':'true'}}})
+            self.assertEqual(config['services']['jobbi-music']['environment'],{'SLSKD_API_KEY':'retained','JOBBI_LOCAL_INVIDIOUS':'true'})
+            with self.assertRaises(ValueError):existing_media(overlay,state,True,False)
+            (state/'invidious-source').mkdir()
+            with self.assertRaises(ValueError):existing_media(overlay,state,False,True)
+            with self.assertRaises(ValueError):merge_services(config,{'jobbi-music':{'environment':{'SLSKD_API_KEY':'replace'}}})

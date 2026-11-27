@@ -67,6 +67,25 @@ def provision(i,address,selected,pw):
         result['dns']='ready' if ok and wait_ready(lambda:http_ready(18089,'/admin/') and dns_ready()) else 'review'
         save()
     return result
+def reconcile(i):
+    """Recheck existing provider states without building, creating or resetting accounts."""
+    result=read(i)
+    def soulseek_ready():
+        try:
+            return subprocess.run(['bash',str(ROOT/'scripts/ctl.sh'),str(i),'exec','-T','jobbi-music','node','--input-type=module','-e',SOULSEEK_LOGIN_PROBE],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=15).returncode==0
+        except (OSError,subprocess.TimeoutExpired):return False
+    for k in list(result):
+        # Probe only explicitly selected services with their persisted overlay.
+        # A missing or partial overlay never becomes ready based on another process.
+        path=i/'deployment'/('pilot-network.json' if k=='dns' else 'pilot-media.json')
+        try:
+            if path.is_symlink() or path.stat().st_size>65536:raise ValueError('Invalid overlay')
+            services=json.loads(path.read_text())['services']
+            ready=(k=='soulseek' and 'slskd' in services and soulseek_ready()) or (k=='invidious' and {'invidious','invidious-db','invidious-companion'}<=set(services) and http_ready(18091,'/')) or (k=='dns' and 'pilot-pihole' in services and http_ready(18089,'/admin/') and dns_ready())
+        except (OSError,ValueError,TypeError,KeyError):ready=False
+        result[k]='ready' if ready else 'review'
+    if result:atomic_write(i/'.pilot-options.json',json.dumps(result).encode(),0o600)
+    return result
 def tailnet_status():
     # Only return a bounded, sanitized state and the official short-lived login URL.
     try:
