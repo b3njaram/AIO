@@ -6,7 +6,7 @@ RUN --network=none CGO_ENABLED=0 GOTOOLCHAIN=local go build -trimpath -o /out/he
 # Keep the full upstream release, including browser monitoring and MariaDB.
 FROM louislam/uptime-kuma:2.5.12@sha256:8e4b6bef96417ec98a35dc103c99cc64fc229a01e584e56d95d9004d2003c02a
 
-# DLA-4932-1: signed Debian Bookworm security update. Exact package versions
+# DLA-4932-1 and DLA-4941-1: signed Debian Bookworm security updates. Exact package versions
 # are intentional: fail closed if the repository no longer carries them.
 # Do not downgrade, remove unrelated packages or use unsigned repositories.
 RUN set -eu; \
@@ -14,12 +14,16 @@ RUN set -eu; \
     . /etc/os-release; test "$VERSION_CODENAME" = bookworm; \
     printf '%s\n' 'deb [signed-by=/usr/share/keyrings/debian-archive-keyring.gpg] https://deb.debian.org/debian-security bookworm-security main' > /tmp/jobbi-security.list; \
     apt-get -o Dir::Etc::sourcelist=/tmp/jobbi-security.list -o Dir::Etc::sourceparts=- -o Acquire::Retries=4 update; \
+    pam='1.5.2-6+deb12u3'; \
     set -- "chromium=$version" "chromium-common=$version"; \
+    for pkg in libpam-modules libpam-modules-bin libpam-runtime libpam0g; do \
+      if [ "$(dpkg-query -W -f='${db:Status-Status}' "$pkg" 2>/dev/null || true)" = installed ]; then set -- "$@" "$pkg=$pam"; fi; \
+    done; \
     for pkg in chromium-sandbox chromium-driver chromium-l10n chromium-shell chromium-headless-shell; do \
       if [ "$(dpkg-query -W -f='${db:Status-Status}' "$pkg" 2>/dev/null || true)" = installed ]; then set -- "$@" "$pkg=$version"; fi; \
     done; \
     apt-get -o Dir::Etc::sourcelist=/tmp/jobbi-security.list -o Dir::Etc::sourceparts=- -o Acquire::Retries=4 install -y --no-install-recommends --no-remove "$@"; \
-    for item in "$@"; do test "$(dpkg-query -W -f='${Version}' "${item%=*}")" = "$version"; done; \
+    for item in "$@"; do test "$(dpkg-query -W -f='${Version}' "${item%=*}")" = "${item#*=}"; done; \
     chromium --version; \
     rm -f /tmp/jobbi-security.list; rm -rf /var/lib/apt/lists/*
 
