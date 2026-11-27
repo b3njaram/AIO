@@ -12,15 +12,17 @@ def now():return dt.datetime.now(dt.timezone.utc)
 def update_status(release,check=False):
     if not check:return {'state':'not_checked'}
     try:
-        r=subprocess.run(['git','ls-remote','--tags','--refs','https://github.com/b3njaram/AIO.git','refs/tags/jobbi-home-v*'],capture_output=True,text=True,timeout=20,check=True)
-        tags=[]
+        r=subprocess.run(['git','ls-remote','--tags','https://github.com/b3njaram/AIO.git','refs/tags/jobbi-home-v*'],capture_output=True,text=True,timeout=20,check=True)
+        tags={}
         for line in r.stdout.splitlines():
             sha,_,tag=line.partition('\t')
-            m=re.fullmatch(r'refs/tags/jobbi-home-v(\d+)\.(\d+)\.(\d+)',tag)
-            if m and re.fullmatch('[0-9a-f]{40}',sha):tags.append((tuple(map(int,m.groups())),tag.split('/')[-1],sha))
+            m=re.fullmatch(r'refs/tags/(jobbi-home-v(\d+)\.(\d+)\.(\d+))(\^\{\})?',tag)
+            if m and re.fullmatch('[0-9a-f]{40}',sha):
+                version=tuple(map(int,m.group(2,3,4)))
+                if m[5] or version not in tags:
+                    tags[version]=(m[1],sha)
         if not tags:return {'state':'no_approved_release'}
-        version,tag,sha=max(tags)
-        # Do not advertise arbitrary branches as releases; an annotated tag may need resolution.
+        tag,sha=tags[max(tags)]
         return {'state':'current' if sha==release.get('aio_commit') else 'review_available','release':tag}
     except (OSError,subprocess.SubprocessError,ValueError):return {'state':'unknown'}
 def summarize(instance,dest,expected,devices=(),check_updates=False):
