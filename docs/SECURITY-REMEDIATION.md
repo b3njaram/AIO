@@ -57,3 +57,7 @@ Kuma now pins compatible JSONata, protobufjs and Axios security releases by regi
 
 
 Nextcloud 33.0.11 uses a digest-pinned official Apache image. The office pilot exercises the previous Nextcloud 32 release, creates a separate backup and trial instance, then verifies migrated account access, file contents, and database upgrade status. It also checks authenticated access on the original instance after the trial. Hold customer cutover until the migration pilot and exact-image scan are reviewed.
+
+## Prowlarr build regression
+
+At 56fafe7, the full-stack and media recovery jobs and exact security scan failed before application startup because the base Prowlarr image inherits TMPDIR=/run/prowlarr-temp, a path only initialized at runtime. The Alpine package recipe now sets TMPDIR=/tmp within its build shell and creates a unique workspace with EXIT cleanup. It retains the signed repository, installed package and version checks, original entrypoint, runtime environment, and libxml2 security floor. A targeted regression exercises workspace creation with a missing inherited TMPDIR. Re-run the full customer pilot and exact image build/scan to confirm the fix. This is workstream 1 only; the security findings gate is unchanged.

@@ -1,5 +1,5 @@
 """Static safety regressions for the package update recipes; runtime tests are CI."""
-import re,subprocess,unittest
+import os,re,subprocess,tempfile,unittest
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 PATCHES=ROOT/'deploy/security-patches'
@@ -19,6 +19,29 @@ class Tests(unittest.TestCase):
         alpine=(PATCHES/'alpine-patch.sh').read_text()
         self.assertIn('comm -23',alpine)
         self.assertIn('case "$(apk version -t "$actual" "$minimum")"',alpine)
+    def test_alpine_build_ignores_runtime_only_tmpdir(self):
+        script=(PATCHES/'alpine-patch.sh').read_text()
+        # Exercise the exact workspace setup and EXIT cleanup in the recipe
+        # with a missing inherited TMPDIR, without requiring root or APK.
+        match=re.search(r'^export TMPDIR=/tmp\nwork=.*\ntrap .* EXIT
+        compose=(ROOT/'deploy/compose.yaml').read_text()
+        services=('prowlarr','navidrome','immich-redis','pihole','immich-db','immich-server','immich-machine-learning','nextcloud')
+        for service in services:
+            block=re.search(r'^  '+service+r':\n((?:    [^\n]*\n)+)',compose,re.M).group(1)
+            self.assertIn('context: ./security-patches',block)
+            self.assertRegex(block,r"BASE_IMAGE: '[^']+@sha256:[0-9a-f]{64}'")
+            self.assertRegex(block,r"PACKAGE_FLOORS: '[^']+=[^']+'")
+if __name__=='__main__':unittest.main()
+,script,re.M)
+        self.assertIsNotNone(match)
+        with tempfile.TemporaryDirectory() as root:
+            missing=str(Path(root)/'runtime-only'/'missing')
+            result=subprocess.check_output(
+                ['sh','-eu','-c',match.group(0)+'\n test -d "$work"\n printf "%s\\n" "$work"'],
+                text=True,env={**os.environ,'TMPDIR':missing}).strip()
+            self.assertTrue(result.startswith('/tmp/jobbi-patch.'))
+            self.assertFalse(Path(result).exists())
+            self.assertFalse(Path(missing).exists())
     def test_every_candidate_has_pinned_base_and_package_floors(self):
         compose=(ROOT/'deploy/compose.yaml').read_text()
         services=('navidrome','immich-redis','pihole','immich-db','immich-server','immich-machine-learning','nextcloud')

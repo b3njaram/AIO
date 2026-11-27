@@ -6,7 +6,11 @@ test "$(id -u)" = 0
 test "$ID" = alpine
 test -n "$1"
 floors="$1"
-work="$(mktemp -d)"
+# Some upstream images (Prowlarr/S6) set TMPDIR to a runtime-only
+# directory that is created by their entrypoint, not during Docker builds.
+# Scope a real temporary directory to this patch process, not the final image.
+export TMPDIR=/tmp
+work="$(mktemp -d "$TMPDIR/jobbi-patch.XXXXXXXXXX")"
 trap 'rm -rf "$work"' EXIT
 # Refuse rolling edge repositories rather than mixing incompatible branches.
 if grep -Eq '(^|/)edge(/|$)' /etc/apk/repositories; then exit 1; fi
