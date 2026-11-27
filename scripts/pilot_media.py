@@ -24,3 +24,20 @@ def invidious(i,images,source,secret):
       'invidious-companion':{'image':companion,'restart':'unless-stopped','environment':{'SERVER_SECRET_KEY':secret['companion']},'cap_drop':['ALL'],'security_opt':['no-new-privileges:true']},
       'invidious-db':{'image':db,'restart':'unless-stopped','environment':{'POSTGRES_DB':'invidious','POSTGRES_USER':'invidious','POSTGRES_PASSWORD':secret['db']},'volumes':['pilot-invidious-db:/var/lib/postgresql/data',str(source/'docker/init-invidious-db.sh')+':/docker-entrypoint-initdb.d/init-invidious-db.sh:ro',str(source/'config/sql')+':/config/sql:ro']}
     },'volumes':{'pilot-invidious-db':{}}}
+
+def public_origin(raw):
+    u=urlsplit(raw)
+    if u.scheme!='https' or u.username or u.password or u.query or u.fragment or u.path not in ('','/') or not u.hostname or not u.port:raise ValueError('Require exact approved HTTPS Invidious origin')
+    try:
+        ip=ipaddress.IPv4Address(u.hostname)
+        valid=any(ip in ipaddress.IPv4Network(n) for n in ('10.0.0.0/8','172.16.0.0/12','192.168.0.0/16')) and u.port==18091
+    except ValueError:
+        valid=bool(re.fullmatch(r'[a-z0-9-]+(?:\.[a-z0-9-]+)+\.ts\.net',u.hostname)) and 1024<=u.port<=65535
+    if not valid or u.netloc!=u.hostname+':'+str(u.port):raise ValueError('Require own private lab or tailnet origin')
+    return u.scheme+'://'+u.netloc
+def local_fallback_source(source):
+    # The upstream commercial patch disables external fallback. Only the fixed
+    # instance-local service may be used; the customer-facing URL is separate.
+    anchor='  const raw=[env.INVIDIOUS_URL'
+    if source.count(anchor)!=1 or source.count('normalizeInvidiousResults(raw,origin)')!=1:raise ValueError('Unexpected pinned Invidious search adapter')
+    return source.replace(anchor,"  if(env.JOBBI_LOCAL_INVIDIOUS==='true')return ['http://invidious:3000'];\n"+anchor).replace('normalizeInvidiousResults(raw,origin)',"normalizeInvidiousResults(raw,origin==='http://invidious:3000'?process.env.JOBBI_INVIDIOUS_PUBLIC_ORIGIN:origin)").replace('Check your yt.jobbisoft.com.mx /api/v1/search endpoint.','Check your own Invidious service.')

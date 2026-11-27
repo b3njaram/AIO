@@ -42,6 +42,10 @@ if [[ -f "$INSTANCE/deployment/pilot-media.json" ]]; then
   [[ ! -e "$INSTANCE/deployment/recovery-images.json" ]] || { echo 'Experimental media extension is not exact-recovery qualified' >&2; exit 1; }
   FILES+=(-f "$INSTANCE/deployment/pilot-media.json")
 fi
+if [[ -f "$INSTANCE/deployment/pilot-network.json" ]]; then
+  [[ ! -e "$INSTANCE/deployment/recovery-images.json" ]] || { echo 'Experimental DNS extension is not exact-recovery qualified' >&2; exit 1; }
+  FILES+=(-f "$INSTANCE/deployment/pilot-network.json")
+fi
 if [[ -f "$INSTANCE/deployment/recovery-images.json" ]]; then
   FILES+=(-f "$INSTANCE/deployment/recovery-images.json")
 fi
