@@ -27,4 +27,10 @@ class Tests(unittest.TestCase):
         self.assertEqual(c['services']['invidious']['ports'],['127.0.0.1:18091:3000'])
         self.assertNotIn('ports',c['services']['invidious-db'])
         self.assertNotIn('ports',c['services']['invidious-companion'])
+        companion=c['services']['invidious-companion']
+        self.assertTrue(companion['read_only'])
+        self.assertEqual(companion['volumes'],['pilot-invidious-companion-cache:/var/tmp/youtubei.js:rw'])
+        self.assertIn('pilot-invidious-companion-cache',c['volumes'])
+        self.assertEqual(c['services']['invidious']['depends_on']['invidious-db']['condition'],'service_healthy')
+        self.assertIn('127.0.0.1',c['services']['invidious-db']['healthcheck']['test'])
         with self.assertRaises(ValueError):pinned('quay.io/invidious/invidious:latest','quay.io/invidious/invidious')

@@ -30,10 +30,10 @@ def invidious(i,images,source,secret):
     if not all(re.fullmatch('[a-f0-9]{48}',secret[k]) for k in ('db','hmac','companion')) or len(set(secret.values()))!=3:raise ValueError('Independent generated secrets required')
     cfg={'db':{'dbname':'invidious','user':'invidious','password':secret['db'],'host':'invidious-db','port':5432},'check_tables':True,'hmac_key':secret['hmac'],'invidious_companion':[{'private_url':'http://invidious-companion:8282/companion'}],'invidious_companion_key':secret['companion'],'registration_enabled':False,'statistics_enabled':False}
     return {'services':{
-      'invidious':{'image':iv,'restart':'unless-stopped','ports':['127.0.0.1:18091:3000'],'environment':{'INVIDIOUS_CONFIG':json.dumps(cfg)},'depends_on':['invidious-db','invidious-companion']},
-      'invidious-companion':{'image':companion,'restart':'unless-stopped','environment':{'SERVER_SECRET_KEY':secret['companion']},'cap_drop':['ALL'],'security_opt':['no-new-privileges:true']},
-      'invidious-db':{'image':db,'restart':'unless-stopped','environment':{'POSTGRES_DB':'invidious','POSTGRES_USER':'invidious','POSTGRES_PASSWORD':secret['db']},'volumes':['pilot-invidious-db:/var/lib/postgresql/data',str(source/'docker/init-invidious-db.sh')+':/docker-entrypoint-initdb.d/init-invidious-db.sh:ro',str(source/'config/sql')+':/config/sql:ro']}
-    },'volumes':{'pilot-invidious-db':{}}}
+      'invidious':{'image':iv,'restart':'unless-stopped','ports':['127.0.0.1:18091:3000'],'environment':{'INVIDIOUS_CONFIG':json.dumps(cfg)},'depends_on':{'invidious-db':{'condition':'service_healthy'},'invidious-companion':{'condition':'service_started'}}},
+      'invidious-companion':{'image':companion,'restart':'unless-stopped','environment':{'SERVER_SECRET_KEY':secret['companion']},'cap_drop':['ALL'],'security_opt':['no-new-privileges:true'],'read_only':True,'volumes':['pilot-invidious-companion-cache:/var/tmp/youtubei.js:rw']},
+      'invidious-db':{'image':db,'restart':'unless-stopped','environment':{'POSTGRES_DB':'invidious','POSTGRES_USER':'invidious','POSTGRES_PASSWORD':secret['db']},'healthcheck':{'test':['CMD','pg_isready','-h','127.0.0.1','-U','invidious','-d','invidious'],'interval':'5s','timeout':'3s','retries':30},'volumes':['pilot-invidious-db:/var/lib/postgresql/data',str(source/'docker/init-invidious-db.sh')+':/docker-entrypoint-initdb.d/init-invidious-db.sh:ro',str(source/'config/sql')+':/config/sql:ro']}
+    },'volumes':{'pilot-invidious-db':{},'pilot-invidious-companion-cache':{}}}
 
 def public_origin(raw):
     u=urlsplit(raw)
