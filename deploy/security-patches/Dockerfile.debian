@@ -16,6 +16,11 @@ RUN --mount=type=bind,from=build_trust,source=/etc/ssl/certs/ca-certificates.crt
     /bin/sh /tmp/jobbi-patch.sh "$DEBIAN_CODENAME" "$PACKAGE_FLOORS"
 
 FROM patched AS machine_learning
+# Upgrade the system installer itself, which embeds its own HTTP and cache libraries.
+RUN --mount=type=bind,source=immich-pip-requirements.txt,target=/tmp/pip-pin.txt,ro \
+    /usr/local/bin/python -m pip install --no-cache-dir --no-deps --only-binary=:all: --require-hashes -r /tmp/pip-pin.txt
+RUN --network=none /usr/local/bin/python -c "from pip._vendor import certifi, msgpack, urllib3; assert (certifi.__version__, msgpack.__version__, urllib3.__version__) == ('2026.10.23', '1.2.4', '2.8.0')"
+
 RUN --mount=type=bind,source=immich-ml-requirements.txt,target=/tmp/requirements.txt,ro \
     /usr/local/bin/python -m pip --python /opt/venv install --no-cache-dir --no-deps --only-binary=:all: --require-hashes -r /tmp/requirements.txt
 RUN --network=none --mount=type=bind,source=check-ml.py,target=/tmp/check-ml.py,ro \
