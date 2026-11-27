@@ -45,12 +45,26 @@ with os.fdopen(os.open(f, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "w") as 
     json.dump(cfg, stream)
 PY
 "${ctl[@]}" up -d --build --wait --wait-timeout 180
-for _ in {1..24}; do
-    if "${ctl[@]}" exec -T invidious wget -q -T 5 -O /dev/null http://127.0.0.1:3000/; then
-        echo "Pinned Invidious frontend started with the isolated companion and initialized database."
-        exit 0
-    fi
-    sleep 5
-done
-echo "Invidious did not serve its local homepage" >&2
-exit 1
+wait_for_frontend() {
+    for _ in {1..24}; do
+        if "${ctl[@]}" exec -T invidious wget -q -T 5 -O /dev/null http://127.0.0.1:3000/; then
+            return 0
+        fi
+        sleep 5
+    done
+    echo "Invidious did not serve its local homepage" >&2
+    return 1
+}
+db() {
+    "${ctl[@]}" exec -T invidious-db psql -XqAt -v ON_ERROR_STOP=1 -U invidious -d invidious "$@"
+}
+wait_for_frontend
+test "$(db -c "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('users','playlists','videos')")" = 3
+db -c 'CREATE SCHEMA jobbi_fixture; CREATE TABLE jobbi_fixture.persistence(id integer PRIMARY KEY); INSERT INTO jobbi_fixture.persistence VALUES (417);'
+
+# Recreate every container while retaining project volumes. This exercises
+# database and companion-cache mount persistence without provider accounts.
+"${ctl[@]}" up -d --no-build --force-recreate --wait --wait-timeout 180
+wait_for_frontend
+test "$(db -c 'SELECT id FROM jobbi_fixture.persistence')" = 417
+echo "PASS: pinned Invidious startup, initialized schema, and database persistence across container recreation."
