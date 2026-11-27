@@ -1,0 +1,7 @@
+# syntax=docker/dockerfile:1
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+USER root
+RUN --mount=type=bind,source=alpine-patch.sh,target=/tmp/jobbi-patch.sh,ro \
+    sh /tmp/jobbi-patch.sh 'libxml2=2.13.9-r5 libfontenc=1.1.10-r0'
+USER invidious

@@ -27,17 +27,29 @@ def soulseek(i,uid,gid,c):
     for k in ('username','password','api_key','ui_password'):
         if not re.fullmatch('[a-z0-9-]{16,80}',c[k]):raise ValueError('Invalid generated provider credential')
     return {'slskd':{'build':{'context':'./security-patches','dockerfile':'Dockerfile.slskd','args':{'BASE_IMAGE':SLSKD}},'user':str(uid)+':'+str(gid),'restart':'unless-stopped','environment':{'SLSKD_SLSK_USERNAME':c['username'],'SLSKD_SLSK_PASSWORD':c['password'],'SLSKD_API_KEY':c['api_key'],'SLSKD_USERNAME':'jobbi-local','SLSKD_PASSWORD':c['ui_password'],'SLSKD_NO_HTTPS':'true','SLSKD_REMOTE_CONFIGURATION':'false','SLSKD_SHARED_DIR':'/shares','SLSKD_DOWNLOADS_DIR':'/downloads','SLSKD_INCOMPLETE_DIR':'/incomplete'},'volumes':[str(i/'data/pilot-media/slskd')+':/app',str(i/'data/pilot-media/shares')+':/shares:ro',str(i/'data/pilot-media/downloads')+':/downloads',str(i/'data/pilot-media/incomplete')+':/incomplete'],'cap_drop':['ALL'],'security_opt':['no-new-privileges:true'],'mem_limit':'512m'},'jobbi-music':{'environment':{'SLSKD_URL':'http://slskd:5030','SLSKD_API_KEY':c['api_key']}}}
+def invidious_builds(images, context='./security-patches'):
+    return {
+        'invidious': {'build': {'context': context, 'dockerfile': 'Dockerfile.invidious',
+                               'args': {'BASE_IMAGE': pinned(images['invidious'],'quay.io/invidious/invidious')}}},
+        'invidious-db': {'build': {
+            'context': context, 'dockerfile': 'Dockerfile.postgres', 'target': 'debian_patched',
+            'args': {'BASE_IMAGE': pinned(images['postgres'],'docker.io/library/postgres'),
+                     'DEBIAN_CODENAME': 'bookworm',
+                     'PACKAGE_FLOORS': ' '.join(
+                         name+'=1.5.2-6+deb12u3' for name in
+                         ('libpam-modules','libpam-modules-bin','libpam-runtime','libpam0g'))}}},
+        'invidious-companion': {'image': pinned(images['companion'],'quay.io/invidious/invidious-companion')},
+    }
+
 def invidious(i,images,source,secret):
     # The source tree must contain the reviewed upstream DB initialization files.
-    iv=pinned(images['invidious'],'quay.io/invidious/invidious')
-    companion=pinned(images['companion'],'quay.io/invidious/invidious-companion')
-    db=pinned(images['postgres'],'docker.io/library/postgres')
+    builds=invidious_builds(images)
     if not all(re.fullmatch('[a-f0-9]{48}',secret[k]) for k in ('db','hmac')) or not re.fullmatch('[A-Za-z0-9]{16}',secret['companion']) or len(set(secret.values()))!=3:raise ValueError('Independent generated secrets required')
     cfg={'db':{'dbname':'invidious','user':'invidious','password':secret['db'],'host':'invidious-db','port':5432},'check_tables':True,'hmac_key':secret['hmac'],'invidious_companion':[{'private_url':'http://invidious-companion:8282/companion'}],'invidious_companion_key':secret['companion'],'registration_enabled':False,'statistics_enabled':False}
     return {'services':{
-      'invidious':{'image':iv,'restart':'unless-stopped','ports':['127.0.0.1:18091:3000'],'environment':{'INVIDIOUS_CONFIG':json.dumps(cfg)},'depends_on':{'invidious-db':{'condition':'service_healthy'},'invidious-companion':{'condition':'service_started'}}},
-      'invidious-companion':{'image':companion,'restart':'unless-stopped','environment':{'SERVER_SECRET_KEY':secret['companion']},'cap_drop':['ALL'],'security_opt':['no-new-privileges:true'],'read_only':True,'volumes':['pilot-invidious-companion-cache:/var/tmp/youtubei.js:rw']},
-      'invidious-db':{'image':db,'restart':'unless-stopped','environment':{'POSTGRES_DB':'invidious','POSTGRES_USER':'invidious','POSTGRES_PASSWORD':secret['db']},'healthcheck':{'test':['CMD','pg_isready','-h','127.0.0.1','-U','invidious','-d','invidious'],'interval':'5s','timeout':'3s','retries':30},'volumes':['pilot-invidious-db:/var/lib/postgresql/data',str(source/'docker/init-invidious-db.sh')+':/docker-entrypoint-initdb.d/init-invidious-db.sh:ro',str(source/'config/sql')+':/config/sql:ro']}
+      'invidious':{**builds['invidious'],'restart':'unless-stopped','ports':['127.0.0.1:18091:3000'],'environment':{'INVIDIOUS_CONFIG':json.dumps(cfg)},'depends_on':{'invidious-db':{'condition':'service_healthy'},'invidious-companion':{'condition':'service_started'}}},
+      'invidious-companion':{**builds['invidious-companion'],'restart':'unless-stopped','environment':{'SERVER_SECRET_KEY':secret['companion']},'cap_drop':['ALL'],'security_opt':['no-new-privileges:true'],'read_only':True,'volumes':['pilot-invidious-companion-cache:/var/tmp/youtubei.js:rw']},
+      'invidious-db':{**builds['invidious-db'],'restart':'unless-stopped','environment':{'POSTGRES_DB':'invidious','POSTGRES_USER':'invidious','POSTGRES_PASSWORD':secret['db']},'healthcheck':{'test':['CMD','pg_isready','-h','127.0.0.1','-U','invidious','-d','invidious'],'interval':'5s','timeout':'3s','retries':30},'volumes':['pilot-invidious-db:/var/lib/postgresql/data',str(source/'docker/init-invidious-db.sh')+':/docker-entrypoint-initdb.d/init-invidious-db.sh:ro',str(source/'config/sql')+':/config/sql:ro']}
     },'volumes':{'pilot-invidious-db':{},'pilot-invidious-companion-cache':{}}}
 
 def public_origin(raw):

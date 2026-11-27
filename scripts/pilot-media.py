@@ -61,9 +61,10 @@ def main():
         atomic_write(overlay,json.dumps(config).encode(),0o600)
         # Validate without printing secrets. Pull exact declared images before starting.
         subprocess.run(ctl+['config','--quiet'],check=True)
-        registry_services=[s for s in services if s not in ('jobbi-music','slskd')]
+        registry_services=[s for s in services if s not in ('jobbi-music','slskd','invidious','invidious-db')]
         if registry_services:subprocess.run(ctl+['pull',*registry_services],check=True)
         if a.soulseek:subprocess.run(ctl+['build','slskd'],check=True)
+        if a.invidious_manifest:subprocess.run(ctl+['build','invidious','invidious-db'],check=True)
         if public:subprocess.run(ctl+['build','jobbi-music'],check=True)
         subprocess.run(ctl+['up','-d','--no-build',*services],check=True)
         print('Provider containers started; external account login and playback/search still require verification.')

@@ -36,13 +36,15 @@ cfg = invidious(work, pins["images"], source, invidious_credentials())
 # Runtime startup requires outbound access for the upstream session.
 # No host ports or customer credentials are used by this test.
 for service in cfg["services"].values():
+    if "build" in service:
+        service["build"]["context"] = str(Path(sys.argv[1]).resolve().parent / "security-patches")
     service["restart"] = "no"
 del cfg["services"]["invidious"]["ports"]
 f = work / "compose.json"
 with os.fdopen(os.open(f, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "w") as stream:
     json.dump(cfg, stream)
 PY
-"${ctl[@]}" up -d --wait --wait-timeout 180
+"${ctl[@]}" up -d --build --wait --wait-timeout 180
 for _ in {1..24}; do
     if "${ctl[@]}" exec -T invidious wget -q -T 5 -O /dev/null http://127.0.0.1:3000/; then
         echo "Pinned Invidious frontend started with the isolated companion and initialized database."

@@ -107,19 +107,21 @@ jobs:
           docker create --network none --name jobbi-security-slskd \
             --label com.docker.compose.project=jobbi-audit \
             --label com.docker.compose.service=slskd jobbi-security-slskd
-          python3 - <<'PYCODE' > "$RUNNER_TEMP/jobbi-invidious-images"
+          PYTHONPATH=scripts python3 - "$RUNNER_TEMP/jobbi-invidious-scan.json" <<'PYCODE'
           import json
-          with open("deploy/invidious-pilot.json") as manifest:
-              images = json.load(manifest)["images"]
-          for service, ref in images.items():
-              print(service, ref)
+          import sys
+          from pathlib import Path
+          from pilot_media import invidious_builds
+          pins = json.loads(Path("deploy/invidious-pilot.json").read_text())
+          services = invidious_builds(pins["images"], str(Path("deploy/security-patches").resolve()))
+          for service, config in services.items():
+              config.setdefault("image", "jobbi-security-" + service)
+              config["network_mode"] = "none"
+          Path(sys.argv[1]).write_text(json.dumps({"services": services}))
           PYCODE
-          while read -r service ref; do
-            retry docker pull "$ref"
-            docker create --network none --name "jobbi-security-invidious-$service" \
-              --label com.docker.compose.project=jobbi-audit \
-              --label "com.docker.compose.service=optional-invidious-$service" "$ref"
-          done < "$RUNNER_TEMP/jobbi-invidious-images"
+          iv=(docker compose --project-name jobbi-audit --file "$RUNNER_TEMP/jobbi-invidious-scan.json")
+          retry "${iv[@]}" pull --ignore-buildable
+          retry "${iv[@]}" create --build
       - name: Scan locally created image IDs
         run: python3 scripts/scan-release.py /tmp/jobbi-security-pilot/audit --scanner "$RUNNER_TEMP/jobbi-scanner/trivy" --output "$RUNNER_TEMP/jobbi-security-evidence"
       - name: Cross-check every unfixed finding against vendor status
@@ -156,9 +158,10 @@ jobs:
           PY
       - if: always()
         run: |
-          for name in slskd invidious-invidious invidious-companion invidious-postgres; do
-            docker rm "jobbi-security-$name" >/dev/null 2>&1 || true
-          done
+          docker rm jobbi-security-slskd >/dev/null 2>&1 || true
+          if test -f "$RUNNER_TEMP/jobbi-invidious-scan.json"; then
+            docker compose --project-name jobbi-audit --file "$RUNNER_TEMP/jobbi-invidious-scan.json" rm -f -v
+          fi
           if test -f /tmp/jobbi-security-pilot/audit/.env; then bash scripts/ctl.sh /tmp/jobbi-security-pilot/audit down -v; fi
 
       - name: Enforce source security results
