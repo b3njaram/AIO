@@ -40,22 +40,21 @@ try {
       const next = readManifest(staging);
       check(next.name === row.name && next.version === row.to, 'Archive identity mismatch');
       if (next.engines?.node) check(semver.satisfies(process.version, next.engines.node), 'Unsupported Node runtime');
-      // Keep any nested dependencies; do not resolve new dependencies from the network.
-      const nested = path.join(dir, 'node_modules');
-      if (fs.existsSync(nested)) {
-        check(!fs.existsSync(path.join(staging, 'node_modules')), 'Unexpected bundled dependencies');
-        fs.renameSync(nested, path.join(staging, 'node_modules'));
+      // OverlayFS can reject renaming a directory from the upstream layer.
+      // Keep the directory and any existing nested dependencies in place.
+      check(!fs.existsSync(path.join(staging, 'node_modules')), 'Unexpected bundled dependencies');
+      for (const entry of fs.readdirSync(dir)) {
+        if (entry !== 'node_modules') fs.rmSync(path.join(dir, entry), { recursive: true });
       }
-      const retired = path.join(path.dirname(dir), '.jobbi-retired-' + path.basename(staging));
-      fs.renameSync(dir, retired);
-      fs.renameSync(staging, dir);
-      fs.chmodSync(dir, stat.mode & 0o777);
-      execFileSync('chown', ['-hR', stat.uid + ':' + stat.gid, dir]);
+      for (const entry of fs.readdirSync(staging)) {
+        const target = path.join(dir, entry);
+        fs.renameSync(path.join(staging, entry), target);
+        execFileSync('chown', ['-hR', stat.uid + ':' + stat.gid, target]);
+      }
       for (const [name, range] of Object.entries(next.dependencies || {})) {
         const dep = findDependency(dir, name);
         check(dep && semver.satisfies(dep.version, range), 'Missing compatible dependency ' + row.name + ' -> ' + name);
       }
-      fs.rmSync(retired, { recursive: true, force: true });
       check(readManifest(dir).version === row.to, 'Patched version mismatch');
       // Load the actual installed entry point, without executing installation scripts.
       const local = createRequire(path.join(path.dirname(dir), '__jobbi_check__.cjs'));
