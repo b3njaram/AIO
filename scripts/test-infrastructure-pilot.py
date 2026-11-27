@@ -113,7 +113,22 @@ def monitor(instance,env,fixture,recover):
     preview=module.configure(e,desired,'pilot',fixture['password'],False)
     assert preview['missing']==[], 'Default monitors were not provisioned or restored'
     assert module.configure(e,desired,'pilot',fixture['password'],True)['created']==[]
-    print('PASS Uptime Kuma owner login, anonymous denial and saved monitor')
+    # Read the actual pinned Kuma SQLite schema and real successful heartbeat,
+    # not just a synthetic schema fixture or HTTP reachability.
+    summary=instance/'data/.dashboard-metrics/monitoring.json'
+    script=Path(__file__).with_name('monitor-summary.py')
+    def monitoring_ready():
+        result=subprocess.run([sys.executable,str(script),str(instance)],capture_output=True,text=True,timeout=20)
+        if result.returncode:return False
+        data=json.loads(summary.read_text())
+        row=data.get('monitors',{}).get('dashboard',{})
+        return data.get('state')=='available' and row.get('state')=='up' and row.get('samples',0)>0 and isinstance(row.get('avg_ms'),(int,float))
+    wait(monitoring_ready,'actual Kuma SQLite monitor summary')
+    code,data=request('http://127.0.0.1:'+env['DASH_PORT']+'/api/health')
+    assert code==200 and data['monitoring']['monitors']['dashboard']['samples']>0
+    assert 'Local dashboard' not in json.dumps(data['monitoring'])
+    assert fixture['password'] not in json.dumps(data['monitoring'])
+    print('PASS Uptime Kuma owner login, anonymous denial, saved monitor and actual sanitized heartbeat history')
 
 
 def dns(instance,env,recover):

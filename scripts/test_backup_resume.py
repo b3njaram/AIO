@@ -25,3 +25,19 @@ class ResumeTests(unittest.TestCase):
             subprocess.run(cmd,env={**env,'TEST_EXIT':'0'},capture_output=True,check=True)
             self.assertFalse(journal.exists())
             self.assertEqual(args.read_text().splitlines()[-3:],['start','dashboard','uptime-kuma'])
+
+    def test_unqualified_extension_refused_before_docker_or_backup(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);instance=root/'source';instance.mkdir();dest=root/'backups';dest.mkdir()
+            (instance/'.env').write_text('COMPOSE_PROJECT_NAME=jobbi-source\nINSTANCE_DIR='+str(instance)+'\n')
+            (instance/'deployment').mkdir()
+            (instance/'deployment/pilot-media.json').write_text('{}')
+            docker=root/'docker';docker.write_text('#!/bin/sh\ntouch "$TEST_ARGS"\nexit 99\n');docker.chmod(0o700)
+            args=root/'args';env={**os.environ,'PATH':str(root)+':'+os.environ['PATH'],'TEST_ARGS':str(args)}
+            cmd=['bash',str(Path(__file__).with_name('backup.sh')),str(instance),str(dest),'--all-images']
+            result=subprocess.run(cmd,env=env,capture_output=True,text=True)
+            self.assertNotEqual(result.returncode,0)
+            self.assertIn('Optional-service backup/restore qualification required',result.stderr)
+            self.assertFalse(args.exists())
+            self.assertFalse((instance/'.backup-running-services').exists())
+            self.assertEqual(list(dest.iterdir()),[])

@@ -37,6 +37,7 @@ def validate_archive(path,instance=False):
             if name in seen:raise ValueError('Duplicate archive member')
             seen.add(name)
             if instance and n.parts and n.parts[0] not in ('.env','dashboard.json','release.json','deployment','data','onboarding.json','image-inventory.json'):raise ValueError('Unexpected instance member')
+            if instance and n.parts[:2] in (('deployment','pilot-media.json'),('deployment','pilot-network.json'),('data','pilot-media'),('data','pilot-pihole')):raise ValueError('Optional-service archive requires reviewed migration; no destination created')
             # Reject links escaping their own archive; no device files or FIFOs.
             if m.issym() or m.islnk():
                 target=PurePosixPath(m.linkname)

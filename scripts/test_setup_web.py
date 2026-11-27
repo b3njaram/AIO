@@ -24,6 +24,7 @@ class Tests(unittest.TestCase):
                 self.assertEqual(req('/api/create',{**payload,'app':'movies'})[0],400)
                 self.assertEqual(req('/api/options',{'services':['dns'],'consent':True,'dns_password':'fixture-password'})[0],400)
                 self.assertEqual(req('/api/tailnet',{'consent':True})[0],400)
+                self.assertEqual(req('/api/options-recheck',{})[0],400)
                 adapter.create.assert_not_called()
                 self.assertEqual(req('/api/create',{**payload,'app':'all'})[0],200)
                 adapter.create.assert_called_once_with(Path(tmp),'music','owner','owner@example.invalid','fixture-password')
