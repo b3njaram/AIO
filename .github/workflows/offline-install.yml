@@ -35,14 +35,37 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y dpkg-dev
           python3 scripts/offline_media.py /tmp/jobbi-install-bundle --out /tmp/jobbi-host-media
+          PYTHONPATH=scripts python3 - <<'PYCODE'
+          import hashlib
+          import importlib.util
+          import os
+          from pathlib import Path
+          from types import SimpleNamespace
+          spec = importlib.util.spec_from_file_location("seed", "scripts/make-install-usb.py")
+          seed = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(seed)
+          digest = hashlib.sha256(Path("/tmp/jobbi-host-media/SHA256SUMS").read_bytes()).hexdigest()
+          args = SimpleNamespace(name="home", operator="jobbi", commit=os.environ["GITHUB_SHA"],
+              data_uuid="abcd-1234", backup_uuid="abcd-5678", apps="monitor",
+              ssh_key="ssh-ed25519 AAAA", media_sha=digest)
+          commands = seed.config(args, "!")["autoinstall"]["late-commands"]
+          Path("/tmp/jobbi-offline-commands").write_text("set -eu\n" + "\n".join(commands) + "\n")
+          PYCODE
           docker pull ubuntu:24.04
-          docker run --rm -i --network none -v /tmp/jobbi-host-media:/var/lib/jobbi-offline:ro -e EXPECTED_SHA="$GITHUB_SHA" ubuntu:24.04 bash -eu <<'EOF'
-          cd /var/lib/jobbi-offline
-          sha256sum --quiet -c SHA256SUMS
-          printf '%s\n' 'deb [trusted=yes] file:/var/lib/jobbi-offline/packages ./' >/etc/apt/jobbi-offline.list
-          opts=(-o Dir::Etc::sourcelist=/etc/apt/jobbi-offline.list -o Dir::Etc::sourceparts=-)
-          apt-get "${opts[@]}" update
-          DEBIAN_FRONTEND=noninteractive apt-get "${opts[@]}" -y --no-install-recommends install docker.io docker-compose-v2 git python3 curl openssh-server smartmontools util-linux python3-socketio python3-websocket mdadm age
+          docker run --rm -i --network none \
+            -v /tmp/jobbi-host-media:/cdrom/jobbi-offline:ro \
+            -v /tmp/jobbi-offline-commands:/tmp/jobbi-offline-commands:ro \
+            -e EXPECTED_SHA="$GITHUB_SHA" ubuntu:24.04 bash -eu <<'EOF'
+          # This disposable root is already the installer target.
+          ln -s / /target
+          curtin() {
+            test "$1" = in-target && test "$2" = --
+            shift 2
+            "$@"
+          }
+          source /tmp/jobbi-offline-commands
+          test "$(stat -c %a /var/lib/jobbi-offline)" = 700
+          test ! -e /var/lib/jobbi-offline-packages
           git clone --branch appliance /var/lib/jobbi-offline/release.bundle /opt/jobbi-aio
           test "$(git -C /opt/jobbi-aio rev-parse HEAD)" = "$EXPECTED_SHA"
           docker compose version
