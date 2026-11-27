@@ -33,7 +33,10 @@ subprocess.run(["git", "-C", str(source), "checkout", "--detach", "FETCH_HEAD"],
 if subprocess.check_output(["git", "-C", str(source), "rev-parse", "HEAD"], text=True).strip() != pins["source_commit"]:
     raise ValueError("Unexpected Invidious source")
 cfg = invidious(work, pins["images"], source, {k: token() for k in ("db", "hmac", "companion")})
-cfg["networks"] = {"default": {"internal": True}}
+# Runtime startup requires outbound access for the upstream session.
+# No host ports or customer credentials are used by this test.
+for service in cfg["services"].values():
+    service["restart"] = "no"
 del cfg["services"]["invidious"]["ports"]
 f = work / "compose.json"
 with os.fdopen(os.open(f, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "w") as stream:
