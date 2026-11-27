@@ -263,7 +263,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         except (OSError,sqlite3.Error):self.send(500,{'error':'Local storage operation failed'})
 def main():
     global HOME,REPORTS,CONFIG
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--port',type=int,default=8790);p.add_argument('--init',action='store_true');p.add_argument('--allow-origin',action='append',default=[],help='Exact private Tailscale browser origin; repeat for additional names');p.add_argument('--preview-no-auth',action='store_true',help='Port 8791 only; separate demo database, no live sourcing, no password');p.add_argument('--container-preview',action='store_true',help='Demo container only: publish through a host loopback mapping');a=p.parse_args()
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--port',type=int,default=8790);p.add_argument('--init',action='store_true');p.add_argument('--allow-origin',action='append',default=[],help='Exact private Tailscale browser origin; repeat for additional names');p.add_argument('--preview-no-auth',action='store_true',help='Port 8791 only; separate demo database, no live sourcing, no password');p.add_argument('--container-preview',action='store_true',help='Demo container only: publish through a host loopback mapping');p.add_argument('--password-fd',type=int,help='Read a credential from a private inherited descriptor instead of a password file');a=p.parse_args()
+    if a.password_fd is not None and (a.password_fd<3 or a.init or a.preview_no_auth):p.error('Password descriptor requires authenticated startup')
     if a.container_preview and (not a.preview_no_auth or a.port!=8791 or not Path('/.dockerenv').exists()):p.error('Container listener requires the isolated no-login Docker demo')
     if not 1024<=a.port<=65535:p.error('Invalid port')
     try:allowed=permitted_origins(a.port,a.allow_origin)
@@ -287,7 +288,12 @@ def main():
             fd=os.open(token,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
             with os.fdopen(fd,'w') as stream:stream.write(secrets.token_urlsafe(32)+'\n')
         print('Dashboard credentials file:',private_file(token));return
-    password=None if a.preview_no_auth else private_file(token).read_text().strip()
+    if a.password_fd is not None:
+        with os.fdopen(a.password_fd,'r',encoding='utf-8') as credential:
+            password=credential.read(1025).strip()
+        if len(password)>1024:p.error('Invalid dashboard credential length')
+    else:
+        password=None if a.preview_no_auth else private_file(token).read_text().strip()
     if not a.preview_no_auth and len(password)<32:p.error('Invalid dashboard password')
     with db():pass
     server=http.server.ThreadingHTTPServer(('0.0.0.0' if a.container_preview else '127.0.0.1',a.port),Handler);server.password=password;server.allowed_origins=allowed;server.preview=a.preview_no_auth

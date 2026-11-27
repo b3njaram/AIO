@@ -25,9 +25,9 @@ exec python3 "$root/scripts/laptop-first-boot.py"
 """
     unit='[Unit]\nDescription=Jobbi connected laptop first boot\nWants=network-online.target\nAfter=network-online.target docker.service cloud-final.service\nRequires=docker.service\nConditionPathExists=!/var/lib/jobbi/pilot-provisioned\n[Service]\nType=oneshot\nExecStart=/usr/local/sbin/jobbi-laptop-first-boot\nTimeoutStartSec=infinity\nUMask=0077\n[Install]\nWantedBy=multi-user.target\n'
     def f(path,content,permissions='0644'):return dict(path=path,content=content,permissions=permissions,owner='root:root')
-    return {'autoinstall':{'version':1,'interactive-sections':['storage','identity'],'ssh':{'install-server':False,'allow-pw':False},'packages':['docker.io','docker-compose-v2','git','python3','curl','smartmontools','util-linux','python3-socketio','python3-websocket','mdadm','age','lvm2','openssl','nginx'],'late-commands':['curtin in-target -- systemctl mask nginx.service'],'user-data':{'write_files':[f('/etc/jobbi/pilot-revision',commit+'\n'),f('/usr/local/sbin/jobbi-laptop-first-boot',boot,'0700'),f('/etc/systemd/system/jobbi-laptop-first-boot.service',unit)],'runcmd':[['systemctl','daemon-reload'],['systemctl','enable','--now','docker'],['systemctl','enable','jobbi-laptop-first-boot.service'],['systemctl','start','--no-block','jobbi-laptop-first-boot.service']]}}}
+    return {'autoinstall':{'version':1,'interactive-sections':['storage','identity'],'early-commands':['if test -c /dev/ttyS0; then echo JOBBI_RC_INSTALLER_READY > /dev/ttyS0; fi'],'ssh':{'install-server':False,'allow-pw':False},'packages':['docker.io','docker-compose-v2','git','python3','curl','smartmontools','util-linux','python3-socketio','python3-websocket','mdadm','age','lvm2','openssl','nginx'],'late-commands':['curtin in-target -- systemctl mask nginx.service'],'user-data':{'write_files':[f('/etc/jobbi/pilot-revision',commit+'\n'),f('/usr/local/sbin/jobbi-laptop-first-boot',boot,'0700'),f('/etc/systemd/system/jobbi-laptop-first-boot.service',unit)],'runcmd':[['systemctl','daemon-reload'],['systemctl','enable','--now','docker'],['systemctl','enable','jobbi-laptop-first-boot.service'],['systemctl','start','--no-block','jobbi-laptop-first-boot.service']]}}}
 def main():
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--ubuntu-iso',type=Path,required=True);p.add_argument('--iso-sha256',required=True);p.add_argument('--out',type=Path,required=True);a=p.parse_args()
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--ubuntu-iso',type=Path,required=True);p.add_argument('--iso-sha256',required=True);p.add_argument('--out',type=Path,required=True);p.add_argument('--release-candidate',action='store_true');a=p.parse_args()
     with a.ubuntu_iso.open('rb') as stream:digest=hashlib.file_digest(stream,'sha256').hexdigest()
     if digest!=a.iso_sha256.lower():p.error('Verified official ISO checksum mismatch')
     commit=subprocess.check_output(['git','-C',str(ROOT),'rev-parse','HEAD'],text=True).strip()
@@ -36,8 +36,8 @@ def main():
     if a.out.exists() or a.out==ROOT or ROOT in a.out.parents:p.error('Use new output directory outside Git')
     a.out.mkdir(mode=0o700,parents=True)
     seed=a.out/'autoinstall.yaml';seed.write_text(json.dumps(config(commit),indent=2)+'\n')
-    output=a.out/'jobbi-laptop.iso';usb.remaster_iso(a.ubuntu_iso,seed,output)
+    output=a.out/('JobbiSoft-Home-1.0-RC.iso' if a.release_candidate else 'jobbi-laptop.iso');usb.remaster_iso(a.ubuntu_iso,seed,output)
     with output.open('rb') as stream:checksum=hashlib.file_digest(stream,'sha256').hexdigest()
     (a.out/'SHA256SUMS').write_text(checksum+'  '+output.name+'\n')
-    print('Pilot ISO created:',output,'; verify checksum, boot only isolated lab, select SSD and guided LVM, choose jobbi operator.')
+    print('Pilot ISO created:',output,'; verify checksum, boot only isolated lab, select SSD and guided LVM, create the appliance operator.')
 if __name__=='__main__':main()

@@ -9,12 +9,15 @@ def main():
         home=Path(tmp);env={**os.environ,'HOME':tmp}
         config=home/'.config/jobbi-business';config.mkdir(parents=True)
         password=secrets.token_urlsafe(32)
-        p=config/'dashboard-password';p.write_text(password+'\n');p.chmod(0o600)
         reports=home/'.local/share/jobbi-business/sourcing/family-20260101T000000000000Z'
         reports.mkdir(parents=True)
         offers={'offers':[{'market':'US','part':'computer','supplier':'eBay','title':'Dell OptiPlex 7060 MT i5 16GB 256GB SSD','price':'150','shipping':'20','condition':'Used','currency':'USD','decision':'candidate','reason':'Check hardware','url':'https://www.ebay.com/itm/123456789','notes':'Synthetic fixture'}],'coverage':[['Fixture','No live data']],'bom':[]}
         (reports/'offers.json').write_text(json.dumps(offers))
-        proc=subprocess.Popen([sys.executable,str(ROOT/'business/dashboard/server.py'),'--port','18790','--allow-origin','http://macmini2012:18790','--allow-origin','https://macmini2012.demo.ts.net'],env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)
+        rd,wr=os.pipe()
+        try:
+            with os.fdopen(wr,'w',encoding='utf-8') as credential:credential.write(password+'\n')
+            proc=subprocess.Popen([sys.executable,str(ROOT/'business/dashboard/server.py'),'--port','18790','--allow-origin','http://macmini2012:18790','--allow-origin','https://macmini2012.demo.ts.net','--password-fd',str(rd)],env=env,pass_fds=(rd,),stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)
+        finally:os.close(rd)
         base='http://127.0.0.1:18790'
         try:
             auth='Basic '+base64.b64encode(('owner:'+password).encode()).decode()

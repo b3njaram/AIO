@@ -42,12 +42,20 @@ class Tests(unittest.TestCase):
             import socket
             try:
                 trust=ssl.create_default_context(cafile=str(cert))
-                with trust.wrap_socket(socket.create_connection(('127.0.0.1',server.server_port),5),server_hostname=host) as sock:
-                    sock.sendall(('GET /api/report HTTP/1.1\r\nHost: '+server.host_header+'\r\nAuthorization: Bearer '+s.token+'\r\nConnection: close\r\n\r\n').encode())
-                    response=http.client.HTTPResponse(sock);response.begin()
+                def connect(name):
+                    conn=http.client.HTTPSConnection(name,server.server_port,timeout=5,context=trust)
+                    conn._create_connection=lambda addr,timeout,source_address=None: socket.create_connection(('127.0.0.1',addr[1]),timeout,source_address)
+                    return conn
+                conn=connect(host)
+                try:
+                    conn.request('GET','/api/report',headers={'Host':server.host_header,'Authorization':'Bearer '+s.token,'Connection':'close'})
+                    response=conn.getresponse()
                     self.assertEqual(response.status,200);self.assertEqual(response.read(),b'{"schema": 1}')
-                with self.assertRaises(ssl.SSLCertVerificationError):
-                    with trust.wrap_socket(socket.create_connection(('127.0.0.1',server.server_port),5),server_hostname='wrong.demo.ts.net'):pass
+                finally:conn.close()
+                wrong=connect('wrong.demo.ts.net')
+                try:
+                    with self.assertRaises(ssl.SSLCertVerificationError):wrong.connect()
+                finally:wrong.close()
             finally:server.shutdown();server.server_close();t.join()
 if __name__=='__main__':unittest.main()
 

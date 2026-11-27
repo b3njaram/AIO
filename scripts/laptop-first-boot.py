@@ -61,8 +61,8 @@ def setup_service(instance,user):
     if shutil.which('chvt'):run('chvt','3')
 def main():
     if os.geteuid()!=0 or out('git','-C',str(ROOT),'rev-parse','HEAD')!=Path('/etc/jobbi/pilot-revision').read_text().strip():raise ValueError('Pinned root checkout required')
-    user=pwd.getpwnam('jobbi')
-    if user.pw_uid!=1000:raise ValueError('Use jobbi as first Ubuntu operator')
+    user=pwd.getpwuid(1000)
+    if not re.fullmatch(r'[a-z][a-z0-9_-]{0,31}',user.pw_name):raise ValueError('Invalid first Ubuntu operator')
     if out('docker','ps','-aq'):raise ValueError('Existing Docker containers: refuse automatic provisioning')
     if (DATA/'laptop-test').exists():raise ValueError('Existing instance: refuse overwrite')
     root=data_volume();os.chown(DATA,user.pw_uid,user.pw_gid)

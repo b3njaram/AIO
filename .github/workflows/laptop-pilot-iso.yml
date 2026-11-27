@@ -1,30 +1,42 @@
-name: Laptop pilot installer ISO
+name: JobbiSoft Home connected installer image
 on:
   push:
-    branches: [pilot/one-boot]
+    branches: [release/jobbi-home-1.0-rc]
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
   iso:
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 38
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y xorriso
       - run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends xorriso qemu-system-x86 ovmf
+      - name: Build reusable connected installer
+        run: |
           curl --fail --location --retry 3 --max-time 900 https://releases.ubuntu.com/24.04/ubuntu-24.04.5-live-server-amd64.iso -o /tmp/ubuntu.iso
-          python3 scripts/make-laptop-iso.py --ubuntu-iso /tmp/ubuntu.iso --iso-sha256 97f3d7ffb032c3eb3b23d2c8be9cc76e60c2c1f2c0146ba5ba9fe01cafae0fd8 --out /tmp/jobbi-laptop
-          cd /tmp/jobbi-laptop
+          python3 scripts/make-laptop-iso.py --release-candidate --ubuntu-iso /tmp/ubuntu.iso --iso-sha256 97f3d7ffb032c3eb3b23d2c8be9cc76e60c2c1f2c0146ba5ba9fe01cafae0fd8 --out /tmp/jobbi-rc
+          git rev-parse HEAD > /tmp/jobbi-rc/REVISION
+          cp docs/{RELEASE-1.0-RC,HARDWARE-QUALIFICATION,OFFLINE-RECOVERY,SECURITY-REMEDIATION}.md /tmp/jobbi-rc/
+          cd /tmp/jobbi-rc
           sha256sum -c SHA256SUMS
-          xorriso -osirrox on -indev jobbi-laptop.iso -extract /autoinstall.yaml /tmp/extracted.yaml
+          xorriso -osirrox on -indev JobbiSoft-Home-1.0-RC.iso -extract /autoinstall.yaml /tmp/extracted.yaml
           cmp autoinstall.yaml /tmp/extracted.yaml
-          xorriso -indev jobbi-laptop.iso -report_el_torito plain > boot.txt 2>&1
+          xorriso -indev JobbiSoft-Home-1.0-RC.iso -report_el_torito plain > boot.txt 2>&1
           grep -E 'El Torito boot img.*BIOS' boot.txt
           grep -E 'El Torito boot img.*UEFI' boot.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: jobbi-laptop-pilot-iso
-          path: /tmp/jobbi-laptop/
+          name: JobbiSoft-Home-1.0-RC-${{ github.sha }}
+          path: /tmp/jobbi-rc/
           compression-level: 0
-          retention-days: 7
+          retention-days: 14
+      - name: Boot the downloadable ISO under BIOS and UEFI
+        run: bash scripts/laptop-iso-vm.sh /tmp/jobbi-rc/JobbiSoft-Home-1.0-RC.iso /tmp/jobbi-firmware
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: firmware-boot-${{ github.sha }}
+          path: /tmp/jobbi-firmware/

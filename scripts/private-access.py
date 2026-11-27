@@ -113,7 +113,7 @@ def main():
         prepare(i,cfg,changes)
         if 'files' in plan:nextcloud_origin.prepare(i,plan['files']['url'])
         print('Saved previous configuration and prepared private origins. Recreate dashboard and affected services before enabling Serve.')
-    print(json.dumps({'host':host,'routes':plan,'proposed_env_changes':changes,'proposed_dashboard_config':cfg,'enable_commands':c['enable'],'disable_commands':c['disable'],'note':'Preview only. Confirm Vaultwarden signups are closed and the intended owner invitation before serving; finish its acceptance after HTTPS. Configure app origins and verify ACLs before enabling routes. Never enable Funnel. Do not run on owner infrastructure.'},indent=2))
+    print(json.dumps({'host':host,'routes':plan,'proposed_origin_keys':sorted(changes),'dashboard_origins':{k:v['url'] for k,v in plan.items()},'enable_commands':c['enable'],'disable_commands':c['disable'],'note':'Preview only. Confirm Vaultwarden signups are closed and the intended owner invitation before serving; finish its acceptance after HTTPS. Configure app origins and verify ACLs before enabling routes. Never enable Funnel. Do not run on owner infrastructure.'},indent=2))
 if __name__=='__main__':
     try:main()
-    except (OSError,ValueError,KeyError,TypeError,subprocess.CalledProcessError,subprocess.TimeoutExpired) as e:sys.exit('Private access plan stopped: '+str(e))
+    except (OSError,ValueError,KeyError,TypeError,subprocess.CalledProcessError,subprocess.TimeoutExpired) as e:sys.exit('Private access plan stopped: '+type(e).__name__+'; inspect local configuration without copying credentials.')

@@ -74,10 +74,12 @@ WantedBy=multi-user.target
         ai['late-commands']=[
             "cd /cdrom/jobbi-offline && echo '"+media_sha+"  SHA256SUMS' | sha256sum -c - && sha256sum -c SHA256SUMS",
             'test ! -e /target/var/lib/jobbi-offline && cp -r /cdrom/jobbi-offline /target/var/lib/jobbi-offline',
-            "printf '%s\n' 'deb [trusted=yes] file:/var/lib/jobbi-offline/packages ./' > /target/etc/apt/jobbi-offline.list",
+            'chmod 0700 /target/var/lib/jobbi-offline && chmod -R go-rwx /target/var/lib/jobbi-offline/applications',
+            'test ! -e /target/var/lib/jobbi-offline-packages && install -d -m 0755 /target/var/lib/jobbi-offline-packages && cp /target/var/lib/jobbi-offline/packages/*.deb /target/var/lib/jobbi-offline/packages/Packages /target/var/lib/jobbi-offline-packages/ && chmod 0644 /target/var/lib/jobbi-offline-packages/*',
+            "printf '%s\n' 'deb [trusted=yes] file:/var/lib/jobbi-offline-packages ./' > /target/etc/apt/jobbi-offline.list",
             'curtin in-target -- bash -ec '+shlex.quote(
                 'opts=(-o Dir::Etc::sourcelist=/etc/apt/jobbi-offline.list -o Dir::Etc::sourceparts=- -o Dir::State::lists=/var/lib/apt/jobbi-lists); '
-                'mkdir -p /var/lib/apt/jobbi-lists/partial; apt-get "${opts[@]}" update; DEBIAN_FRONTEND=noninteractive apt-get "${opts[@]}" --no-install-recommends -y install '+' '.join(PACKAGES)),
+                'mkdir -p /var/lib/apt/jobbi-lists/partial; apt-get "${opts[@]}" update; DEBIAN_FRONTEND=noninteractive apt-get "${opts[@]}" --no-install-recommends -y install '+' '.join(PACKAGES)+'; rm -f /etc/apt/jobbi-offline.list; rm -rf /var/lib/apt/jobbi-lists /var/lib/jobbi-offline-packages'),
         ]
     return result
 

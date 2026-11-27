@@ -24,3 +24,8 @@ RUN set -eu; \
     rm -f /tmp/jobbi-security.list; rm -rf /var/lib/apt/lists/*
 
 COPY --from=healthcheck --chmod=0755 /out/healthcheck /app/extra/healthcheck
+
+# Same-major npm patch artifacts are verified against the exact upstream lock.
+RUN --mount=type=bind,source=patch-npm.cjs,target=/tmp/jobbi-patch-npm.cjs,ro \
+    --mount=type=bind,source=npm-security-patches.json,target=/tmp/jobbi-npm-plan.json,ro \
+    node /tmp/jobbi-patch-npm.cjs /tmp/jobbi-npm-plan.json
