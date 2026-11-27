@@ -23,6 +23,15 @@ class Tests(unittest.TestCase):
             result = subprocess.run(['node', '--input-type=module', '-e', stub + SOULSEEK_LOGIN_PROBE], timeout=10)
             self.assertEqual(result.returncode, 0 if connected and authenticated else 1)
 
+    def test_builtin_invidious_manifest_uses_exact_images(self):
+        root=Path(__file__).resolve().parents[1]
+        manifest=json.loads((root/'deploy/invidious-pilot.json').read_text())
+        self.assertRegex(manifest['source_commit'],r'^[a-f0-9]{40}$')
+        built=invidious(Path('/tmp/lab'),manifest['images'],Path('/tmp/source'),
+                        {'db':'a'*48,'hmac':'b'*48,'companion':'c'*48})
+        for key, service in [('invidious','invidious'),('companion','invidious-companion'),('postgres','invidious-db')]:
+            self.assertEqual(built['services'][service]['image'],manifest['images'][key])
+
     def test_invidious_isolated(self):
         pins={k:repo+'@sha256:'+'a'*64 for k,repo in [('invidious','quay.io/invidious/invidious'),('companion','quay.io/invidious/invidious-companion'),('postgres','docker.io/library/postgres')]}
         c=invidious(Path('/tmp/lab'),pins,Path('/tmp/source'),{'db':'a'*48,'hmac':'b'*48,'companion':'c'*48})

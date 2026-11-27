@@ -107,6 +107,19 @@ jobs:
           docker create --network none --name jobbi-security-slskd \
             --label com.docker.compose.project=jobbi-audit \
             --label com.docker.compose.service=slskd jobbi-security-slskd
+          python3 - <<'PYCODE' > "$RUNNER_TEMP/jobbi-invidious-images"
+          import json
+          with open("deploy/invidious-pilot.json") as manifest:
+              images = json.load(manifest)["images"]
+          for service, ref in images.items():
+              print(service, ref)
+          PYCODE
+          while read -r service ref; do
+            retry docker pull "$ref"
+            docker create --network none --name "jobbi-security-invidious-$service" \
+              --label com.docker.compose.project=jobbi-audit \
+              --label "com.docker.compose.service=optional-invidious-$service" "$ref"
+          done < "$RUNNER_TEMP/jobbi-invidious-images"
       - name: Scan locally created image IDs
         run: python3 scripts/scan-release.py /tmp/jobbi-security-pilot/audit --scanner "$RUNNER_TEMP/jobbi-scanner/trivy" --output "$RUNNER_TEMP/jobbi-security-evidence"
       - name: Cross-check every unfixed finding against vendor status
@@ -143,7 +156,9 @@ jobs:
           PY
       - if: always()
         run: |
-          docker rm jobbi-security-slskd >/dev/null 2>&1 || true
+          for name in slskd invidious-invidious invidious-companion invidious-postgres; do
+            docker rm "jobbi-security-$name" >/dev/null 2>&1 || true
+          done
           if test -f /tmp/jobbi-security-pilot/audit/.env; then bash scripts/ctl.sh /tmp/jobbi-security-pilot/audit down -v; fi
 
       - name: Enforce source security results

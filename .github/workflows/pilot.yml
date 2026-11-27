@@ -246,6 +246,8 @@ jobs:
           bash scripts/ctl.sh /tmp/jobbi-infra/recovered up -d
           python3 scripts/test-reinstall-pilot.py /tmp/jobbi-infra/recovered
           python scripts/test-infrastructure-pilot.py /tmp/jobbi-infra/recovered
+      - name: Boot pinned optional Invidious stack without external access
+        run: bash scripts/test-invidious-pilot.sh
       - if: always()
         run: |
           for n in source recovered; do
