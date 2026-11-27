@@ -6,7 +6,17 @@ cd "$2"
 for firmware in BIOS UEFI; do
     args=()
     if [[ "$firmware" == UEFI ]]; then
-        args=(-bios /usr/share/OVMF/OVMF_CODE_4M.fd)
+        # Split OVMF builds require matching code and variable pflash devices.
+        code=$(dpkg -L ovmf | awk '/\/OVMF_CODE_4M[.]fd$/ {print; exit}')
+        vars=$(dpkg -L ovmf | awk '/\/OVMF_VARS_4M[.]fd$/ {print; exit}')
+        if [[ ! -r "$code" || ! -r "$vars" ]]; then
+            code=$(dpkg -L ovmf | awk '/\/OVMF_CODE[.]fd$/ {print; exit}')
+            vars=$(dpkg -L ovmf | awk '/\/OVMF_VARS[.]fd$/ {print; exit}')
+        fi
+        test -r "$code" && test -r "$vars"
+        cp "$vars" UEFI-vars.fd
+        args=(-drive "if=pflash,format=raw,readonly=on,file=$code"
+              -drive "if=pflash,format=raw,file=UEFI-vars.fd")
     fi
     truncate -s 96G "$firmware.img"
     qemu-system-x86_64 -machine q35,accel=tcg -cpu max -smp 2 -m 3072 \
@@ -36,7 +46,7 @@ PYCODE
     kill "$vm" 2>/dev/null || true
     wait "$vm" 2>/dev/null || true
     trap - EXIT
-    rm -f "$firmware.img" "$firmware.sock"
+    rm -f "$firmware.img" "$firmware.sock" UEFI-vars.fd
     if [[ "$passed" != true ]]; then echo "$firmware did not reach Subiquity early commands"; exit 1; fi
     echo "$firmware reached Subiquity using embedded seed from the downloadable media"
 done
