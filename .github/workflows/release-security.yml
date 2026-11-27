@@ -165,6 +165,12 @@ jobs:
                   print(v['severity'],v['id'],v['package'],v['installed'],'fix:',v['fixed'] or 'not reported')
           totals = Counter(v['severity'] for x in r['images'] for v in x['vulnerabilities'])
           print('Image findings by severity:', dict(sorted(totals.items())))
+          print('Installed locations for fixable application dependencies:')
+          locations = json.loads(p.with_name('fix-locations.json').read_text())['locations']
+          for row in locations:
+              if row['ecosystem'] in ('alpine', 'debian', 'ubuntu'):
+                  continue
+              print(json.dumps({k: row[k] for k in ('services', 'package', 'installed', 'target', 'package_path')}))
           print('Remediation priority (fix reported vs no fix):')
           for x in sorted(r['images'],key=lambda x:len(x['vulnerabilities']),reverse=True):
               fixed=sum(bool(v['fixed']) for v in x['vulnerabilities'])
