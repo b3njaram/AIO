@@ -54,6 +54,30 @@
       "url": "https://registry.npmjs.org/ip-address/-/ip-address-10.7.5.tgz",
       "integrity": "sha512-t2v0rkILYv9WXmSL7TpAaU3HXgaFYOPUcH3QHgwQ++gpJuH3bqyMy4Fvt/DJCTKwzH3Cf+bAp5W/mFL39KPLzA==",
       "upstreamLockKey": "node_modules/ip-address"
+    },
+    {
+      "path": "/app/node_modules/jsonata",
+      "name": "jsonata",
+      "from": "2.2.0",
+      "to": "2.2.1",
+      "url": "https://registry.npmjs.org/jsonata/-/jsonata-2.2.1.tgz",
+      "integrity": "sha512-xd1uwUrKeIcJbsWhaoS3qAX4Ea8m0Mw0G5nlnAQvPT7TbZ5qaPdzBVTQia9KfyuyQm+nenfyjvzUDTRYHsC2sw=="
+    },
+    {
+      "path": "/app/node_modules/protobufjs",
+      "name": "protobufjs",
+      "from": "7.2.6",
+      "to": "7.6.6",
+      "url": "https://registry.npmjs.org/protobufjs/-/protobufjs-7.6.6.tgz",
+      "integrity": "sha512-dYDWdjSl5RNb7SgPxGQcRU+GtvP7s2fpkrY0r432PcOIaZ0/rBcxEZnQN67iJhFuQiVw754JDoPruPCNdGsbjg=="
+    },
+    {
+      "path": "/app/node_modules/axios",
+      "name": "axios",
+      "from": "0.32.0",
+      "to": "0.34.0",
+      "url": "https://registry.npmjs.org/axios/-/axios-0.34.0.tgz",
+      "integrity": "sha512-CkOmqy7BaT4VC9+wRUmSM3LVwCkKK3UYc7koEqIHWRpOTJypwdNctaVOgnOjhHP3599Ubq2K8KqYwfC7c8NdPQ=="
     }
   ]
 }

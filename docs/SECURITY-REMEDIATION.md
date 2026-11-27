@@ -50,3 +50,7 @@ The release workflow also scans the optional pinned slskd image by local image I
 The Immich server image keeps its installed PostgreSQL major version and PGDG provider, using signed Debian 13 packages to update the client to 17.12. The build checks the installed package and verifies that psql and pg_dump execute. The scanner's equivalent Debian build threshold and the vendor's package version can differ. Preserve each reported result and compare the installed client version with the PostgreSQL release advisory. [PostgreSQL 17.12 release notes](https://www.postgresql.org/docs/release/17.12/)
 
 The completed 2b5354c scan confirmed that the eight Bookworm PAM rows now resolve to installed version 1.5.2-6+deb12u3, the Debian fixed version. Trivy still reported those rows. The raw report and release gate remain intact. [Evidence](https://github.com/b3njaram/AIO/actions/runs/45921095273/artifacts/15164204389)
+
+The 1,414-finding baseline includes 218 Chromium and Chromium Common findings in Kuma for which the scanner reported no Bookworm fix, and 372 findings in Nextcloud 32. Nextcloud 32 has reached end of support. A supported major release needs a tested data migration with the previous image and an independent backup retained. These findings remain gated.
+
+Kuma now pins compatible JSONata, protobufjs and Axios security releases by registry integrity. The build validates the installed dependency versions and loads the patched modules before the exact-image scan and recovery tests.
