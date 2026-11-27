@@ -6,7 +6,7 @@ from private_origins import prepare,rollback
 from private_routes import manage
 import nextcloud_origin
 ROOT=Path(__file__).resolve().parents[1]
-APP_PORTS={'dashboard':'DASH_PORT','music':'MUSIC_PORT','navidrome':'NAV_PORT','movies':'MOVIE_PORT','photos':'PHOTO_PORT','files':'CLOUD_PORT','passwords':'VAULT_PORT','tasks':'TASK_PORT','monitor':'MONITOR_PORT'}
+APP_PORTS={'dashboard':'DASH_PORT','music':'MUSIC_PORT','navidrome':'NAV_PORT','movies':'MOVIE_PORT','photos':'PHOTO_PORT','files':'CLOUD_PORT','passwords':'VAULT_PORT','tasks':'TASK_PORT','monitor':'MONITOR_PORT','dns':'DNS_WEB_PORT'}
 def output(*args):
     return subprocess.check_output(args,text=True,stderr=subprocess.DEVNULL,timeout=15)
 def hostname(raw):
@@ -19,7 +19,9 @@ def routes(env,config,host,base):
     if not 1024<=base<=65525:raise ValueError('Use a dedicated HTTPS base port between 1024 and 65525')
     if env.get('BIND_IP')!='127.0.0.1':raise ValueError('Use loopback-only application bindings')
     selected={'dashboard'}|{a['id'] for a in config['apps']}
-    if 'dns' in selected:raise ValueError('DNS requires a separate private LAN design; not routed here')
+    if 'dns' in selected:
+        if 'dns' not in env.get('COMPOSE_PROFILES','').split(',') or not 1024<=int(env.get('DNS_LISTEN_PORT','0'))<=65535:raise ValueError('Native isolated DNS profile required; only admin HTTP is routed')
+    if 'invidious' in selected:raise ValueError('Review experimental Invidious canonical origin before private route transition')
     result={}
     for offset,(app,key) in enumerate(APP_PORTS.items()):
         if app not in selected:continue
@@ -28,7 +30,9 @@ def routes(env,config,host,base):
         https=base+offset
         result[app]={'port':https,'target':'http://127.0.0.1:'+str(port),'url':'https://'+host+':'+str(https)}
     if len({x['target'] for x in result.values()})!=len(result):raise ValueError('Duplicate backend ports')
-    if any(x['port']==int(y['target'].rsplit(':',1)[1]) for x in result.values() for y in result.values()):raise ValueError('HTTPS and backend port ranges must be disjoint')
+    reserved={int(y['target'].rsplit(':',1)[1]) for y in result.values()}
+    if 'dns' in selected:reserved.add(int(env['DNS_LISTEN_PORT']))
+    if any(x['port'] in reserved for x in result.values()):raise ValueError('HTTPS and backend port ranges must be disjoint')
     return result
 def existing_conflicts(status,ports):
     if status is None:status={}
@@ -96,7 +100,7 @@ def main():
     existing_conflicts(status,{x['port'] for x in plan.values()})
     c=commands(plan)
     # Output configuration proposals, never copy customer secrets or rewrite instance files.
-    cfg={**config,'apps':[{**app,**({'url':plan[app['id']]['url']} if app['id'] in plan else {})} for app in config['apps']]}
+    cfg={**config,'apps':[{**app,**({'url':plan[app['id']]['url']+('/admin/' if app['id']=='dns' else '')} if app['id'] in plan else {})} for app in config['apps']]}
     changes={}
     if 'movies' in plan:changes['MOVIE_HTTPS']='true'
     if 'music' in plan:changes['MUSIC_HTTPS']='true'

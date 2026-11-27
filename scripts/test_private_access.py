@@ -12,6 +12,16 @@ class Tests(unittest.TestCase):
         self.assertEqual(p['passwords']['target'],'http://127.0.0.1:18087')
         self.assertNotIn('prowlarr',p)
         self.assertTrue(all('funnel' not in x for x in m.commands(p)['enable']))
+    def test_native_dns_admin_only(self):
+        e={**self.env,'COMPOSE_PROFILES':'passwords,tasks,dns','DNS_WEB_PORT':'18089','DNS_LISTEN_PORT':'1053'}
+        c={'apps':[*self.config['apps'],{'id':'dns'}]}
+        p=m.routes(e,c,'customer.example.ts.net',19443)
+        self.assertEqual(p['dns']['target'],'http://127.0.0.1:18089')
+        self.assertNotIn('1053',str(p))
+        self.assertEqual(p['dns']['port'],19452)
+        with self.assertRaises(ValueError):m.routes({**e,'DNS_LISTEN_PORT':'53'},c,'customer.example.ts.net',19443)
+        with self.assertRaises(ValueError):m.routes({**e,'DNS_LISTEN_PORT':'19452'},c,'customer.example.ts.net',19443)
+        with self.assertRaises(ValueError):m.routes(e,{'apps':[{'id':'invidious'}]},'customer.example.ts.net',19443)
     def test_refusals(self):
         for host in ('example.com','x.ts.net/abc','x.ts.net;touch'):
             with self.assertRaises(ValueError):m.routes(self.env,self.config,host,19443)

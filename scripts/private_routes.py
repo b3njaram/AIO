@@ -41,7 +41,7 @@ def verify_backends(instance, plan):
                 ports[int(bind['HostPort'])]=service
     if 'movies' in plan and 'backend' not in running:
         raise ValueError('Missing StreamHub backend')
-    owners={'dashboard':'dashboard','music':'jobbi-music','navidrome':'navidrome','movies':'frontend','photos':'immich-server','files':'nextcloud','passwords':'vaultwarden','tasks':'vikunja','monitor':'uptime-kuma'}
+    owners={'dashboard':'dashboard','music':'jobbi-music','navidrome':'navidrome','movies':'frontend','photos':'immich-server','files':'nextcloud','passwords':'vaultwarden','tasks':'vikunja','monitor':'uptime-kuma','dns':'pihole'}
     for app,row in plan.items():
         if ports.get(int(row['target'].rsplit(':',1)[1]))!=owners[app]:
             raise ValueError('Missing running customer backend for '+app)
