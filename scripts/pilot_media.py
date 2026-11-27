@@ -13,6 +13,11 @@ const { isConnected, isLoggedIn } = await response.json();
 process.exit(isConnected === true && isLoggedIn === true ? 0 : 1);
 """
 def token():return secrets.token_hex(24)
+def invidious_credentials():
+    # The pinned frontend requires a companion key of exactly 16 characters.
+    alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+    return {'db':token(),'hmac':token(),'companion':''.join(secrets.choice(alphabet) for _ in range(16))}
+
 def credentials():
     return {'username':'jobbi-'+secrets.token_hex(8),'password':token(),'api_key':token(),'ui_password':token()}
 def pinned(image,repo):
@@ -27,7 +32,7 @@ def invidious(i,images,source,secret):
     iv=pinned(images['invidious'],'quay.io/invidious/invidious')
     companion=pinned(images['companion'],'quay.io/invidious/invidious-companion')
     db=pinned(images['postgres'],'docker.io/library/postgres')
-    if not all(re.fullmatch('[a-f0-9]{48}',secret[k]) for k in ('db','hmac','companion')) or len(set(secret.values()))!=3:raise ValueError('Independent generated secrets required')
+    if not all(re.fullmatch('[a-f0-9]{48}',secret[k]) for k in ('db','hmac')) or not re.fullmatch('[A-Za-z0-9]{16}',secret['companion']) or len(set(secret.values()))!=3:raise ValueError('Independent generated secrets required')
     cfg={'db':{'dbname':'invidious','user':'invidious','password':secret['db'],'host':'invidious-db','port':5432},'check_tables':True,'hmac_key':secret['hmac'],'invidious_companion':[{'private_url':'http://invidious-companion:8282/companion'}],'invidious_companion_key':secret['companion'],'registration_enabled':False,'statistics_enabled':False}
     return {'services':{
       'invidious':{'image':iv,'restart':'unless-stopped','ports':['127.0.0.1:18091:3000'],'environment':{'INVIDIOUS_CONFIG':json.dumps(cfg)},'depends_on':{'invidious-db':{'condition':'service_healthy'},'invidious-companion':{'condition':'service_started'}}},

@@ -3,7 +3,7 @@ import shutil
 import subprocess
 import unittest
 from pathlib import Path
-from pilot_media import SOULSEEK_LOGIN_PROBE,SLSKD,credentials,soulseek,invidious,pinned
+from pilot_media import SOULSEEK_LOGIN_PROBE,SLSKD,credentials,soulseek,invidious,invidious_credentials,pinned
 class Tests(unittest.TestCase):
     def test_per_appliance(self):
         a,b=credentials(),credentials()
@@ -28,17 +28,21 @@ class Tests(unittest.TestCase):
         manifest=json.loads((root/'deploy/invidious-pilot.json').read_text())
         self.assertRegex(manifest['source_commit'],r'^[a-f0-9]{40}$')
         built=invidious(Path('/tmp/lab'),manifest['images'],Path('/tmp/source'),
-                        {'db':'a'*48,'hmac':'b'*48,'companion':'c'*48})
+                        {'db':'a'*48,'hmac':'b'*48,'companion':'c'*16})
         for key, service in [('invidious','invidious'),('companion','invidious-companion'),('postgres','invidious-db')]:
             self.assertEqual(built['services'][service]['image'],manifest['images'][key])
 
     def test_invidious_isolated(self):
         pins={k:repo+'@sha256:'+'a'*64 for k,repo in [('invidious','quay.io/invidious/invidious'),('companion','quay.io/invidious/invidious-companion'),('postgres','docker.io/library/postgres')]}
-        c=invidious(Path('/tmp/lab'),pins,Path('/tmp/source'),{'db':'a'*48,'hmac':'b'*48,'companion':'c'*48})
+        c=invidious(Path('/tmp/lab'),pins,Path('/tmp/source'),{'db':'a'*48,'hmac':'b'*48,'companion':'c'*16})
         self.assertEqual(c['services']['invidious']['ports'],['127.0.0.1:18091:3000'])
         self.assertNotIn('ports',c['services']['invidious-db'])
         self.assertNotIn('ports',c['services']['invidious-companion'])
         companion=c['services']['invidious-companion']
+        self.assertRegex(invidious_credentials()['companion'],r'^[A-Za-z0-9]{16}$')
+        self.assertEqual(companion['environment']['SERVER_SECRET_KEY'],'c'*16)
+        with self.assertRaises(ValueError):
+            invidious(Path('/tmp/lab'),pins,Path('/tmp/source'),{'db':'a'*48,'hmac':'b'*48,'companion':'c'*48})
         self.assertTrue(companion['read_only'])
         self.assertEqual(companion['volumes'],['pilot-invidious-companion-cache:/var/tmp/youtubei.js:rw'])
         self.assertIn('pilot-invidious-companion-cache',c['volumes'])

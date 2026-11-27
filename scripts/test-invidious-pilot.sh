@@ -21,7 +21,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from pilot_media import invidious, token
+from pilot_media import invidious, invidious_credentials
 
 work = Path(os.environ["JOBBI_IV_FIXTURE"])
 source = work / "source"
@@ -32,7 +32,7 @@ subprocess.run(["git", "-C", str(source), "fetch", "--depth=1",
 subprocess.run(["git", "-C", str(source), "checkout", "--detach", "FETCH_HEAD"], check=True)
 if subprocess.check_output(["git", "-C", str(source), "rev-parse", "HEAD"], text=True).strip() != pins["source_commit"]:
     raise ValueError("Unexpected Invidious source")
-cfg = invidious(work, pins["images"], source, {k: token() for k in ("db", "hmac", "companion")})
+cfg = invidious(work, pins["images"], source, invidious_credentials())
 # Runtime startup requires outbound access for the upstream session.
 # No host ports or customer credentials are used by this test.
 for service in cfg["services"].values():

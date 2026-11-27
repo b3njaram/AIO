@@ -3,7 +3,7 @@
 import argparse,fcntl,json,os,re,subprocess,sys
 from pathlib import Path
 from private_origins import atomic_write
-from pilot_media import SOULSEEK_LOGIN_PROBE,credentials,soulseek,invidious,token,public_origin,local_fallback_source
+from pilot_media import SOULSEEK_LOGIN_PROBE,credentials,soulseek,invidious,invidious_credentials,public_origin,local_fallback_source
 ROOT=Path(__file__).resolve().parents[1]
 def main():
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('instance',type=Path);p.add_argument('--soulseek',action='store_true',help='Customer approves a distinct Soulseek network account and sharing only authorized files');provider=p.add_mutually_exclusive_group();provider.add_argument('--invidious',dest='invidious_manifest',action='store_const',const=ROOT/'deploy/invidious-pilot.json',help='Use the repository-pinned Invidious pilot images');provider.add_argument('--invidious-manifest',type=Path,help='Reviewed exact images and upstream source SHA');p.add_argument('--invidious-public-url',help='Exact customer-owned private HTTPS route, already approved and configured');p.add_argument('--apply',action='store_true');a=p.parse_args()
@@ -44,7 +44,7 @@ def main():
             for item in public_files:
                 if item.is_symlink() or not (item.is_dir() or item.is_file()):raise ValueError('Unexpected database initialization entry')
                 item.chmod(0o755 if item.is_dir() or item.name=='init-invidious-db.sh' else 0o644)
-            cfg=invidious(i,pins['images'],source,{k:token() for k in ('db','hmac','companion')})
+            cfg=invidious(i,pins['images'],source,invidious_credentials())
             config['services'].update(cfg['services']);config['volumes']=cfg['volumes'];services+=list(cfg['services'])
         if public:
             # AIO-only patch to the instance's frozen Jobbi Music checkout, never upstream owner repo.
