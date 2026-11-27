@@ -65,7 +65,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not isinstance(state,dict):raise ValueError()
                 # Host writes a sanitized snapshot; this endpoint does not execute commands.
                 self.send(json.dumps({**state,'accounts':account_status(),'monitoring':monitoring_status()}).encode(),'application/json')
-            except (OSError,ValueError):self.send(json.dumps({'state':'not_configured','accounts':account_status()}).encode(),'application/json')
+            except (OSError,ValueError):self.send(json.dumps({'state':'not_configured','accounts':account_status(),'monitoring':monitoring_status()}).encode(),'application/json')
         elif self.path == '/healthz':
             self.send(b'ok\n','text/plain')
         else:
