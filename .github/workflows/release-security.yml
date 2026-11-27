@@ -33,6 +33,7 @@ jobs:
           files = list((Path(os.environ['RUNNER_TEMP']) / 'codeql').glob('*.sarif'))
           languages = set()
           high = []
+          locations = []
           for path in files:
               for run in json.loads(path.read_text())['runs']:
                   driver = run['tool']['driver']
@@ -41,17 +42,32 @@ jobs:
                   rules = {rule['id']: rule for tool in tools for rule in tool.get('rules', [])}
                   for result in run['results']:
                       rule = rules[result['ruleId']]
+                      for location in result.get('locations', []):
+                          physical = location.get('physicalLocation', {})
+                          locations.append({'language': path.stem, 'rule': rule['id'],
+                                            'file': physical.get('artifactLocation', {}).get('uri'),
+                                            'line': physical.get('region', {}).get('startLine')})
                       if float(rule.get('properties', {}).get('security-severity', 0)) >= 7:
                           for location in result.get('locations', []):
                               physical = location.get('physicalLocation', {})
                               print(rule['id'], physical.get('artifactLocation', {}).get('uri'),
                                     physical.get('region', {}).get('startLine'))
                           high.append(rule['id'])
+          report = {'commit': os.environ['GITHUB_SHA'], 'languages': sorted(languages), 'locations': locations}
+          (Path(os.environ['RUNNER_TEMP']) / 'codeql-locations.json').write_text(json.dumps(report, indent=2))
           if len(languages) < 2:
               raise SystemExit('Incomplete language coverage')
           print('High severity CodeQL results:', len(high), sorted(set(high)))
           raise SystemExit(bool(high))
           PYCODE
+      - name: Retain exact-revision CodeQL rule locations
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: codeql-locations-${{ github.sha }}
+          path: ${{ runner.temp }}/codeql-locations.json
+          if-no-files-found: error
+          retention-days: 14
   image-scan:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (contains(github.event.head_commit.message, '[security-pilot]') || contains(github.event.head_commit.message, '[release-gate]'))
     runs-on: ubuntu-24.04
