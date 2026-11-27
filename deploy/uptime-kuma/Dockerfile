@@ -29,6 +29,18 @@ RUN set -eu; \
 
 COPY --from=healthcheck --chmod=0755 /out/healthcheck /app/extra/healthcheck
 
+# glob 10.5.0 adds package-json-from-dist. The pinned image already has
+# the exact compatible version 1.0.1 in its npm tree; reuse the identical
+# local dependency rather than installing a new dependency graph.
+RUN set -eu; \
+    src=/usr/local/lib/node_modules/npm/node_modules/package-json-from-dist; \
+    dst=/app/node_modules/redbean-node/node_modules/glob/node_modules/package-json-from-dist; \
+    node -e 'const p=require(process.argv[1]+"/package.json"); if(p.name!=="package-json-from-dist"||p.version!=="1.0.1"||Object.keys(p.dependencies||{}).length)process.exit(1)' "$src"; \
+    test -d "$src"; test ! -L "$src"; test -z "$(find "$src" -type l -print)"; \
+    test ! -e "$dst"; test ! -L "$dst"; mkdir -p "$(dirname "$dst")"; \
+    cp -a "$src" "$dst"; \
+    chown -R --reference=/app/node_modules/redbean-node/node_modules/glob "$dst"
+
 # Same-major npm patch artifacts are verified against the exact upstream lock.
 RUN --mount=type=bind,source=patch-npm.cjs,target=/tmp/jobbi-patch-npm.cjs,ro \
     --mount=type=bind,source=npm-security-patches.json,target=/tmp/jobbi-npm-plan.json,ro \
