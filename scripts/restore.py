@@ -19,13 +19,18 @@ def checksum(p):
     return h.hexdigest()
 def verified_archives(root):
     result={}
-    for line in (root/'SHA256SUMS').read_text().splitlines():
+    manifest = root / 'SHA256SUMS'
+    if manifest.is_symlink() or not manifest.is_file():
+        raise ValueError('Missing or invalid backup checksum list')
+    for line in manifest.read_text().splitlines():
         m=re.fullmatch(r'([0-9a-f]{64}) [ *](?:\./)?([A-Za-z0-9_-]+\.tar\.gz)',line)
         if not m:raise ValueError('Malformed backup checksum list')
         name=m[2];p=root/name
         if name in result or p.is_symlink() or not p.is_file() or checksum(p)!=m[1]:raise ValueError('Missing or invalid archive: '+name)
         result[name]=p
     if 'instance.tar.gz' not in result:raise ValueError('No instance archive')
+    if set(result) != {archive.name for archive in root.glob('*.tar.gz')}:
+        raise ValueError('Backup contains an archive missing from SHA256SUMS')
     return result
 def validate_archive(path,instance=False):
     with tarfile.open(path,'r:gz') as tar:

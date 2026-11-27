@@ -45,3 +45,5 @@ RUN set -eu; \
 RUN --mount=type=bind,source=patch-npm.cjs,target=/tmp/jobbi-patch-npm.cjs,ro \
     --mount=type=bind,source=npm-security-patches.json,target=/tmp/jobbi-npm-plan.json,ro \
     node /tmp/jobbi-patch-npm.cjs /tmp/jobbi-npm-plan.json
+
+HEALTHCHECK --interval=60s --timeout=30s --start-period=180s --retries=5 CMD ["/app/extra/healthcheck"]
