@@ -38,6 +38,12 @@ def main():
             subprocess.run(['git','-C',str(source),'checkout','--detach','FETCH_HEAD'],check=True)
             if subprocess.check_output(['git','-C',str(source),'rev-parse','HEAD'],text=True).strip()!=rev:raise ValueError('Source identity differs')
             if not (source/'docker/init-invidious-db.sh').is_file() or not (source/'config/sql').is_dir():raise ValueError('Expected database initialization source missing')
+            # Only upstream public SQL and init script need container read access.
+            # Keep the surrounding provider state and generated secrets private.
+            public_files=[source/'docker/init-invidious-db.sh',source/'config/sql',*(source/'config/sql').rglob('*')]
+            for item in public_files:
+                if item.is_symlink() or not (item.is_dir() or item.is_file()):raise ValueError('Unexpected database initialization entry')
+                item.chmod(0o755 if item.is_dir() or item.name=='init-invidious-db.sh' else 0o644)
             cfg=invidious(i,pins['images'],source,{k:token() for k in ('db','hmac','companion')})
             config['services'].update(cfg['services']);config['volumes']=cfg['volumes'];services+=list(cfg['services'])
         if public:
