@@ -40,7 +40,7 @@ class Tests(unittest.TestCase):
         self.assertRegex((PATCHES/'Dockerfile.slskd').read_text(),r'USER 1000:1000\s*$')
     def test_immich_exact_npm_patch_plan(self):
         plan=json.loads((PATCHES/'immich-npm-security.json').read_text())
-        self.assertEqual(len(plan['packages']),4)
+        self.assertEqual(len(plan['packages']),6)
         for row in plan['packages']:
             self.assertEqual(row['from'].split('.')[0],row['to'].split('.')[0])
             self.assertRegex(row['integrity'],r'^sha512-[A-Za-z0-9+/]+=*$')
