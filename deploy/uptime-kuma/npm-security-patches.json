@@ -8,7 +8,8 @@
       "to": "8.21.3",
       "url": "https://registry.npmjs.org/ws/-/ws-8.21.3.tgz",
       "integrity": "sha512-201TZ/kPWxoPr/OKWjquZR1SWKXcvxdH+e1xrx89b3YbmzLMFCLfnaG1HFIgWzJOEWZ7MvpK++odZufgYR50Rw==",
-      "upstreamLockKey": "node_modules/engine.io-client/node_modules/ws"
+      "upstreamLockKey": "node_modules/engine.io-client/node_modules/ws",
+      "sha256": "df3454ef205791ce50b5b9241762dcf9bfe1aa9f7f01d3057229be7dac0c2dc3"
     },
     {
       "path": "/app/node_modules/redbean-node/node_modules/lodash",
@@ -17,7 +18,8 @@
       "to": "4.18.1",
       "url": "https://registry.npmjs.org/lodash/-/lodash-4.18.1.tgz",
       "integrity": "sha512-dMInicTPVE8d1e5otfwmmjlxkZoUpiVLwyeTdUsi/Caj/gfzzblBcCE5sRHV/AsjuCmxWrte2TNGSYuCeCq+0Q==",
-      "upstreamLockKey": "node_modules/lodash"
+      "upstreamLockKey": "node_modules/lodash",
+      "sha256": "696942c2a488c9d7428e9ca5f12ccf03b52de01dcdbfe4d4751d392f0491ae16"
     },
     {
       "path": "/app/node_modules/minimatch",
@@ -26,7 +28,8 @@
       "to": "9.0.9",
       "url": "https://registry.npmjs.org/minimatch/-/minimatch-9.0.9.tgz",
       "integrity": "sha512-OBwBN9AL4dqmETlpS2zasx+vTeWclWzkblfZk7KTA5j3jeOONz/tRCnZomUyvNg83wL5Zv9Ss6HMJXAgL8R2Yg==",
-      "upstreamLockKey": "node_modules/archiver-utils/node_modules/minimatch"
+      "upstreamLockKey": "node_modules/archiver-utils/node_modules/minimatch",
+      "sha256": "7d28c9a3ef17ce542093c78ec191481503e2711d29db1bd1522062303ab40478"
     },
     {
       "path": "/usr/local/lib/node_modules/npm/node_modules/brace-expansion",
@@ -35,7 +38,8 @@
       "to": "2.1.7",
       "url": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-2.1.7.tgz",
       "integrity": "sha512-uZbew1NqdmPDTMJ8ah1y+b+9QEJrfkXFk3RcTQw3X0jW/xRUvFKsg1CfQdSYGdTbXZWExtU3J3ccxtnfw1Fi0g==",
-      "upstreamLockKey": "node_modules/brace-expansion"
+      "upstreamLockKey": "node_modules/brace-expansion",
+      "sha256": "6f4d64fdab4cdc5096d48537f35a6bbb2b8b918abaa4bdb0833e92486f66befc"
     },
     {
       "path": "/usr/local/lib/node_modules/npm/node_modules/picomatch",
@@ -44,7 +48,8 @@
       "to": "4.0.7",
       "url": "https://registry.npmjs.org/picomatch/-/picomatch-4.0.7.tgz",
       "integrity": "sha512-qcJu88Q2IWqJsDD529JKMdwGm/dvInW4HvQnRwiH9JtihJvzGOscDtHE3x1pBKeUOTysQ8kVmLnJ2kJu7yhcGA==",
-      "upstreamLockKey": "node_modules/rollup-plugin-visualizer/node_modules/picomatch"
+      "upstreamLockKey": "node_modules/rollup-plugin-visualizer/node_modules/picomatch",
+      "sha256": "697b463be3cdbd9ffc8f4194fd5019a69ddf95875fb703d78b2b115cc9e740a8"
     },
     {
       "path": "/usr/local/lib/node_modules/npm/node_modules/ip-address",
@@ -53,7 +58,8 @@
       "to": "10.7.5",
       "url": "https://registry.npmjs.org/ip-address/-/ip-address-10.7.5.tgz",
       "integrity": "sha512-t2v0rkILYv9WXmSL7TpAaU3HXgaFYOPUcH3QHgwQ++gpJuH3bqyMy4Fvt/DJCTKwzH3Cf+bAp5W/mFL39KPLzA==",
-      "upstreamLockKey": "node_modules/ip-address"
+      "upstreamLockKey": "node_modules/ip-address",
+      "sha256": "13411b6b3bb984844bd04eba6543a5adf22c1e8749f721dc2d56af4339ba93a4"
     },
     {
       "path": "/app/node_modules/jsonata",
@@ -61,7 +67,8 @@
       "from": "2.2.0",
       "to": "2.2.1",
       "url": "https://registry.npmjs.org/jsonata/-/jsonata-2.2.1.tgz",
-      "integrity": "sha512-xd1uwUrKeIcJbsWhaoS3qAX4Ea8m0Mw0G5nlnAQvPT7TbZ5qaPdzBVTQia9KfyuyQm+nenfyjvzUDTRYHsC2sw=="
+      "integrity": "sha512-xd1uwUrKeIcJbsWhaoS3qAX4Ea8m0Mw0G5nlnAQvPT7TbZ5qaPdzBVTQia9KfyuyQm+nenfyjvzUDTRYHsC2sw==",
+      "sha256": "a071d8840d37b4541c2efecb225023f825c983b43968c08d9f96dc1baaa33b5d"
     },
     {
       "path": "/app/node_modules/protobufjs",
@@ -69,7 +76,8 @@
       "from": "7.2.6",
       "to": "7.6.6",
       "url": "https://registry.npmjs.org/protobufjs/-/protobufjs-7.6.6.tgz",
-      "integrity": "sha512-dYDWdjSl5RNb7SgPxGQcRU+GtvP7s2fpkrY0r432PcOIaZ0/rBcxEZnQN67iJhFuQiVw754JDoPruPCNdGsbjg=="
+      "integrity": "sha512-dYDWdjSl5RNb7SgPxGQcRU+GtvP7s2fpkrY0r432PcOIaZ0/rBcxEZnQN67iJhFuQiVw754JDoPruPCNdGsbjg==",
+      "sha256": "df0241b3046b505d27396da6eef107f14dffb108f77aa89cfd9611a928eb6dfe"
     },
     {
       "path": "/app/node_modules/axios",
@@ -77,7 +85,8 @@
       "from": "0.32.0",
       "to": "0.34.0",
       "url": "https://registry.npmjs.org/axios/-/axios-0.34.0.tgz",
-      "integrity": "sha512-CkOmqy7BaT4VC9+wRUmSM3LVwCkKK3UYc7koEqIHWRpOTJypwdNctaVOgnOjhHP3599Ubq2K8KqYwfC7c8NdPQ=="
+      "integrity": "sha512-CkOmqy7BaT4VC9+wRUmSM3LVwCkKK3UYc7koEqIHWRpOTJypwdNctaVOgnOjhHP3599Ubq2K8KqYwfC7c8NdPQ==",
+      "sha256": "0c0cf3a6d15d7649fa843ab2f5991f5857bc7515d48ae8c35aa5addaf6e5fcdd"
     },
     {
       "path": "/app/node_modules/redbean-node/node_modules/glob",
@@ -86,7 +95,8 @@
       "to": "10.5.0",
       "url": "https://registry.npmjs.org/glob/-/glob-10.5.0.tgz",
       "integrity": "sha512-DfXN8DfhJ7NH3Oe7cFmu3NCu1wKbkReJ8TorzSAFbSKrlNaQSKfIzqYqVY8zlbs2NLBbWpRiU52GX2PbaBVNkg==",
-      "source": "https://github.com/louislam/uptime-kuma/blob/dcc55dcbd7edbad28a79accd019fdf0b95ec8c37/package-lock.json"
+      "source": "https://github.com/louislam/uptime-kuma/blob/dcc55dcbd7edbad28a79accd019fdf0b95ec8c37/package-lock.json",
+      "sha256": "18b75cb9c66c8c08bab5cacccd09013c31d3182f1e001c19d8815c5bb46e0802"
     }
   ]
 }

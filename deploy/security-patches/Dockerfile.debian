@@ -1,6 +1,12 @@
 # syntax=docker/dockerfile:1
 # Keep upstream runtime, entrypoint, user, application version and data format.
 ARG BASE_IMAGE
+FROM scratch AS npm_archives
+ADD --checksum=sha256:b6a535ae5fa87f6cffc90fb213b43c2ea34fdc21dc7ccad3f25caaf009d7fcaa https://registry.npmjs.org/multer/-/multer-2.5.0.tgz /archives/b6a535ae5fa87f6cffc90fb213b43c2ea34fdc21dc7ccad3f25caaf009d7fcaa.tgz
+ADD --checksum=sha256:33cceb321835a0754c60a9ac681df71dddc2ee8aafd890f763414b51574182b5 https://registry.npmjs.org/undici/-/undici-8.13.1.tgz /archives/33cceb321835a0754c60a9ac681df71dddc2ee8aafd890f763414b51574182b5.tgz
+ADD --checksum=sha256:29c4b8e0b2d86cb8795571c1959012ce057a14ecfd34858335f47c31e770a04f https://registry.npmjs.org/undici/-/undici-6.29.1.tgz /archives/29c4b8e0b2d86cb8795571c1959012ce057a14ecfd34858335f47c31e770a04f.tgz
+ADD --checksum=sha256:3fa380284be4ecbf471c1dbb8c5da6f517c95f54279f88c2037985d03fdc6d92 https://registry.npmjs.org/fast-uri/-/fast-uri-3.1.7.tgz /archives/3fa380284be4ecbf471c1dbb8c5da6f517c95f54279f88c2037985d03fdc6d92.tgz
+
 FROM golang:1.27.3-alpine@sha256:fa3d596898d9f126af7c01d14ee7597bab3f39cccf392ef36b69fe77cd681f18 AS build_trust
 FROM ${BASE_IMAGE} AS patched
 ARG DEBIAN_CODENAME
@@ -39,7 +45,8 @@ SH
 
 # Same-major replacements in exact installed pnpm and npm package directories.
 # Preserve native modules, symlinks, upstream application and storage schema.
-RUN --mount=type=bind,source=patch-immich-npm.cjs,target=/tmp/jobbi-immich-npm.cjs,ro \
+RUN --network=none --mount=type=bind,from=npm_archives,source=/archives,target=/archives,ro \
+    --mount=type=bind,source=patch-immich-npm.cjs,target=/tmp/jobbi-immich-npm.cjs,ro \
     --mount=type=bind,source=immich-npm-security.json,target=/tmp/jobbi-immich-npm.json,ro \
     node /tmp/jobbi-immich-npm.cjs /tmp/jobbi-immich-npm.json
 

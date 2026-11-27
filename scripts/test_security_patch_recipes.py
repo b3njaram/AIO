@@ -48,6 +48,18 @@ class Tests(unittest.TestCase):
             self.assertTrue(row['path'].endswith('/'+row['name']))
         recipe=(PATCHES/'Dockerfile.debian').read_text()
         self.assertIn('node /tmp/jobbi-immich-npm.cjs',recipe.split('FROM patched AS immich_server')[1].split('FROM patched AS application')[0])
+    def test_npm_artifacts_match_networkless_patch_stage(self):
+        for root, dockerfile, manifest in (
+            (PATCHES, 'Dockerfile.debian', 'immich-npm-security.json'),
+            (ROOT/'deploy/uptime-kuma', 'Dockerfile', 'npm-security-patches.json'),
+        ):
+            recipe = (root/dockerfile).read_text()
+            self.assertIn('RUN --network=none --mount=type=bind,from=npm_archives', recipe)
+            for row in json.loads((root/manifest).read_text())['packages']:
+                digest = row['sha256']
+                self.assertRegex(digest, r'^[a-f0-9]{64}$')
+                self.assertIn(f"ADD --checksum=sha256:{digest} {row['url']} /archives/{digest}.tgz", recipe)
+
     def test_every_candidate_has_pinned_base_and_package_floors(self):
         compose=(ROOT/'deploy/compose.yaml').read_text()
         services=('prowlarr','navidrome','immich-redis','pihole','immich-db','immich-server','immich-machine-learning','nextcloud')

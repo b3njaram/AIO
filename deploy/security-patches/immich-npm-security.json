@@ -7,7 +7,8 @@
       "to": "2.5.0",
       "url": "https://registry.npmjs.org/multer/-/multer-2.5.0.tgz",
       "integrity": "sha512-BsqOzYGVq49JcW2IzoSAxeKYRevb+dGGPPWleOR8Lrlk4igwxu1/9pwSXlByhCb7MVZDrNJFC0IBP5/O5nLYRw==",
-      "source": "https://github.com/immich-app/immich/blob/a51a43856df89b83266fc312b822cadd7afb6fcf/pnpm-lock.yaml"
+      "source": "https://github.com/immich-app/immich/blob/a51a43856df89b83266fc312b822cadd7afb6fcf/pnpm-lock.yaml",
+      "sha256": "b6a535ae5fa87f6cffc90fb213b43c2ea34fdc21dc7ccad3f25caaf009d7fcaa"
     },
     {
       "path": "/usr/src/app/server/node_modules/.pnpm/undici@8.11.2/node_modules/undici",
@@ -16,7 +17,8 @@
       "to": "8.13.1",
       "url": "https://registry.npmjs.org/undici/-/undici-8.13.1.tgz",
       "integrity": "sha512-Kt7EaPjh0s93lJH/PmW3d5rhkcpUa6fS3jqZ7+YGxNd9L7Xy/i827xe4C2uhhq+pJebM4tQOl5AgHmW11G5Skg==",
-      "source": "https://github.com/immich-app/immich/blob/a51a43856df89b83266fc312b822cadd7afb6fcf/pnpm-lock.yaml"
+      "source": "https://github.com/immich-app/immich/blob/a51a43856df89b83266fc312b822cadd7afb6fcf/pnpm-lock.yaml",
+      "sha256": "33cceb321835a0754c60a9ac681df71dddc2ee8aafd890f763414b51574182b5"
     },
     {
       "path": "/usr/local/lib/node_modules/npm/node_modules/undici",
@@ -25,7 +27,8 @@
       "to": "6.29.1",
       "url": "https://registry.npmjs.org/undici/-/undici-6.29.1.tgz",
       "integrity": "sha512-EvRlUt/QqAEvXdQeRMYUfwOQsfzpDztykrG2owGEE/rBOBoYv9uF39ZzsNDh4lTFHhTr2XOZjKkYgueD12ZmGA==",
-      "source": "https://github.com/npm/cli/blob/787f1520fa412e91a5792468f1c7f25b166867a6/package-lock.json"
+      "source": "https://github.com/npm/cli/blob/787f1520fa412e91a5792468f1c7f25b166867a6/package-lock.json",
+      "sha256": "29c4b8e0b2d86cb8795571c1959012ce057a14ecfd34858335f47c31e770a04f"
     },
     {
       "path": "/usr/src/app/server/node_modules/.pnpm/fast-uri@3.1.4/node_modules/fast-uri",
@@ -34,7 +37,8 @@
       "to": "3.1.7",
       "url": "https://registry.npmjs.org/fast-uri/-/fast-uri-3.1.7.tgz",
       "integrity": "sha512-dOvZVzjdZdz7phd9v6jCbwxrBW3fK6n8Rc0CtdmM4bumzMnxywBYhuph6J819RRw/ku+rLbelwfMunktuzVVHg==",
-      "source": "https://github.com/fastify/fast-uri/blob/412e40abd4eb8beabfb952d80abf949a2baf27a3/package.json"
+      "source": "https://github.com/fastify/fast-uri/blob/412e40abd4eb8beabfb952d80abf949a2baf27a3/package.json",
+      "sha256": "3fa380284be4ecbf471c1dbb8c5da6f517c95f54279f88c2037985d03fdc6d92"
     }
   ]
 }
