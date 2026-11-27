@@ -32,6 +32,12 @@ class Tests(unittest.TestCase):
             self.assertTrue(result.startswith('/tmp/jobbi-patch.'))
             self.assertFalse(Path(result).exists())
             self.assertFalse(Path(missing).exists())
+    def test_local_health_checks_and_slskd_default_user(self):
+        for path,endpoint in ((ROOT/'deploy/dashboard/Dockerfile','127.0.0.1:8080/healthz'),(PATCHES/'Dockerfile.invidious','127.0.0.1:3000/'),(ROOT/'quote/Dockerfile','127.0.0.1:8080/')):
+            source=path.read_text()
+            self.assertIn('HEALTHCHECK',source)
+            self.assertIn(endpoint,source)
+        self.assertRegex((PATCHES/'Dockerfile.slskd').read_text(),r'USER 1000:1000\s*$')
     def test_every_candidate_has_pinned_base_and_package_floors(self):
         compose=(ROOT/'deploy/compose.yaml').read_text()
         services=('prowlarr','navidrome','immich-redis','pihole','immich-db','immich-server','immich-machine-learning','nextcloud')

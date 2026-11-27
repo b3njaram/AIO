@@ -5,3 +5,6 @@ USER root
 RUN --mount=type=bind,source=alpine-patch.sh,target=/tmp/jobbi-patch.sh,ro \
     sh /tmp/jobbi-patch.sh 'libxml2=2.13.9-r5 libfontenc=1.1.10-r0'
 USER invidious
+
+# The pinned image already ships wget (used by the isolated startup pilot).
+HEALTHCHECK --interval=30s --timeout=8s --start-period=120s --retries=4 CMD ["wget","-q","-T","5","-O","/dev/null","http://127.0.0.1:3000/"]

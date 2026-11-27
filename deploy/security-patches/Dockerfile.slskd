@@ -25,3 +25,7 @@ for name in apt libapt-pkg6.0t64; do
 done
 rm -rf /var/lib/apt/lists/* /tmp/jobbi-slskd.list
 SH
+
+# Explicit non-root standalone default. The appliance Compose configuration
+# overrides this with the original non-root instance UID:GID and owns the mounts.
+USER 1000:1000
