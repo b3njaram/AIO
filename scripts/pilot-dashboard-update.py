@@ -3,13 +3,14 @@
 import json,os,shutil,subprocess,sys,tempfile
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
-BASE='8e777404ee151410bd02681fe87c307c861d8d50'
+BASELINES={'8e777404ee151410bd02681fe87c307c861d8d50','49dc18cce65216b354212c790b3074b7d9da90dc'}
 def main():
     if os.geteuid()==0 or len(sys.argv)!=2:raise ValueError('Use original non-root operator and instance path')
     i=Path(sys.argv[1]).resolve()
     env=dict(x.split('=',1) for x in (i/'.env').read_text().splitlines() if '=' in x)
     if env.get('INSTANCE_DIR')!=str(i) or env.get('OWNER_UID')!=str(os.getuid()) or env.get('BIND_IP')!='127.0.0.1':raise ValueError('Require original isolated pilot')
-    if json.loads((i/'release.json').read_text())['aio_commit']!=BASE:raise ValueError('Overlay applies only to tested laptop baseline')
+    baseline=json.loads((i/'release.json').read_text())['aio_commit']
+    if baseline not in BASELINES:raise ValueError('Overlay applies only to tested laptop baseline')
     if any((i/p).exists() for p in ('.upgrade-hold.json','.backup-running-services','deployment/recovery-images.json')):raise ValueError('Active recovery or backup; stop')
     dest=i/'deployment/dashboard';source=ROOT/'deploy/dashboard'
     if not dest.is_dir() or dest.is_symlink():raise ValueError('Missing frozen dashboard')
@@ -34,7 +35,7 @@ def main():
             except OSError:pass
             import time;time.sleep(1)
         else:raise ValueError('Running dashboard did not serve the exact updated HTML')
-        marker.write_text(json.dumps({'commit':rev,'baseline':BASE,'scope':'dashboard only','previous_files':backup.name})+'\n')
+        marker.write_text(json.dumps({'commit':rev,'baseline':baseline,'scope':'dashboard only','previous_files':backup.name})+'\n')
         print('Dashboard overlay applied; exact release image certification no longer applies. Previous dashboard files:',backup)
     except BaseException:
         for f in files:shutil.copy2(backup/f,dest/f)

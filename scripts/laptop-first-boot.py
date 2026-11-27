@@ -89,6 +89,9 @@ def main():
         match=sorted(x for x in Path('/dev/disk/by-id').glob('*') if re.fullmatch('[A-Za-z0-9_.:+-]+',x.name) and x.resolve()==d)
         if match:aliases.extend(['--smart-device',str(match[0])])
     run(sys.executable,str(ROOT/'scripts/install-health-service.py'),str(instance),'--no-backup','--operator',user.pw_name,'--check-updates',*aliases,'--apply')
+    # Install the private networking client without enrolling or accepting DNS/routes.
+    try:run('bash',str(ROOT/'scripts/customer-remote.sh'))
+    except (OSError,subprocess.SubprocessError):print('Optional Tailscale package unavailable; local setup continues',flush=True)
     setup_service(instance,user)
     STATE.mkdir(mode=0o700,exist_ok=True);(STATE/'pilot-provisioned').write_text('Installed; browser onboarding and private access pending\n')
 if __name__=='__main__':
