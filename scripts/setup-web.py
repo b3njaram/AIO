@@ -144,6 +144,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     session=self.server.session
                     if not session.active():raise ValueError('Setup session expired')
                     if session.lan:
+                        # Never layer a LAN gateway over an unfinished tailnet transaction.
+                        import pilot_tailnet
+                        if any((session.instance/n).exists() or (session.instance/n).is_symlink() for n in (pilot_tailnet.APPROVAL,'.private-serve.json','.private-origins','.nextcloud-origin.json')):raise ValueError('Review existing private access transaction before LAN setup')
                         from private_origins import atomic_write
                         from account_progress import read
                         if not set(session.apps)<=set(read(session.instance)):raise ValueError('Complete or review every account step before LAN access')

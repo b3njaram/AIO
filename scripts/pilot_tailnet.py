@@ -15,7 +15,7 @@ def eligibility(i,e,c,options):
     selected={x['id'] for x in c['apps']}
     if not selected or selected-{'music','navidrome','movies','photos','files','passwords','tasks','monitor','dns'}:raise ValueError('Unsupported application origin')
     if any((i/x).exists() or (i/x).is_symlink() for x in ('.pilot-lan-client.json','.pilot-dns-native-pending','.upgrade-hold.json','.backup-running-services','deployment/pilot-network.json')):raise ValueError('Existing LAN or maintenance configuration needs review')
-    if 'invidious' in options or (i/'data/pilot-media/invidious-source').exists():raise ValueError('Invidious origin migration requires review')
+    if 'invidious' in options or any((i/n).exists() or (i/n).is_symlink() for n in ('data/pilot-media/invidious-source','data/pilot-media/invidious-adapter.before')):raise ValueError('Invidious origin migration requires review')
     if any(v!='ready' for v in options.values()):raise ValueError('Resolve optional service state first')
     statuses=accounts(i)
     for app in selected-{'dns'}:

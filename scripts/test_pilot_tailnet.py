@@ -30,3 +30,19 @@ class Tests(unittest.TestCase):
                 m.eligibility(i,e,c,{})
                 with self.assertRaises(ValueError):m.eligibility(i,e,c,{'invidious':'ready'})
                 with self.assertRaises(ValueError):m.eligibility(i,e,c,{'soulseek':'review'})
+
+    def test_failed_route_transaction_retains_only_unresolved_approval(self):
+        import subprocess
+        with tempfile.TemporaryDirectory() as d:
+            i=Path(d)/'laptop-test';i.mkdir();(i/'.env').write_text('INSTANCE_DIR='+str(i)+'\n');(i/'dashboard.json').write_text('{"apps":[]}')
+            status={'state':'Running','host':'customer.example.ts.net'};data={'consent':True,'host':status['host']}
+            with patch.object(m,'eligibility'),patch.object(m.subprocess,'run',side_effect=subprocess.CalledProcessError(1,'fixture')):
+                with self.assertRaises(ValueError):m.finish(i,data,status,{})
+                self.assertFalse((i/m.APPROVAL).exists())
+            def partial(*args,**kwargs):
+                (i/'.private-serve.json').write_text('{}')
+                raise subprocess.CalledProcessError(1,'fixture')
+            with patch.object(m,'eligibility'),patch.object(m.subprocess,'run',side_effect=partial):
+                with self.assertRaises(ValueError):m.finish(i,data,status,{})
+                self.assertTrue((i/m.APPROVAL).exists())
+                self.assertTrue((i/'.private-serve.json').exists())

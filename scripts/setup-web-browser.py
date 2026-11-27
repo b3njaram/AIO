@@ -59,3 +59,27 @@ with tempfile.TemporaryDirectory() as tmp:
             browser.close()
     finally:server.shutdown();server.server_close();thread.join()
 print('PASS: paired optional-service browser consent, password clearing, retained state, recheck and tailnet enrollment (mock external services)')
+
+# Actual browser/API approval boundary; external Tailscale commands are mocked.
+with tempfile.TemporaryDirectory() as tmp:
+    adapter=Mock();adapter.env_for.return_value={'COMPOSE_PROFILES':'music,passwords','MUSIC_ADMIN':'owner'}
+    instance=Path(tmp);session=m.Session(instance,adapter=adapter);session.done=set(session.apps);session.lan={'address':'192.168.1.168'}
+    host='customer.example.ts.net';url='https://'+host+':19443/'
+    import pilot_tailnet
+    server=m.Server(0,session);thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
+    try:
+        with patch.object(m.pilot_options,'read',return_value={}),patch.object(m.pilot_options,'tailnet_status',return_value={'state':'Running','host':host}),patch.object(pilot_tailnet,'finish',return_value=url) as finish_mock,sync_playwright() as pw:
+            browser=pw.chromium.launch();page=browser.new_page(viewport={'width':390,'height':844})
+            page.goto(server.origin);page.locator('#code').fill(session.token);page.locator('#unlockButton').click()
+            expect(page.locator('#tailnetFinish')).to_be_visible()
+            expect(page.locator('#tailnetHost')).to_have_text(host)
+            expect(page.locator('#finishTailnetButton')).to_be_disabled()
+            finish_mock.assert_not_called()
+            page.locator('#tailnetConsent').check();page.locator('#finishTailnetButton').click()
+            expect(page.locator('#finishedUrl')).to_have_attribute('href',url)
+            expect(page.locator('#wizard')).to_be_hidden()
+            finish_mock.assert_called_once_with(instance,{'consent':True,'host':host},{'state':'Running','host':host},{})
+            assert session.closed and not (instance/'.pilot-lan-client.json').exists()
+            browser.close()
+    finally:server.shutdown();server.server_close();thread.join()
+print('PASS: paired Tailscale host-bound approval and private URL handoff (mock external routes)')
