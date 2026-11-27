@@ -3,7 +3,8 @@
 import argparse,fcntl,ipaddress,json,re,shlex,subprocess,sys
 from pathlib import Path
 from private_origins import prepare,rollback
-from private_routes import manage
+from private_routes import manage,verify_vault_admin_disabled
+import pilot_tailnet
 import nextcloud_origin
 ROOT=Path(__file__).resolve().parents[1]
 APP_PORTS={'dashboard':'DASH_PORT','music':'MUSIC_PORT','navidrome':'NAV_PORT','movies':'MOVIE_PORT','photos':'PHOTO_PORT','files':'CLOUD_PORT','passwords':'VAULT_PORT','tasks':'TASK_PORT','monitor':'MONITOR_PORT','dns':'DNS_WEB_PORT'}
@@ -59,6 +60,7 @@ def commands(planned):
       'disable':[shlex.join(['sudo','tailscale','serve','--https='+str(r['port']),'off']) for r in planned.values()]}
 def main():
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('instance',type=Path);p.add_argument('--https-base',type=int,default=19443);p.add_argument('--verify',action='store_true',help='Read-only verify actual Serve config after enabling')
+    p.add_argument('--paired-setup',action='store_true',help='Fresh paired pilot only; explicit host-bound approval and verified accounts')
     mode=p.add_mutually_exclusive_group()
     mode.add_argument('--prepare-origins',action='store_true',help='Save previous settings and write proposed origins on this customer host')
     mode.add_argument('--rollback-origins',action='store_true',help='Restore saved settings after disabling all Serve routes')
@@ -91,10 +93,14 @@ def main():
     selected={x['id'] for x in config['apps']}-{'remote','passwords'}
     onboard=i/'onboarding.json'
     done=json.loads(onboard.read_text()) if onboard.is_file() else {}
-    if not selected<=set(done):p.error('Complete local setup and mark all selected applications except remote and Vaultwarden (which needs HTTPS) first')
+    if a.paired_setup:
+        from pilot_options import read as read_options
+        pilot_tailnet.check_approval(i,env,config,host,read_options(i))
+    elif not selected<=set(done):p.error('Complete local setup and mark all selected applications except remote and Vaultwarden (which needs HTTPS) first')
     status=json.loads(output('tailscale','serve','status','--json'))
     if a.verify:
         verify_config(status,plan,host)
+        if a.paired_setup:verify_vault_admin_disabled(plan)
         if 'files' in plan:nextcloud_origin.verify(i,plan['files']['url'])
         print(json.dumps({'verified_serve_config':True,'urls':{k:v['url'] for k,v in plan.items()},'note':'Configuration check only. Verify TLS and app login from customer device, ACL denial from unauthorized account, and no public access.'},indent=2));return
     existing_conflicts(status,{x['port'] for x in plan.values()})
@@ -104,12 +110,15 @@ def main():
     changes={}
     if 'movies' in plan:changes['MOVIE_HTTPS']='true'
     if 'music' in plan:changes['MUSIC_HTTPS']='true'
-    if 'passwords' in plan:changes['VAULT_DOMAIN']=plan['passwords']['url']
+    if 'passwords' in plan:
+        changes['VAULT_DOMAIN']=plan['passwords']['url']
+        if a.paired_setup:changes['VAULT_ADMIN_TOKEN']=''
     if 'tasks' in plan:changes.update(TASK_URL=plan['tasks']['url']+'/',TASK_REGISTRATION='false')
     if a.enable_routes:
         if any(env.get(k)!=v for k,v in changes.items()) or cfg!=config:
             p.error('Prepare app origins before enabling routes')
         if 'files' in plan:nextcloud_origin.verify(i,plan['files']['url'])
+        if a.paired_setup:verify_vault_admin_disabled(plan)
         manage(i,plan,host,False,verify_config,existing_conflicts)
         print('Private Serve configuration verified. Test TLS and ACLs from independent devices.')
         return

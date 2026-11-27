@@ -99,6 +99,10 @@ def tailnet_status():
     except (OSError,ValueError,subprocess.TimeoutExpired):return {'state':'Unavailable'}
     if state not in ('Running','NeedsLogin','NoState','Stopped','Starting','NeedsMachineAuth'):state='Unknown'
     result={'state':state}
+    if state=='Running':
+        from pilot_tailnet import hostname
+        try:result['host']=hostname(d.get('Self',{}).get('DNSName'))
+        except (ValueError,AttributeError):pass
     url=d.get('AuthURL','')
     if isinstance(url,str) and len(url)<=512 and re.fullmatch(r'https://login\.tailscale\.com/a/[A-Za-z0-9_-]+',url):result['url']=url
     return result

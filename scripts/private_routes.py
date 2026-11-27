@@ -1,6 +1,7 @@
 """Journal and reconcile the dedicated customer host's Tailscale Serve bindings."""
 import json
 import subprocess
+import time,urllib.request,urllib.error
 from pathlib import Path
 from private_origins import atomic_write
 
@@ -46,6 +47,21 @@ def verify_backends(instance, plan):
         if ports.get(int(row['target'].rsplit(':',1)[1]))!=owners[app]:
             raise ValueError('Missing running customer backend for '+app)
 
+
+def verify_vault_admin_disabled(plan,attempts=30):
+    if 'passwords' not in plan:return
+    target=plan['passwords']['target']
+    if not __import__('re').fullmatch(r'http://127\.0\.0\.1:[0-9]{4,5}',target):raise ValueError('Invalid Vaultwarden loopback target')
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self,*args,**kwargs):return None
+    opener=urllib.request.build_opener(urllib.request.ProxyHandler({}),NoRedirect())
+    for n in range(attempts):
+        try:
+            with opener.open(target+'/admin/',timeout=4) as response:
+                if response.status==200 and response.read(256).strip()==b"The admin panel is disabled, please configure the 'ADMIN_TOKEN' variable to enable it":return
+        except OSError:pass
+        if n+1<attempts:time.sleep(2)
+    raise ValueError('Vaultwarden admin disablement not confirmed; no private route approval')
 
 def manage(instance, plan, host, disable, verify, empty):
     journal=instance/'.private-serve.json'

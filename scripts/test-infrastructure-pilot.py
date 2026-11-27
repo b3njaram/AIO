@@ -70,6 +70,24 @@ def vault(instance,env,fixture,recover):
     code,item=request(path,token=token)
     assert code==200 and item['name']==fixture['cipher']
     print('PASS Vaultwarden owner login, closed signup, private encrypted folder bytes')
+    if not recover:
+        # The exact pinned server must actually disable admin after invitation.
+        # Restore original configuration for the separate recovery fixture.
+        from private_origins import atomic_write
+        from private_routes import verify_vault_admin_disabled
+        envfile=instance/'.env';original=envfile.read_bytes()
+        disabled=b'\n'.join(b'VAULT_ADMIN_TOKEN=' if x.startswith(b'VAULT_ADMIN_TOKEN=') else x for x in original.split(b'\n'))
+        ctl=['bash',str(Path(__file__).with_name('ctl.sh')),str(instance),'up','-d','--force-recreate','--no-deps','--no-build','--pull','never','vaultwarden']
+        try:
+            atomic_write(envfile,disabled,0o600);subprocess.run(ctl,check=True)
+            verify_vault_admin_disabled({'passwords':{'target':base}})
+            status,login=request(base+'/identity/connect/token',{'grant_type':'password','client_id':'web','scope':'api offline_access','username':email,'password':fixture['password'],'deviceIdentifier':fixture['device'],'deviceName':'Disposable CI','deviceType':'9'},form=True)
+            assert status==200 and login.get('access_token')
+            print('PASS disabled Vaultwarden admin with existing owner access retained')
+        finally:
+            atomic_write(envfile,original,0o600);subprocess.run(ctl,check=True)
+        wait(lambda:request(base+'/alive')[0]==200)
+
 
 
 def monitor(instance,env,fixture,recover):

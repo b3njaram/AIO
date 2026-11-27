@@ -46,6 +46,16 @@ class Session:
             if not self.active():raise ValueError('Setup expired')
             pilot_options.tailnet_connect()
         return self.status()
+    def finish_tailnet(self,data):
+        if not self.lan or not self.active() or self.done!=set(self.apps):raise ValueError('Complete paired core accounts first')
+        with self.lock:
+            if not self.active():raise ValueError('Setup expired')
+            self.adapter.env_for(self.instance)
+            import pilot_tailnet
+            url=pilot_tailnet.finish(self.instance,data,pilot_options.tailnet_status(),pilot_options.read(self.instance))
+            self.closed=True
+            print('Customer tailnet dashboard configured: '+url+' ; verify TLS and access from an authorized device.',flush=True)
+            return {'closed':True,'url':url}
     def submit(self,d):
         if not self.active():raise ValueError('Setup session expired')
         if set(d)!={'app','username','email','password','confirm'}:raise ValueError('Invalid setup request')
@@ -127,6 +137,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self.send(200,self.server.session.recheck(data))
             elif self.path=='/api/tailnet':
                 self.send(200,self.server.session.enroll(data))
+            elif self.path=='/api/finish-tailnet':
+                self.send(200,self.server.session.finish_tailnet(data))
             elif self.path=='/api/finish' and data=={}:
                 with self.server.session.lock:
                     session=self.server.session
