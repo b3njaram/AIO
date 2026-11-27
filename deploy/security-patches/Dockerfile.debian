@@ -19,7 +19,14 @@ FROM patched AS machine_learning
 # Upgrade the system installer itself, which embeds its own HTTP and cache libraries.
 RUN --mount=type=bind,source=immich-pip-requirements.txt,target=/tmp/pip-pin.txt,ro \
     /usr/local/bin/python -m pip install --no-cache-dir --no-deps --only-binary=:all: --require-hashes -r /tmp/pip-pin.txt
-RUN --network=none /usr/local/bin/python -c "from pip._vendor import certifi, msgpack, urllib3; assert (certifi.__version__, msgpack.__version__, urllib3.__version__) == ('2026.10.23', '1.2.4', '2.8.0')"
+RUN --network=none /usr/local/bin/python - <<'PYTHON'
+import ssl
+from pip._vendor import certifi, msgpack, urllib3
+assert (certifi.__version__, msgpack.__version__, urllib3.__version__) == ('2026.10.23', '1.2.4', '2.8.0')
+assert ssl.create_default_context(cafile=certifi.where()).get_ca_certs()
+assert msgpack.unpackb(msgpack.packb({'status': 'ready'})) == {'status': 'ready'}
+assert urllib3.util.parse_url('https://localhost/').host == 'localhost'
+PYTHON
 
 RUN --mount=type=bind,source=immich-ml-requirements.txt,target=/tmp/requirements.txt,ro \
     /usr/local/bin/python -m pip --python /opt/venv install --no-cache-dir --no-deps --only-binary=:all: --require-hashes -r /tmp/requirements.txt
