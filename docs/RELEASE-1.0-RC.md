@@ -5,7 +5,7 @@ This connected lab installer consolidates the physical one-boot pilot, customer 
 ## Install on a spare SSD
 
 1. Extract the workflow artifact. Run `sha256sum -c SHA256SUMS` next to the ISO.
-2. On Fedora, open Fedora Media Writer, choose Custom Image and select the verified ISO. Confirm the spare USB by name and capacity. Writing replaces that USB's contents.
+2. On Windows, extract the ZIP and compare the result of `Get-FileHash .\JobbiSoft-Home-1.0-RC.iso -Algorithm SHA256` in PowerShell with SHA256SUMS. On Fedora or Windows, open Fedora Media Writer, choose Custom Image and select the verified ISO. Confirm the spare USB by name and capacity. Writing replaces that USB's contents.
 3. Disconnect unrelated disks, boot the USB and inspect the storage summary. Select the intended spare OS disk with guided LVM, leaving at least 68 GiB free in the volume group. Approve erasure only for the selected disk.
 4. Choose an operator and unique local password. Connect Ethernet to an isolated private network and allow Internet access for first boot. Remove the USB at reboot.
 5. Read tty3 on the appliance for the temporary browser setup address, fingerprint and pairing code. Verify the TLS fingerprint before entering credentials. Finish the Vaultwarden master password in its native client.
