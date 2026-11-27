@@ -96,6 +96,7 @@ def main():
                 page.locator('#healthFile').set_input_files({'name':'health.json','mimeType':'application/json','buffer':json.dumps(payload).encode()})
                 page.locator('#healthImport button').click()
                 expect(page.locator('#applianceList')).to_contain_text('No reported alerts')
+                expect(page.locator('#applianceList')).to_contain_text('Current at report time')
                 with page.expect_download() as snapshot:
                     page.get_by_role('button',name='Download diagnostic snapshot').click()
                 exported=json.loads(Path(snapshot.value.path()).read_text())

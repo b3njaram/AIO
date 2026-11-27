@@ -148,6 +148,13 @@ function renderAppliances(){
  for(const x of filteredAppliances()){const c=el('article',undefined,'ordercard');const order=orders.find(o=>o.id===x.order_id),r=x.report;
  c.append(el('h3',x.label),el('small',x.id+' · '+x.order_id),el('p',translate(names[x.state]||'No report'),'tag'));
  if(r){c.append(el('p',translate('Storage free')+': '+(r.free_percent===null?'—':r.free_percent+'%')),el('p',translate('Backup')+': '+translate(r.backup)),el('small',translate('Report date')+': '+new Date(r.at).toLocaleString()));const details=el('details');details.append(el('summary',translate('Health details')),el('p','RAID: '+translate(r.raid)),el('p',translate('Temperature')+': '+(r.temperature_c===null?'—':r.temperature_c+' °C')),el('p',translate('Alerts')+': '+(r.alerts??'—')),el('p',translate('Release')+': '+r.release.slice(0,12)));c.append(details)}
+ if(r){
+   const updateLabels={
+     current:'Current at report time', review_available:'Release tag available for review',
+     no_approved_release:'No approved release published', not_checked:'Update check not run', unknown:'Update status unavailable'
+   };
+   c.append(el('p',translate('Appliance update status')+': '+translate(updateLabels[r.updates]||updateLabels.unknown)));
+ }
  if(r && !init?.preview)c.append(button('Download diagnostic snapshot',async()=>{
    const snapshot=await api('support-snapshot',{id:x.id});
    downloadText('jobbi-diagnostics.json',JSON.stringify(snapshot,null,2),'application/json');

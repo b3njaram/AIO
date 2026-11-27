@@ -1,6 +1,12 @@
 'use strict';
 const spanish = new Map(`
 Demo only · no login · use test records|Solo demo · sin acceso por contraseña · usa registros de prueba
+Appliance update status|Estado de actualización del servidor
+Current at report time|Al día al generar el informe
+Release tag available for review|Versión publicada disponible para revisión
+No approved release published|No hay una versión aprobada publicada
+Update check not run|No se buscaron actualizaciones
+Update status unavailable|Estado de actualización no disponible
 Download diagnostic snapshot|Descargar diagnóstico
 diagnostics_exported|Diagnóstico exportado
 Customers|Clientes
