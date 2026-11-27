@@ -36,4 +36,15 @@ class Tests(unittest.TestCase):
                 self.assertEqual(req('/api/finish',{})[0],200)
                 self.assertEqual(req('/api/status')[0],410)
             finally:server.shutdown();server.server_close();thread.join()
+    def test_rotate_only_expired_unfinished_paired_session(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            adapter=Mock();adapter.env_for.return_value={'COMPOSE_PROFILES':'music','MUSIC_ADMIN':'owner'}
+            s=m.Session(Path(tmp),adapter=adapter)
+            self.assertEqual(m.expired_exit(s,True),0)
+            s.lan={'address':'192.168.1.168'}
+            self.assertEqual(m.expired_exit(s,False),0)
+            self.assertEqual(m.expired_exit(s,True),75)
+            (s.instance/'.pilot-lan-client.json').write_text('{}')
+            self.assertEqual(m.expired_exit(s,True),0)
 if __name__=='__main__':unittest.main()
+

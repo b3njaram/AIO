@@ -54,9 +54,10 @@ def setup_service(instance,user):
     cfg=directory/'setup.json';cfg.write_text(json.dumps({'address':addr,'network':network,'operator':user.pw_name,'instance':str(instance),'cert':str(cert),'key':str(key),'fingerprint':fp}));cfg.chmod(0o644)
     unit=Path('/etc/systemd/system/jobbi-pilot-setup.service')
     if unit.exists():raise ValueError('Existing setup unit; review')
-    unit.write_text('[Unit]\nDescription=Jobbi isolated LAN pairing (pilot)\nAfter=network-online.target docker.service\nWants=network-online.target\nRequires=docker.service\nConflicts=getty@tty3.service\n[Service]\nType=simple\nUser='+user.pw_name+'\nUMask=0077\nExecStart=/usr/bin/python3 '+str(ROOT/'scripts/setup-web.py')+' '+str(instance)+' --port 18080 --minutes 60 --pilot-lan '+str(cfg)+'\nExecStopPost=+/usr/bin/python3 '+str(ROOT/'scripts/pilot-lan-gateway.py')+'\nStandardOutput=tty\nStandardError=tty\nTTYPath=/dev/tty3\n[Install]\nWantedBy=multi-user.target\n')
+    unit.write_text('[Unit]\nDescription=Jobbi isolated LAN pairing (pilot)\nAfter=network-online.target docker.service\nWants=network-online.target\nRequires=docker.service\nConflicts=getty@tty3.service\n[Service]\nType=simple\nUser='+user.pw_name+'\nUMask=0077\nRestart=no\nRestartForceExitStatus=75\nRestartSec=3s\nExecStart=/usr/bin/python3 '+str(ROOT/'scripts/setup-web.py')+' '+str(instance)+' --port 18080 --minutes 60 --pilot-lan '+str(cfg)+'\nExecStopPost=+/usr/bin/python3 '+str(ROOT/'scripts/pilot-lan-gateway.py')+'\nStandardOutput=tty\nStandardError=tty\nTTYPath=/dev/tty3\n[Install]\nWantedBy=multi-user.target\n')
     run('systemctl','daemon-reload')
-    # Pairing session is deliberately temporary and not enabled on every boot.
+    # Pairing token expires and is rotated on the physical console only while
+    # this initial setup service is running; successful pairing does not restart.
     run('systemctl','start','jobbi-pilot-setup.service')
     if shutil.which('chvt'):run('chvt','3')
 def main():

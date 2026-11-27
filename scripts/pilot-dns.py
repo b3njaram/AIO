@@ -47,7 +47,9 @@ def main():
     if os.geteuid()==0 or e.get('OWNER_UID')!=str(os.getuid()) or e.get('INSTANCE_DIR')!=str(i) or e.get('BIND_IP')!='127.0.0.1' or (not a.native and i.name!='laptop-test'):raise ValueError('Original isolated pilot operator required')
     overlay=i/'deployment/pilot-network.json';data=i/'data/pilot-pihole'
     if any(x.exists() for x in (overlay,data,i/'.upgrade-hold.json',i/'.backup-running-services',i/'deployment/recovery-images.json')):raise ValueError('Existing DNS or maintenance state; review rather than overwrite')
-    print('Pi-hole local pilot: DNS 127.0.0.1:1053 TCP/UDP, admin 127.0.0.1:18089. DHCP disabled; no network clients changed.')
+    port=a.local_port if a.native else 1053
+    web=int(e['DNS_WEB_PORT']) if a.native else 18089
+    print(f'Pi-hole local pilot: DNS 127.0.0.1:{port} TCP/UDP, admin 127.0.0.1:{web}. DHCP disabled; no network clients changed.')
     if not a.apply:return
     if a.password_stdin:
         if sys.stdin.isatty():raise ValueError('Use a private pipe for password input')

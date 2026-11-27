@@ -130,6 +130,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             elif self.path=='/api/finish' and data=={}:
                 with self.server.session.lock:
                     session=self.server.session
+                    if not session.active():raise ValueError('Setup session expired')
                     if session.lan:
                         from private_origins import atomic_write
                         from account_progress import read
@@ -144,6 +145,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # Do not echo application errors, passwords, request bodies or credentials.
             self.send(400,{'error':'Setup could not be completed. Check the owner details and local application state; existing passwords were not intentionally reset.'})
         except Exception:self.send(500,{'error':'Local application operation failed. Inspect the appliance privately.'})
+def expired_exit(session,expired):
+    # systemd rotates only expired paired LAN sessions, never a completed
+    # session, an intentionally stopped process or a generic startup error.
+    return 75 if session.lan and expired and not (session.instance/'.pilot-lan-client.json').exists() else 0
+
 def main():
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('instance',type=Path);p.add_argument('--port',type=int,default=17991);p.add_argument('--minutes',type=int,default=30);p.add_argument('--pilot-lan',type=Path,help='Root-prepared isolated pilot TLS configuration');a=p.parse_args()
     if os.geteuid()==0 or not 1024<=a.port<=65535 or not 5<=a.minutes<=60 or (not a.pilot_lan and not sys.stdout.isatty()):p.error('Use original non-root operator in an interactive terminal, 5–60 minutes')
@@ -167,12 +173,16 @@ def main():
         print('One-time setup address:',server.origin)
         print('Setup code (do not share):',session.token,flush=True)
         print('Isolated pilot: use only the physically displayed HTTPS address and fingerprint.' if a.pilot_lan else 'For a remote technician browser, forward this exact loopback port over trusted SSH. Never publish via Serve/Funnel. Ctrl+C closes the session.')
-        server.timeout=1
+        server.timeout=1;expired=False
         try:
             while session.active():server.handle_request()
+            expired=not session.closed
         except KeyboardInterrupt:pass
         finally:session.closed=True
-    print('Setup session closed; perform native app acceptance and private access setup separately.')
+    code=expired_exit(session,expired)
+    if code==75:print('Pairing session expired. A new physical-console setup code will be issued; completed accounts are retained.',flush=True)
+    else:print('Setup session closed; perform native app acceptance and private access setup separately.')
+    return code
 if __name__=='__main__':
-    try:main()
+    try:sys.exit(main())
     except (OSError,ValueError,KeyError) as e:sys.exit('Setup session unavailable: '+type(e).__name__)
