@@ -296,6 +296,7 @@ services:
       TZ: ${TZ}
       FTLCONF_webserver_api_password: ${DNS_PASSWORD}
       FTLCONF_dns_listeningMode: ALL
+      FTLCONF_dhcp_active: 'false'
     volumes: ["${INSTANCE_DIR}/data/pihole:/etc/pihole"]
     ports:
       - "${BIND_IP}:${DNS_WEB_PORT}:80"

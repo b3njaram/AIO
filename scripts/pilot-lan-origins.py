@@ -11,8 +11,8 @@ def main():
     env=dict(x.split('=',1) for x in (i/'.env').read_text().splitlines() if '=' in x)
     if os.geteuid()==0 or env.get('OWNER_UID')!=str(os.getuid()) or env.get('INSTANCE_DIR')!=str(i) or env.get('BIND_IP')!='127.0.0.1':raise ValueError('Original isolated operator required')
     cfg=json.loads((i/'dashboard.json').read_text());apps={a['id'] for a in cfg['apps']}
-    if apps-set('music navidrome movies photos files passwords tasks monitor'.split()):raise ValueError('Unexpected pilot apps')
-    keys={'music':'MUSIC_PORT','navidrome':'NAV_PORT','movies':'MOVIE_PORT','photos':'PHOTO_PORT','files':'CLOUD_PORT','passwords':'VAULT_PORT','tasks':'TASK_PORT','monitor':'MONITOR_PORT'}
+    if apps-set('music navidrome movies photos files passwords tasks monitor dns'.split()):raise ValueError('Unexpected pilot apps')
+    keys={'music':'MUSIC_PORT','navidrome':'NAV_PORT','movies':'MOVIE_PORT','photos':'PHOTO_PORT','files':'CLOUD_PORT','passwords':'VAULT_PORT','tasks':'TASK_PORT','monitor':'MONITOR_PORT','dns':'DNS_WEB_PORT'}
     urls={k:'https://'+addr+':'+str(int(env[keys[k]])) for k in apps}
     services=['dashboard']+[v for k,v in [('music','jobbi-music'),('movies','backend'),('movies','frontend'),('passwords','vaultwarden'),('tasks','vikunja')] if k in apps]
     ctl=['bash',str(ROOT/'scripts/ctl.sh'),str(i),'up','-d','--force-recreate','--no-deps','--no-build','--pull','never',*services]
@@ -27,10 +27,13 @@ def main():
     if 'movies' in apps:updates['MOVIE_HTTPS']='true'
     if 'passwords' in apps:updates['VAULT_DOMAIN']=urls['passwords']
     if 'tasks' in apps:updates['TASK_URL']=urls['tasks']+'/'
-    proposed={**cfg,'apps':[{**a,'url':urls[a['id']]} for a in cfg['apps']]}
+    proposed={**cfg,'apps':[{**a,'url':urls[a['id']]+('/admin/' if a['id']=='dns' else '')} for a in cfg['apps'] if a['id']!='dns']}
     from pilot_options import read as read_options
     optional=read_options(i)
-    if optional.get('dns')=='ready':proposed['apps'].append({'id':'dns','name':'Pi-hole','en':'DNS filtering','es':'Filtrado DNS','url':'https://'+addr+':18089/admin/','probe':'http://pilot-pihole/admin/'})
+    if optional.get('dns')=='ready':
+        if 'dns' in apps:
+            original=next(a for a in cfg['apps'] if a['id']=='dns');proposed['apps'].append({**original,'url':urls['dns']+'/admin/'})
+        else:proposed['apps'].append({'id':'dns','name':'Pi-hole','en':'DNS filtering','es':'Filtrado DNS','url':'https://'+addr+':18089/admin/','probe':'http://pilot-pihole/admin/'})
     if optional.get('invidious')=='ready':proposed['apps'].append({'id':'invidious','name':'Invidious','en':'Private video frontend','es':'Videos privados','url':'https://'+addr+':18091/','probe':'http://invidious:3000/'})
     try:
         prepare(i,proposed,updates)

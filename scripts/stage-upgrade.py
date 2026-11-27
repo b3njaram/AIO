@@ -58,7 +58,7 @@ def main():
     p.add_argument('--hold-source',action='store_true',help='Keep original stopped after final verified backup; approved maintenance window only')
     a=p.parse_args()
     i=a.instance.resolve()
-    if any((i/n).exists() or (i/n).is_symlink() for n in ('deployment/pilot-media.json','deployment/pilot-network.json','data/pilot-media','data/pilot-pihole')):p.error('Optional-service backup/restore qualification required before update; source unchanged')
+    if any((i/n).exists() or (i/n).is_symlink() for n in ('.pilot-dns-native-pending','deployment/pilot-media.json','deployment/pilot-network.json','data/pilot-media','data/pilot-pihole')):p.error('Optional-service backup/restore qualification required before update; source unchanged')
     backup=a.backup_root.resolve()
     if not re.fullmatch('[a-z0-9][a-z0-9-]{0,35}',a.name) or not 1024<=a.base_port<=65524:
         p.error('Invalid candidate name or port range')

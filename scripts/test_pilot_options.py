@@ -32,3 +32,13 @@ class Tests(unittest.TestCase):
             with patch.object(p,'http_ready',return_value=True),patch.object(p,'dns_ready',return_value=True),patch.object(p.subprocess,'run') as run:
                 self.assertEqual(p.reconcile(i),{'dns':'ready','soulseek':'review'})
                 run.assert_not_called()
+
+    def test_recheck_native_dns(self):
+        with tempfile.TemporaryDirectory() as d:
+            i=Path(d);(i/'deployment').mkdir()
+            (i/'.pilot-options.json').write_text('{"dns":"review"}')
+            (i/'.env').write_text('COMPOSE_PROFILES=music,dns\nDNS_WEB_PORT=18089\nDNS_LISTEN_PORT=1053\n')
+            with patch.object(p,'http_ready',return_value=True),patch.object(p,'dns_ready',return_value=True):
+                self.assertEqual(p.reconcile(i),{'dns':'ready'})
+                (i/'.pilot-dns-native-pending').mkdir()
+                self.assertEqual(p.reconcile(i),{'dns':'review'})

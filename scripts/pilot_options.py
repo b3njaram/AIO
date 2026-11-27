@@ -10,7 +10,7 @@ def validate(data):
     if not isinstance(data,dict) or set(data)!={'services','consent','dns_password'}:raise ValueError('Invalid optional setup request')
     selected=data['services'];pw=data['dns_password']
     if not isinstance(selected,list) or not selected or not all(isinstance(x,str) and x in IDS for x in selected) or len(set(selected))!=len(selected) or data['consent'] is not True:raise ValueError('Explicit service consent required')
-    if not isinstance(pw,str) or ('dns' in selected and (not 12<=len(pw)<=128 or any(c in pw for c in '\n\r\x00$'))) or ('dns' not in selected and pw):raise ValueError('Invalid independent DNS admin password')
+    if not isinstance(pw,str) or ('dns' in selected and (not re.fullmatch(r'[A-Za-z0-9_.!@%+\-]{12,128}',pw))) or ('dns' not in selected and pw):raise ValueError('Invalid independent DNS admin password')
     return selected,pw
 def read(i):
     try:
@@ -63,7 +63,7 @@ def provision(i,address,selected,pw):
             result['invidious']='ready' if ok and wait_ready(lambda:http_ready(18091,'/')) else 'review'
         save()
     if 'dns' in selected:
-        ok=run([sys.executable,str(ROOT/'scripts/pilot-dns.py'),str(i),'--apply','--password-stdin'],pw+'\n')
+        ok=run([sys.executable,str(ROOT/'scripts/pilot-dns.py'),str(i),'--apply','--password-stdin','--native'],pw+'\n')
         result['dns']='ready' if ok and wait_ready(lambda:http_ready(18089,'/admin/') and dns_ready()) else 'review'
         save()
     return result
@@ -83,6 +83,11 @@ def reconcile(i):
             services=json.loads(path.read_text())['services']
             ready=(k=='soulseek' and 'slskd' in services and soulseek_ready()) or (k=='invidious' and {'invidious','invidious-db','invidious-companion'}<=set(services) and http_ready(18091,'/')) or (k=='dns' and 'pilot-pihole' in services and http_ready(18089,'/admin/') and dns_ready())
         except (OSError,ValueError,TypeError,KeyError):ready=False
+        if k=='dns' and not ready:
+            try:
+                env=dict(x.split('=',1) for x in (i/'.env').read_text().splitlines() if '=' in x)
+                ready='dns' in env['COMPOSE_PROFILES'].split(',') and env['DNS_WEB_PORT']=='18089' and env['DNS_LISTEN_PORT']=='1053' and not (i/'.pilot-dns-native-pending').exists() and http_ready(18089,'/admin/') and dns_ready()
+            except (OSError,ValueError,KeyError):ready=False
         result[k]='ready' if ready else 'review'
     if result:atomic_write(i/'.pilot-options.json',json.dumps(result).encode(),0o600)
     return result

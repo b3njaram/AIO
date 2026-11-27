@@ -250,7 +250,10 @@ jobs:
       - run: |
           command -v dig || (bash scripts/ci-ubuntu-packages.sh dnsutils)
           mkdir -p /tmp/jobbi-infra /tmp/jobbi-infra-backups
-          python scripts/install.py --name source --data-root /tmp/jobbi-infra --base-port 19000 --apps passwords,monitor,dns --local-dns-port 19011
+          python scripts/install.py --name source --data-root /tmp/jobbi-infra --base-port 19000 --apps passwords,monitor
+          python -c 'import sys;from pathlib import Path;print(next(x.split("=",1)[1] for x in Path(sys.argv[1]).read_text().splitlines() if x.startswith("DNS_PASSWORD=")))' /tmp/jobbi-infra/source/.env | python scripts/pilot-dns.py /tmp/jobbi-infra/source --native --local-port 19011 --apply --password-stdin
+          test ! -e /tmp/jobbi-infra/source/.pilot-dns-native-pending
+          python scripts/security-audit.py /tmp/jobbi-infra/source
           python scripts/test-infrastructure-pilot.py /tmp/jobbi-infra/source
           bash scripts/backup.sh /tmp/jobbi-infra/source /tmp/jobbi-infra-backups
           python scripts/restore.py /tmp/jobbi-infra-backups/jobbi-source-* --require-exact-images --data-root /tmp/jobbi-infra --name recovered --base-port 19100

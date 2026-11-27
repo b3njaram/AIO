@@ -38,7 +38,7 @@ def summarize(instance,dest,expected,devices=(),check_updates=False):
             elif stamp:backup={'state':'review'}
             if any('backup' in x.lower() and ('fail' in x.lower() or 'older' in x.lower()) for x in m.get('alerts',[])):backup['state']='review'
     except (OSError,ValueError,KeyError,subprocess.SubprocessError):pass
-    if any((instance/n).exists() for n in ('deployment/pilot-media.json','deployment/pilot-network.json','data/pilot-media','data/pilot-pihole')):backup={'state':'review'}
+    if any((instance/n).exists() for n in ('.pilot-dns-native-pending','deployment/pilot-media.json','deployment/pilot-network.json','data/pilot-media','data/pilot-pihole')):backup={'state':'review'}
     recovery={'state':'idle'}
     try:
         r=json.loads((instance/'recovery-state.json').read_text());state=r.get('state')
