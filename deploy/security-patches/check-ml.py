@@ -1,13 +1,21 @@
 """Exercise the patched codecs and run a tiny offline model on the CPU provider."""
+import idna
 import msgpack
 import numpy as np
 import onnx
 import onnxruntime
+import pygments
 import urllib3
 from onnx import TensorProto, helper
+from pygments.formatters import TerminalFormatter
+from pygments.lexers import PythonLexer
 
 assert msgpack.unpackb(msgpack.packb({"rows": [1, 2]})) == {"rows": [1, 2]}
 assert urllib3.util.parse_url("https://localhost:3003/ping").host == "localhost"
+assert idna.__version__ == '3.15'
+assert idna.decode(idna.encode('bücher.example')) == 'bücher.example'
+assert pygments.__version__ == '2.20.0'
+assert 'print' in pygments.highlight('print(1)', PythonLexer(), TerminalFormatter())
 shape = [1]
 inputs = [helper.make_tensor_value_info("x", TensorProto.FLOAT, shape)]
 outputs = [helper.make_tensor_value_info("y", TensorProto.FLOAT, shape)]
