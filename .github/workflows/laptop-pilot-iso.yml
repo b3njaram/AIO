@@ -22,11 +22,18 @@ jobs:
           cp docs/{RELEASE-1.0-RC,HARDWARE-QUALIFICATION,OFFLINE-RECOVERY,SECURITY-REMEDIATION}.md /tmp/jobbi-rc/
           cd /tmp/jobbi-rc
           sha256sum -c SHA256SUMS
+          cat SHA256SUMS
           xorriso -osirrox on -indev JobbiSoft-Home-1.0-RC.iso -extract /autoinstall.yaml /tmp/extracted.yaml
           cmp autoinstall.yaml /tmp/extracted.yaml
           xorriso -indev JobbiSoft-Home-1.0-RC.iso -report_el_torito plain > boot.txt 2>&1
           grep -E 'El Torito boot img.*BIOS' boot.txt
           grep -E 'El Torito boot img.*UEFI' boot.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer-checksums-${{ github.sha }}
+          path: |
+            /tmp/jobbi-rc/SHA256SUMS
+            /tmp/jobbi-rc/REVISION
       - uses: actions/upload-artifact@v4
         with:
           name: JobbiSoft-Home-1.0-RC-${{ github.sha }}

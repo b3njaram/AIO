@@ -99,7 +99,7 @@ def monitor(instance,env,fixture,recover):
         assert client.call('getMonitorList')['ok'] is False
         assert client.call('login',{'username':'pilot','password':fixture['password']})['ok']
         if not recover:
-            row=client.call('add',{'name':'Local dashboard','type':'http','url':'http://dashboard:8080/healthz','interval':60,'accepted_statuscodes':['200-299'],'notificationIDList':{},'active':False,'conditions':[],'kafkaProducerBrokers':[],'kafkaProducerSaslOptions':{},'rabbitmqNodes':[]})
+            row=client.call('add',{'name':'Local dashboard','type':'http','url':'http://dashboard:8080/healthz?pilot=manual','interval':60,'accepted_statuscodes':['200-299'],'notificationIDList':{},'active':False,'conditions':[],'kafkaProducerBrokers':[],'kafkaProducerSaslOptions':{},'rabbitmqNodes':[]})
             assert row['ok'],row.get('msg')
             fixture['monitor']=row['monitorID']
         row=client.call('getMonitor',fixture['monitor'])
@@ -109,8 +109,9 @@ def monitor(instance,env,fixture,recover):
     spec=importlib.util.spec_from_file_location('configure_monitors',Path(__file__).with_name('configure-monitors.py'))
     module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
     e,desired=module.targets(instance)
-    first=module.configure(e,desired,'pilot',fixture['password'],True)
-    assert set(first['created'])==(set() if recover else set(desired)-{'dashboard'}),first
+    assert 'dashboard' in desired
+    preview=module.configure(e,desired,'pilot',fixture['password'],False)
+    assert preview['missing']==[], 'Default monitors were not provisioned or restored'
     assert module.configure(e,desired,'pilot',fixture['password'],True)['created']==[]
     print('PASS Uptime Kuma owner login, anonymous denial and saved monitor')
 

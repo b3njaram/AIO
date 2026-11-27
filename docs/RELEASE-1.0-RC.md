@@ -20,3 +20,9 @@ Keep the working SSD and its data in place. Use a separate verified backup and s
 The connected image targets x86-64 systems with Ethernet, guided Ubuntu LVM and enough free space for a separate data LV. The proven test machine used an Intel Core i7-3537U, 16 GB RAM and a Kingston 480 GB SSD. The operator reported about 3 GB idle memory during the earlier full-stack trial. Prior physical results apply to the prior pilot only. Test firmware boot, reboot, load, independent encrypted backup and recovery, and second-device allow/deny on this revision.
 
 Kuma remains accessible from Monitoring with its own complete UI. The optional Soulseek, Invidious and Pi-hole paths are pilots. Verify provider authentication, authorized search/import and playback, DNS behavior and independent recovery before enabling them. The tagged commercial release depends on exact-revision workflow results, image security remediation, customer networking acceptance, and review of upstream redistribution notices, licenses and service terms. See SECURITY-REMEDIATION.md and the Actions SBOM artifact. Preserve upstream notices on any approved redistribution.
+
+For optional Invidious, upstream documents its companion and database deployment and capacity requirements. Tailscale Personal is offered for non-commercial use. Evaluate each customer's use before making remote access part of an offering. Review the Ubuntu intellectual property policy before any commercial redistribution of a remastered image.
+
+- [Canonical intellectual property policy](https://canonical.com/legal/intellectual-property-policy)
+- [Tailscale pricing and plan terms](https://tailscale.com/pricing)
+- [Invidious installation requirements](https://docs.invidious.io/installation/)
