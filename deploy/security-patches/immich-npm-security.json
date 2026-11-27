@@ -26,6 +26,15 @@
       "url": "https://registry.npmjs.org/undici/-/undici-6.29.1.tgz",
       "integrity": "sha512-EvRlUt/QqAEvXdQeRMYUfwOQsfzpDztykrG2owGEE/rBOBoYv9uF39ZzsNDh4lTFHhTr2XOZjKkYgueD12ZmGA==",
       "source": "https://github.com/npm/cli/blob/787f1520fa412e91a5792468f1c7f25b166867a6/package-lock.json"
+    },
+    {
+      "path": "/usr/src/app/server/node_modules/.pnpm/fast-uri@3.1.4/node_modules/fast-uri",
+      "name": "fast-uri",
+      "from": "3.1.4",
+      "to": "3.1.7",
+      "url": "https://registry.npmjs.org/fast-uri/-/fast-uri-3.1.7.tgz",
+      "integrity": "sha512-dOvZVzjdZdz7phd9v6jCbwxrBW3fK6n8Rc0CtdmM4bumzMnxywBYhuph6J819RRw/ku+rLbelwfMunktuzVVHg==",
+      "source": "https://github.com/fastify/fast-uri/blob/412e40abd4eb8beabfb952d80abf949a2baf27a3/package.json"
     }
   ]
 }
