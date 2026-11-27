@@ -1,5 +1,5 @@
 """Static safety regressions for the package update recipes; runtime tests are CI."""
-import os,re,subprocess,tempfile,unittest
+import json,os,re,subprocess,tempfile,unittest
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 PATCHES=ROOT/'deploy/security-patches'
@@ -38,6 +38,25 @@ class Tests(unittest.TestCase):
             self.assertIn('HEALTHCHECK',source)
             self.assertIn(endpoint,source)
         self.assertRegex((PATCHES/'Dockerfile.slskd').read_text(),r'USER 1000:1000\s*$')
+    def test_immich_exact_npm_patch_plan(self):
+        plan=json.loads((PATCHES/'immich-npm-security.json').read_text())
+        self.assertEqual(len(plan['packages']),3)
+        for row in plan['packages']:
+            self.assertEqual(row['from'].split('.')[0],row['to'].split('.')[0])
+            self.assertRegex(row['integrity'],r'^sha512-[A-Za-z0-9+/]+=*
+        compose=(ROOT/'deploy/compose.yaml').read_text()
+        services=('prowlarr','navidrome','immich-redis','pihole','immich-db','immich-server','immich-machine-learning','nextcloud')
+        for service in services:
+            block=re.search(r'^  '+service+r':\n((?:    [^\n]*\n)+)',compose,re.M).group(1)
+            self.assertIn('context: ./security-patches',block)
+            self.assertRegex(block,r"BASE_IMAGE: '[^']+@sha256:[0-9a-f]{64}'")
+            self.assertRegex(block,r"PACKAGE_FLOORS: '[^']+=[^']+'")
+if __name__=='__main__':unittest.main()
+)
+            self.assertRegex(row['source'],r'/blob/[a-f0-9]{40}/')
+            self.assertTrue(row['path'].endswith('/'+row['name']))
+        recipe=(PATCHES/'Dockerfile.debian').read_text()
+        self.assertIn('node /tmp/jobbi-immich-npm.cjs',recipe.split('FROM patched AS immich_server')[1].split('FROM patched AS application')[0])
     def test_every_candidate_has_pinned_base_and_package_floors(self):
         compose=(ROOT/'deploy/compose.yaml').read_text()
         services=('prowlarr','navidrome','immich-redis','pihole','immich-db','immich-server','immich-machine-learning','nextcloud')

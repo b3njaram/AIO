@@ -1,0 +1,31 @@
+{
+  "packages": [
+    {
+      "path": "/usr/src/app/server/node_modules/.pnpm/multer@2.4.0/node_modules/multer",
+      "name": "multer",
+      "from": "2.4.0",
+      "to": "2.5.0",
+      "url": "https://registry.npmjs.org/multer/-/multer-2.5.0.tgz",
+      "integrity": "sha512-BsqOzYGVq49JcW2IzoSAxeKYRevb+dGGPPWleOR8Lrlk4igwxu1/9pwSXlByhCb7MVZDrNJFC0IBP5/O5nLYRw==",
+      "source": "https://github.com/immich-app/immich/blob/a51a43856df89b83266fc312b822cadd7afb6fcf/pnpm-lock.yaml"
+    },
+    {
+      "path": "/usr/src/app/server/node_modules/.pnpm/undici@8.11.2/node_modules/undici",
+      "name": "undici",
+      "from": "8.11.2",
+      "to": "8.13.1",
+      "url": "https://registry.npmjs.org/undici/-/undici-8.13.1.tgz",
+      "integrity": "sha512-Kt7EaPjh0s93lJH/PmW3d5rhkcpUa6fS3jqZ7+YGxNd9L7Xy/i827xe4C2uhhq+pJebM4tQOl5AgHmW11G5Skg==",
+      "source": "https://github.com/immich-app/immich/blob/a51a43856df89b83266fc312b822cadd7afb6fcf/pnpm-lock.yaml"
+    },
+    {
+      "path": "/usr/local/lib/node_modules/npm/node_modules/undici",
+      "name": "undici",
+      "from": "6.28.0",
+      "to": "6.29.1",
+      "url": "https://registry.npmjs.org/undici/-/undici-6.29.1.tgz",
+      "integrity": "sha512-EvRlUt/QqAEvXdQeRMYUfwOQsfzpDztykrG2owGEE/rBOBoYv9uF39ZzsNDh4lTFHhTr2XOZjKkYgueD12ZmGA==",
+      "source": "https://github.com/npm/cli/blob/787f1520fa412e91a5792468f1c7f25b166867a6/package-lock.json"
+    }
+  ]
+}

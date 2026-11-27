@@ -37,4 +37,10 @@ psql --version
 rm -rf /var/lib/apt/lists/* /tmp/jobbi-pgdg.list /tmp/jobbi-pgdg.asc
 SH
 
+# Same-major replacements in exact installed pnpm and npm package directories.
+# Preserve native modules, symlinks, upstream application and storage schema.
+RUN --mount=type=bind,source=patch-immich-npm.cjs,target=/tmp/jobbi-immich-npm.cjs,ro \
+    --mount=type=bind,source=immich-npm-security.json,target=/tmp/jobbi-immich-npm.json,ro \
+    node /tmp/jobbi-immich-npm.cjs /tmp/jobbi-immich-npm.json
+
 FROM patched AS application
