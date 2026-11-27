@@ -13,7 +13,7 @@ def main():
             page.route('**/api/config',lambda route:route.fulfill(json={'name':'Jobbi Home · Demo','apps':[{'id':'music','name':'Jobbi Music','en':'Personal music','es':'Música personal','port':18081},{'id':'passwords','name':'Vaultwarden','en':'Password manager','es':'Gestor de contraseñas','url':'https://demo.example.ts.net:19449','note':'HTTPS required','noteEs':'Requiere HTTPS'},{'id':'remote','name':'Tailscale','en':'Private access','es':'Acceso privado'}]}))
             page.route('**/api/status',lambda route:route.fulfill(json={'disk':{'free':4000000000,'total':8000000000,'used':4000000000},'apps':[{'id':'music','state':'reachable'},{'id':'passwords','state':'unavailable'},{'id':'remote','state':'manual'}]}))
             from datetime import datetime,timezone
-            page.route('**/api/health',lambda route:route.fulfill(json={'at':datetime.now(timezone.utc).isoformat(),'data_free_percent':50,'docker_free_percent':60,'temperature_c':[42],'drives':[{'state':'passed'}],'backup':{'state':'verified'},'updates':{'state':'current'},'onboarding':['music'],'power':{'state':'on_battery','charge_percent':80},'notifications':{'active':['raid_degraded','backup_overdue','ups_on_battery']},'storage':{'total_bytes':8000000000000,'free_bytes':4000000000000,'redundancy':{'level':'raid1','state':'degraded','expected':2}}}))
+            page.route('**/api/health',lambda route:route.fulfill(json={'at':datetime.now(timezone.utc).isoformat(),'data_free_percent':50,'docker_free_percent':60,'temperature_c':[42],'drives':[{'state':'passed'}],'backup':{'state':'verified'},'updates':{'state':'current'},'monitoring':{'at':datetime.now(timezone.utc).isoformat(),'state':'available','monitors':{'music':{'success_percent':75,'avg_ms':21,'recent':[1,0,1,1]}}},'onboarding':['music'],'power':{'state':'on_battery','charge_percent':80},'notifications':{'active':['raid_degraded','backup_overdue','ups_on_battery']},'storage':{'total_bytes':8000000000000,'free_bytes':4000000000000,'redundancy':{'level':'raid1','state':'degraded','expected':2}}}))
             page.goto('http://jobbi.test/')
             expect(page.locator('#apps .app')).to_have_count(3)
             expect(page.locator('#apps .badge').first).to_contain_text('Reachable')
@@ -42,6 +42,8 @@ def main():
             expect(page.locator('#setupTab')).to_have_count(0)
             page.locator('#monitoringTab').click()
             expect(page.locator('#monitoringRows')).to_contain_text('Jobbi Music')
+            expect(page.locator('#monitorHistory')).to_contain_text('75%')
+            expect(page.locator('#monitorHistory')).to_contain_text('21 ms')
             page.locator('#networkTab').click()
             expect(page.locator('#networkCards')).to_contain_text('Pi-hole')
             page.locator('#statusTab').click()

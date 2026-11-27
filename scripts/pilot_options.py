@@ -1,5 +1,5 @@
 """Explicit, bounded optional-service operations for the authenticated physical setup."""
-import json,os,re,socket,struct,subprocess,sys,urllib.request
+import json,os,re,socket,struct,subprocess,sys,time,urllib.request
 from pathlib import Path
 from urllib.parse import urlsplit
 from private_origins import atomic_write
@@ -33,6 +33,11 @@ def dns_ready():
         ident,flags,qd,an,_,_=struct.unpack('!6H',answer[:12])
         return ident==0x4a42 and bool(flags&0x8000) and not(flags&15) and an>0
     except OSError:return False
+def wait_ready(probe,attempts=20):
+    for n in range(attempts):
+        if probe():return True
+        if n+1<attempts:time.sleep(3)
+    return False
 def provision(i,address,selected,pw):
     result=read(i)
     if any(k in result for k in selected):raise ValueError('Existing provider state retained; do not create duplicate accounts')
@@ -55,11 +60,11 @@ def provision(i,address,selected,pw):
             probe=['bash',str(ROOT/'scripts/ctl.sh'),str(i),'exec','-T','jobbi-music','node','--input-type=module','-e',SOULSEEK_LOGIN_PROBE]
             result['soulseek']='ready' if ok and run(probe) else 'review'
         if 'invidious' in media:
-            result['invidious']='ready' if ok and http_ready(18091,'/') else 'review'
+            result['invidious']='ready' if ok and wait_ready(lambda:http_ready(18091,'/')) else 'review'
         save()
     if 'dns' in selected:
         ok=run([sys.executable,str(ROOT/'scripts/pilot-dns.py'),str(i),'--apply','--password-stdin'],pw+'\n')
-        result['dns']='ready' if ok and http_ready(18089,'/admin/') and dns_ready() else 'review'
+        result['dns']='ready' if ok and wait_ready(lambda:http_ready(18089,'/admin/') and dns_ready()) else 'review'
         save()
     return result
 def tailnet_status():
