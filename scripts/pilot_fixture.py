@@ -6,7 +6,7 @@ from pathlib import Path
 def location():
     instance=Path(os.environ.get('JOBBI_PILOT_INSTANCE','/tmp/jobbi-full/full'))
     if os.environ.get('GITHUB_ACTIONS')!='true' or str(instance) not in (
-        '/tmp/jobbi-full/full','/tmp/jobbi-office/source','/tmp/jobbi-office/recovered'):
+        '/tmp/jobbi-full/full','/tmp/jobbi-office/source','/tmp/jobbi-office/recovered','/tmp/jobbi-office/trial'):
         raise ValueError('Disposable CI only')
     return instance
 

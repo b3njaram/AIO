@@ -198,10 +198,14 @@ jobs:
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
       - run: |
-          mkdir -p /tmp/jobbi-office /tmp/jobbi-office-backups
+          mkdir -p /tmp/jobbi-office /tmp/jobbi-office-backups /tmp/jobbi-nextcloud-upgrade
+          sudo mount -t tmpfs -o "size=2G,uid=$(id -u),gid=$(id -g),mode=0700" tmpfs /tmp/jobbi-nextcloud-upgrade
+          previous=771821a43861a89282ba1c57f16de89adc688742
+          git worktree add --detach /tmp/jobbi-nextcloud-32 "$previous"
           export JOBBI_PILOT_INSTANCE=/tmp/jobbi-office/source
-          python3 scripts/install.py --name source --data-root /tmp/jobbi-office --base-port 18800 --apps files,tasks
+          python3 /tmp/jobbi-nextcloud-32/scripts/install.py --name source --data-root /tmp/jobbi-office --base-port 18800 --apps files,tasks
           python3 scripts/test-files-pilot.py
           python3 scripts/test-tasks-pilot.py
           bash scripts/backup.sh "$JOBBI_PILOT_INSTANCE" /tmp/jobbi-office-backups
@@ -211,9 +215,15 @@ jobs:
           python3 scripts/test-reinstall-pilot.py /tmp/jobbi-office/recovered
           python3 scripts/test-files-pilot.py
           python3 scripts/test-tasks-pilot.py
+          python3 scripts/stage-upgrade.py /tmp/jobbi-office/source /tmp/jobbi-nextcloud-upgrade \
+            --from-commit "$previous" --to-commit "$GITHUB_SHA" --name trial --base-port 19400 --minimum-free-gib 1 --prepare
+          bash scripts/ctl.sh /tmp/jobbi-office/trial up -d
+          JOBBI_PILOT_INSTANCE=/tmp/jobbi-office/trial python3 scripts/test-files-pilot.py
+          # Verify the exact original instance still works after an isolated migration.
+          JOBBI_PILOT_INSTANCE=/tmp/jobbi-office/source python3 scripts/test-files-pilot.py --check-original
       - if: failure()
         run: |
-          for n in source recovered; do
+          for n in source recovered trial; do
             if test -f "/tmp/jobbi-office/$n/.env"; then
               bash scripts/ctl.sh "/tmp/jobbi-office/$n" ps -a
               bash scripts/ctl.sh "/tmp/jobbi-office/$n" logs --tail=60 vikunja vikunja-db
@@ -221,11 +231,12 @@ jobs:
           done
       - if: always()
         run: |
-          for n in source recovered; do
+          for n in source recovered trial; do
             if test -f "/tmp/jobbi-office/$n/.env"; then
               bash scripts/ctl.sh "/tmp/jobbi-office/$n" down -v
             fi
           done
+          if mountpoint -q /tmp/jobbi-nextcloud-upgrade; then sudo umount /tmp/jobbi-nextcloud-upgrade; fi
 
   infrastructure-recovery:
     if: (github.event_name == 'workflow_dispatch' && inputs.full_stack) || (github.event_name == 'push' && (contains(github.event.head_commit.message, '[full-pilot]') || contains(github.event.head_commit.message, '[release-gate]')))

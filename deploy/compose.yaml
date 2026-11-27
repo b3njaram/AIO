@@ -199,7 +199,7 @@ services:
       context: ./security-patches
       dockerfile: Dockerfile.debian
       args:
-        BASE_IMAGE: 'nextcloud:32-apache@sha256:7032779c2121b26919ad36dc7bcb68b94ef37c451bfede06926e8b03b5caa1fc'
+        BASE_IMAGE: 'nextcloud:33.0.11-apache@sha256:73d52a6c57497a619120d1fca99d559f09dad52fb5e542051e31ebc66e05c7f3'
         DEBIAN_CODENAME: 'trixie'
         PACKAGE_FLOORS: 'libzstd1=1.5.7+dfsg-1+deb13u1 login.defs=1:4.17.4-2+deb13u1 passwd=1:4.17.4-2+deb13u1'
     restart: unless-stopped

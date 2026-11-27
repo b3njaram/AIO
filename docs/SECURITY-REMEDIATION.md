@@ -54,3 +54,6 @@ The completed 2b5354c scan confirmed that the eight Bookworm PAM rows now resolv
 The 1,414-finding baseline includes 218 Chromium and Chromium Common findings in Kuma for which the scanner reported no Bookworm fix, and 372 findings in Nextcloud 32. Nextcloud 32 has reached end of support. A supported major release needs a tested data migration with the previous image and an independent backup retained. These findings remain gated.
 
 Kuma now pins compatible JSONata, protobufjs and Axios security releases by registry integrity. The build validates the installed dependency versions and loads the patched modules before the exact-image scan and recovery tests.
+
+
+Nextcloud 33.0.11 uses a digest-pinned official Apache image. The office pilot exercises the previous Nextcloud 32 release, creates a separate backup and trial instance, then verifies migrated account access, file contents, and database upgrade status. It also checks authenticated access on the original instance after the trial. Hold customer cutover until the migration pilot and exact-image scan are reviewed.
