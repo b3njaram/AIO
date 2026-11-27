@@ -16,6 +16,7 @@ class Tests(unittest.TestCase):
                 with self.assertRaises(ValueError):customers.ingest(db,{'id':'HOME1','report':r})
                 with self.assertRaises(ValueError):customers.ingest(db,{'id':'HOME1','report':{**report(),'password':'never'}})
                 customers.consent(db,{'id':'HOME1','allow':False,'confirmed':True})
+                with self.assertRaises(ValueError):customers.support_snapshot(db,{'id':'HOME1'})
                 self.assertIsNone(customers.rows(db)[0]['report'])
                 with self.assertRaises(ValueError):customers.ingest(db,{'id':'HOME1','report':report()})
                 self.assertEqual(db.execute('SELECT COUNT(*) FROM appliance_events').fetchone()[0],4)

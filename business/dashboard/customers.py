@@ -57,6 +57,17 @@ def ingest(db,d):
     if row[2] and t<=timestamp(json.loads(row[2])['at']):raise ValueError('Report is older than or equal to last import')
     db.execute('UPDATE appliances SET report=?,imported=? WHERE id=?',(json.dumps(r),now().isoformat(),id));event(db,id,'report_imported')
     return {'ok':True}
+def support_snapshot(db, data):
+    appliance = identifier(data['id'])
+    row = db.execute('SELECT report FROM appliances WHERE id=? AND consent=1', (appliance,)).fetchone()
+    if not row or not row[0]:
+        raise ValueError('No shared health report available')
+    report = validate(json.loads(row[0]), appliance)
+    fields = ('at', 'release', 'free_percent', 'temperature_c', 'alerts', 'backup', 'raid', 'updates')
+    event(db, appliance, 'diagnostics_exported')
+    return {'schema': 1, 'kind': 'jobbi-support-snapshot',
+            'measurements': {key: report[key] for key in fields}}
+
 def enable_reporting(db,d):
     id=identifier(d['id'])
     if d.get('confirmed') is not True:raise ValueError('Explicit customer approval required')

@@ -1,6 +1,8 @@
 'use strict';
 const spanish = new Map(`
 Demo only · no login · use test records|Solo demo · sin acceso por contraseña · usa registros de prueba
+Download diagnostic snapshot|Descargar diagnóstico
+diagnostics_exported|Diagnóstico exportado
 Customers|Clientes
 Customer appliances|Servidores de clientes
 Find appliance|Buscar servidor

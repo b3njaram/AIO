@@ -96,6 +96,11 @@ def main():
                 page.locator('#healthFile').set_input_files({'name':'health.json','mimeType':'application/json','buffer':json.dumps(payload).encode()})
                 page.locator('#healthImport button').click()
                 expect(page.locator('#applianceList')).to_contain_text('No reported alerts')
+                with page.expect_download() as snapshot:
+                    page.get_by_role('button',name='Download diagnostic snapshot').click()
+                exported=json.loads(Path(snapshot.value.path()).read_text())
+                assert exported['measurements']['release']==payload['release']
+                assert 'HOME1' not in json.dumps(exported)
                 page.once('dialog',lambda d:d.accept())
                 page.get_by_role('button',name='Revoke sharing').click()
                 expect(page.locator('#applianceList')).to_contain_text('Not shared')
