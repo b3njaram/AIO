@@ -10,6 +10,7 @@ ADD --checksum=sha256:a071d8840d37b4541c2efecb225023f825c983b43968c08d9f96dc1baa
 ADD --checksum=sha256:df0241b3046b505d27396da6eef107f14dffb108f77aa89cfd9611a928eb6dfe https://registry.npmjs.org/protobufjs/-/protobufjs-7.6.6.tgz /archives/df0241b3046b505d27396da6eef107f14dffb108f77aa89cfd9611a928eb6dfe.tgz
 ADD --checksum=sha256:0c0cf3a6d15d7649fa843ab2f5991f5857bc7515d48ae8c35aa5addaf6e5fcdd https://registry.npmjs.org/axios/-/axios-0.34.0.tgz /archives/0c0cf3a6d15d7649fa843ab2f5991f5857bc7515d48ae8c35aa5addaf6e5fcdd.tgz
 ADD --checksum=sha256:18b75cb9c66c8c08bab5cacccd09013c31d3182f1e001c19d8815c5bb46e0802 https://registry.npmjs.org/glob/-/glob-10.5.0.tgz /archives/18b75cb9c66c8c08bab5cacccd09013c31d3182f1e001c19d8815c5bb46e0802.tgz
+ADD --checksum=sha256:e4df4beb99eb51d606a03ba3e07879ca320dffcad029edd9ae63876e0df773f2 https://registry.npmjs.org/qs/-/qs-6.16.2.tgz /archives/e4df4beb99eb51d606a03ba3e07879ca320dffcad029edd9ae63876e0df773f2.tgz
 
 FROM golang:1.27.3-alpine@sha256:fa3d596898d9f126af7c01d14ee7597bab3f39cccf392ef36b69fe77cd681f18 AS healthcheck
 ADD --checksum=sha256:d16fd78404ed92d7e8b61f535790f4f508d807d5d76c2d9fbb275e2cd86f3f9e https://raw.githubusercontent.com/louislam/uptime-kuma/5aa5dec425f8a955b54e150636979a6927745ec5/extra/healthcheck.go /src/healthcheck.go

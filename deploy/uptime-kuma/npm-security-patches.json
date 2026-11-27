@@ -97,6 +97,16 @@
       "integrity": "sha512-DfXN8DfhJ7NH3Oe7cFmu3NCu1wKbkReJ8TorzSAFbSKrlNaQSKfIzqYqVY8zlbs2NLBbWpRiU52GX2PbaBVNkg==",
       "source": "https://github.com/louislam/uptime-kuma/blob/dcc55dcbd7edbad28a79accd019fdf0b95ec8c37/package-lock.json",
       "sha256": "18b75cb9c66c8c08bab5cacccd09013c31d3182f1e001c19d8815c5bb46e0802"
+    },
+    {
+      "path": "/app/node_modules/qs",
+      "name": "qs",
+      "from": "6.14.3",
+      "to": "6.16.2",
+      "url": "https://registry.npmjs.org/qs/-/qs-6.16.2.tgz",
+      "integrity": "sha512-VYdnB5S7/0IeXzBacUtwNAaM6d7Y/PgYnNC7bJCI6meqA/OgnsQbZMtVW8Dt2D1PHgbHGtYmhSoEIgvt7xZ2ZA==",
+      "upstreamLockKey": "node_modules/express/node_modules/qs",
+      "sha256": "e4df4beb99eb51d606a03ba3e07879ca320dffcad029edd9ae63876e0df773f2"
     }
   ]
 }
