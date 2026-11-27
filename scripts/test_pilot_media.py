@@ -3,7 +3,7 @@ import shutil
 import subprocess
 import unittest
 from pathlib import Path
-from pilot_media import SOULSEEK_LOGIN_PROBE,credentials,soulseek,invidious,pinned
+from pilot_media import SOULSEEK_LOGIN_PROBE,SLSKD,credentials,soulseek,invidious,pinned
 class Tests(unittest.TestCase):
     def test_per_appliance(self):
         a,b=credentials(),credentials()
@@ -11,6 +11,8 @@ class Tests(unittest.TestCase):
         self.assertNotEqual(a['password'],a['api_key'])
         s=soulseek(Path('/srv/jobbi-data/laptop-test'),1000,1000,a)
         self.assertNotIn('ports',s['slskd'])
+        self.assertEqual(s['slskd']['build']['args']['BASE_IMAGE'],SLSKD)
+        self.assertEqual(s['slskd']['build']['dockerfile'],'Dockerfile.slskd')
         self.assertIn('/shares:ro',s['slskd']['volumes'][1])
         self.assertEqual(s['jobbi-music']['environment']['SLSKD_API_KEY'],a['api_key'])
     @unittest.skipUnless(shutil.which('node'), 'Node is required to run the exact container probe')

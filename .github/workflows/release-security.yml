@@ -102,10 +102,11 @@ jobs:
           # Add the exact optional deployment image to the same inventory.
           # A stopped container needs no provider account, credentials or network.
           slskd=$(PYTHONPATH=scripts python3 -c 'from pilot_media import SLSKD; print(SLSKD)')
-          retry docker pull "$slskd"
+          retry docker build --tag jobbi-security-slskd --build-arg "BASE_IMAGE=$slskd" \
+            --file deploy/security-patches/Dockerfile.slskd deploy/security-patches
           docker create --network none --name jobbi-security-slskd \
             --label com.docker.compose.project=jobbi-audit \
-            --label com.docker.compose.service=slskd "$slskd"
+            --label com.docker.compose.service=slskd jobbi-security-slskd
       - name: Scan locally created image IDs
         run: python3 scripts/scan-release.py /tmp/jobbi-security-pilot/audit --scanner "$RUNNER_TEMP/jobbi-scanner/trivy" --output "$RUNNER_TEMP/jobbi-security-evidence"
       - name: Cross-check every unfixed finding against vendor status
