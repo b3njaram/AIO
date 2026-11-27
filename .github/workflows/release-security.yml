@@ -25,14 +25,14 @@ jobs:
       - uses: github/codeql-action/analyze@915412ff23e8b7659517e607487dbeae018f2934
         with:
           output: ${{ runner.temp }}/codeql
-      - name: Check high-severity static analysis findings
+      - name: Check static analysis findings
         run: |
           python3 - <<'PYCODE'
           import json, os
           from pathlib import Path
           files = list((Path(os.environ['RUNNER_TEMP']) / 'codeql').glob('*.sarif'))
           languages = set()
-          high = []
+          findings = []
           locations = []
           for path in files:
               for run in json.loads(path.read_text())['runs']:
@@ -47,18 +47,13 @@ jobs:
                           locations.append({'language': path.stem, 'rule': rule['id'],
                                             'file': physical.get('artifactLocation', {}).get('uri'),
                                             'line': physical.get('region', {}).get('startLine')})
-                      if float(rule.get('properties', {}).get('security-severity', 0)) >= 7:
-                          for location in result.get('locations', []):
-                              physical = location.get('physicalLocation', {})
-                              print(rule['id'], physical.get('artifactLocation', {}).get('uri'),
-                                    physical.get('region', {}).get('startLine'))
-                          high.append(rule['id'])
+                      findings.append(rule['id'])
           report = {'commit': os.environ['GITHUB_SHA'], 'languages': sorted(languages), 'locations': locations}
           (Path(os.environ['RUNNER_TEMP']) / 'codeql-locations.json').write_text(json.dumps(report, indent=2))
           if len(languages) < 2:
               raise SystemExit('Incomplete language coverage')
-          print('High severity CodeQL results:', len(high), sorted(set(high)))
-          raise SystemExit(bool(high))
+          print('CodeQL results:', len(findings), sorted(set(findings)))
+          raise SystemExit(bool(findings))
           PYCODE
       - name: Retain exact-revision CodeQL rule locations
         if: always()
@@ -159,6 +154,7 @@ jobs:
         run: |
           python3 - <<'PY'
           import json,os
+          from collections import Counter
           from pathlib import Path
           p=Path(os.environ['RUNNER_TEMP'])/'jobbi-security-evidence/report.json'
           if not p.is_file():print('Scan not completed');raise SystemExit(1)
@@ -167,6 +163,8 @@ jobs:
               print(', '.join(x['services']),len(x['vulnerabilities']),'review findings; licenses:',', '.join(x['license_names']) or 'not identified')
               for v in x['vulnerabilities']:
                   print(v['severity'],v['id'],v['package'],v['installed'],'fix:',v['fixed'] or 'not reported')
+          totals = Counter(v['severity'] for x in r['images'] for v in x['vulnerabilities'])
+          print('Image findings by severity:', dict(sorted(totals.items())))
           print('Remediation priority (fix reported vs no fix):')
           for x in sorted(r['images'],key=lambda x:len(x['vulnerabilities']),reverse=True):
               fixed=sum(bool(v['fixed']) for v in x['vulnerabilities'])

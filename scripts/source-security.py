@@ -45,7 +45,7 @@ def main():
     args.output.write_text(json.dumps({"commit": sha, "findings": rows}, indent=2))
     # Do not emit matched text, secrets, code snippets or the raw report.
     print(len(rows), "source findings. Inspect the location-only artifact.")
-    return any(r["category"] == "Secrets" or r["severity"] in ("HIGH", "CRITICAL", "UNKNOWN") for r in rows)
+    return bool(rows)
 
 
 if __name__ == "__main__":

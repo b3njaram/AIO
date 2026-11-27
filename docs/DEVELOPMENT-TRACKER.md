@@ -1,6 +1,6 @@
 # JobbiSoft Home development tracker
 
-The integration branch is `release/exact-recovery`, [PR 2](https://github.com/b3njaram/AIO/pull/2). PR 1 was merged. Keep this branch in pilot status. The authoritative acceptance rules are in [the release gate](RELEASE-GATE.md).
+The release candidate branch is `release/jobbi-home-1.0-rc`, [PR 3](https://github.com/b3njaram/AIO/pull/3). The authoritative acceptance rules are in [the release gate](RELEASE-GATE.md).
 
 ## Recent implementation and evidence
 

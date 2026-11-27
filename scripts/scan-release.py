@@ -10,14 +10,13 @@ def summarize(data):
     for section in data['Results']:
         for v in section.get('Vulnerabilities') or []:
             severity=v.get('Severity','UNKNOWN').upper()
-            if severity in ('HIGH','CRITICAL','UNKNOWN'):
-                evidence.append({'id':v.get('VulnerabilityID'), 'package':v.get('PkgName'),
-                    'installed':v.get('InstalledVersion'), 'fixed':v.get('FixedVersion') or None,
-                    'severity':severity,'target':section.get('Target'),'ecosystem':section.get('Type'),
-                    'status':v.get('Status'),'advisory':v.get('PrimaryURL'),
-                    'package_path':v.get('PkgPath'),'package_identifier':v.get('PkgIdentifier'),'package_id':v.get('PkgID'),
-                    'vendor':v.get('DataSource'),'references':v.get('References') or []})
-                findings.add((v.get('VulnerabilityID','unknown'),v.get('PkgName','unknown'),v.get('InstalledVersion',''),v.get('FixedVersion',''),severity))
+            evidence.append({'id':v.get('VulnerabilityID'), 'package':v.get('PkgName'),
+                'installed':v.get('InstalledVersion'), 'fixed':v.get('FixedVersion') or None,
+                'severity':severity,'target':section.get('Target'),'ecosystem':section.get('Type'),
+                'status':v.get('Status'),'advisory':v.get('PrimaryURL'),
+                'package_path':v.get('PkgPath'),'package_identifier':v.get('PkgIdentifier'),'package_id':v.get('PkgID'),
+                'vendor':v.get('DataSource'),'references':v.get('References') or []})
+            findings.add((v.get('VulnerabilityID','unknown'),v.get('PkgName','unknown'),v.get('InstalledVersion',''),v.get('FixedVersion',''),severity))
         for license in section.get('Licenses') or []:
             name=license.get('Name')
             if isinstance(name,str) and len(name)<200:licenses.add(name)
@@ -45,8 +44,8 @@ def scan(instance,scanner,destination):
                 raise ValueError('Scanner produced no SBOM components')
             result['sbom']=sbom
         reports.append({'image':image,'services':sorted(services),**result})
-        print('Scanned',','.join(sorted(services)),':',len(result['vulnerabilities']),'high/critical/unknown findings',flush=True)
-    payload={'schema':1,'at':dt.datetime.now(dt.timezone.utc).isoformat(),'release':release['aio_commit'],'scanner':version.strip(),'images':reports,'policy':'All high, critical and unknown-severity findings require release review; license discovery is not a compliance determination.'}
+        print('Scanned',','.join(sorted(services)),':',len(result['vulnerabilities']),'findings across all severities',flush=True)
+    payload={'schema':1,'at':dt.datetime.now(dt.timezone.utc).isoformat(),'release':release['aio_commit'],'scanner':version.strip(),'images':reports,'policy':'All vulnerability findings require release review; license discovery is not a compliance determination.'}
     # Provide a package-level action list without removing any gated findings.
     actions={}
     for report in reports:
@@ -55,7 +54,7 @@ def scan(instance,scanner,destination):
             row=actions.setdefault(key,{'package':key[0],'installed':key[1],'fixed':key[2],'severity':key[3],'ids':set(),'services':set()})
             row['ids'].add(v['id']);row['services'].update(report['services'])
     queue=[{**row,'ids':sorted(row['ids']),'services':sorted(row['services'])} for row in actions.values()]
-    queue.sort(key=lambda x:(not bool(x['fixed']),{'CRITICAL':0,'HIGH':1,'UNKNOWN':2}.get(x['severity'],3),-len(x['ids']),x['package']))
+    queue.sort(key=lambda x:(not bool(x['fixed']),{'CRITICAL':0,'HIGH':1,'UNKNOWN':2,'MEDIUM':3,'LOW':4}.get(x['severity'],5),-len(x['ids']),x['package']))
     (out/'remediation.json').write_text(json.dumps({'release':release['aio_commit'],'packages':queue},indent=2)+'\n')
     # Preserve concrete installation paths, including duplicate copies, without
     # changing the established deduplicated severity gate.
@@ -67,7 +66,7 @@ def scan(instance,scanner,destination):
     (out/'fix-locations.json').write_text(json.dumps({'release':release['aio_commit'],'locations':locations},indent=2)+'\n')
     (out/'report.json').write_text(json.dumps(payload,indent=2)+'\n')
     count=sum(len(x['vulnerabilities']) for x in reports)
-    print('Release image scan:',count,'high/critical/unknown findings; review required' if count else 'findings at gated severities')
+    print('Release image scan:',count,'findings across all severities')
     return bool(count)
 def main():
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('instance',type=Path);p.add_argument('--output',required=True,type=Path);p.add_argument('--scanner',default='trivy');a=p.parse_args()
