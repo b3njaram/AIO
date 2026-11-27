@@ -28,6 +28,10 @@ def main():
     if 'passwords' in apps:updates['VAULT_DOMAIN']=urls['passwords']
     if 'tasks' in apps:updates['TASK_URL']=urls['tasks']+'/'
     proposed={**cfg,'apps':[{**a,'url':urls[a['id']]} for a in cfg['apps']]}
+    from pilot_options import read as read_options
+    optional=read_options(i)
+    if optional.get('dns')=='ready':proposed['apps'].append({'id':'dns','name':'Pi-hole','en':'DNS filtering','es':'Filtrado DNS','url':'https://'+addr+':18089/admin/','probe':'http://pilot-pihole/admin/'})
+    if optional.get('invidious')=='ready':proposed['apps'].append({'id':'invidious','name':'Invidious','en':'Private video frontend','es':'Videos privados','url':'https://'+addr+':18091/','probe':'http://invidious:3000/'})
     try:
         prepare(i,proposed,updates)
         if 'files' in apps:nextcloud_origin.prepare(i,urls['files'],allow_lab=True)

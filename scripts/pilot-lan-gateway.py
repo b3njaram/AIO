@@ -11,11 +11,13 @@ def private_ip(s):
     ip=ipaddress.IPv4Address(s)
     if not any(ip in ipaddress.IPv4Network(n) for n in ('10.0.0.0/8','172.16.0.0/12','192.168.0.0/16')):raise ValueError('Lab LAN only')
     return str(ip)
-def config(addr,client):
+def config(addr,client,optional=()):
     addr,client=private_ip(addr),private_ip(client)
     if addr==client:raise ValueError('Pair a separate lab client')
     servers=[]
-    for port in PORTS:
+    if set(optional)-{'dns','invidious'}:raise ValueError('Unexpected optional route')
+    extra=tuple(port for key,port in (('dns',18089),('invidious',18091)) if key in optional)
+    for port in PORTS+extra:
         guard='location ~ ^/admin(?:/|$) { return 404; }' if port==18087 else ''
         servers.append(f'''server {{
  listen {addr}:{port} ssl;
@@ -58,7 +60,9 @@ def main():
     if user.pw_uid!=1000:raise ValueError('Original pilot operator required')
     nginx=DIR/'nginx.conf';unit=Path('/etc/systemd/system/jobbi-pilot-gateway.service')
     if nginx.exists() or unit.exists():raise ValueError('Existing gateway configuration; review')
-    nginx.write_text(config(addr,client));nginx.chmod(0o640)
+    from pilot_options import read as read_options
+    optional={k for k,v in read_options(i).items() if k in ('dns','invidious') and v=='ready'}
+    nginx.write_text(config(addr,client,optional));nginx.chmod(0o640)
     def run(*args):subprocess.run(args,check=True)
     origin=['runuser','-u',user.pw_name,'--',sys.executable,str(ROOT/'scripts/pilot-lan-origins.py'),str(i),addr]
     run('/usr/sbin/nginx','-t','-c',str(nginx))

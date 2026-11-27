@@ -2,6 +2,7 @@
 """Short-lived local owner setup UI. Never expose this listener through Serve or a public proxy."""
 import urllib.parse,ssl,ipaddress
 import argparse,fcntl,hmac,http.server,importlib.util,json,os,re,secrets,sys,threading,time
+import pilot_options
 from pathlib import Path
 ROOT=Path(__file__).resolve().parent
 spec=importlib.util.spec_from_file_location('account_setup',ROOT/'setup-accounts.py')
@@ -17,7 +18,27 @@ class Session:
         from account_progress import read
         self.done=set(read(instance))&set(self.apps);self.failed=[];self.lan=None;self.lock=threading.Lock();self.closed=False
     def active(self):return not self.closed and time.monotonic()<self.deadline
-    def status(self):return {'apps':self.apps,'done':sorted(self.done),'music_username':self.env.get('MUSIC_ADMIN','owner'),'failed':self.failed,'lan':bool(self.lan)}
+    def status(self):
+        result={'apps':self.apps,'done':sorted(self.done),'music_username':self.env.get('MUSIC_ADMIN','owner'),'failed':self.failed,'lan':bool(self.lan)}
+        if self.lan:
+            result['options']=pilot_options.read(self.instance)
+            result['tailnet']=pilot_options.tailnet_status()
+        return result
+    def optional(self,data):
+        if not self.lan or not self.active() or self.done!=set(self.apps):raise ValueError('Complete core accounts in the paired local setup first')
+        selected,pw=pilot_options.validate(data)
+        if 'music' not in self.apps and any(x in selected for x in ('soulseek','invidious')):raise ValueError('Music not installed')
+        with self.lock:
+            if not self.active():raise ValueError('Setup expired')
+            self.adapter.env_for(self.instance)
+            pilot_options.provision(self.instance,self.lan['address'],selected,pw)
+        return self.status()
+    def enroll(self,data):
+        if not self.lan or not self.active() or self.done!=set(self.apps) or data!={'consent':True}:raise ValueError('Explicit customer enrollment consent required')
+        with self.lock:
+            if not self.active():raise ValueError('Setup expired')
+            pilot_options.tailnet_connect()
+        return self.status()
     def submit(self,d):
         if not self.active():raise ValueError('Setup session expired')
         if set(d)!={'app','username','email','password','confirm'}:raise ValueError('Invalid setup request')
@@ -93,6 +114,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not isinstance(data,dict):raise ValueError()
             if self.path=='/api/create':
                 self.send(200,self.server.session.submit(data))
+            elif self.path=='/api/options':
+                self.send(200,self.server.session.optional(data))
+            elif self.path=='/api/tailnet':
+                self.send(200,self.server.session.enroll(data))
             elif self.path=='/api/finish' and data=={}:
                 with self.server.session.lock:
                     session=self.server.session

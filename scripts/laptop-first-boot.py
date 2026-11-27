@@ -90,7 +90,11 @@ def main():
         if match:aliases.extend(['--smart-device',str(match[0])])
     run(sys.executable,str(ROOT/'scripts/install-health-service.py'),str(instance),'--no-backup','--operator',user.pw_name,'--check-updates',*aliases,'--apply')
     # Install the private networking client without enrolling or accepting DNS/routes.
-    try:run('bash',str(ROOT/'scripts/customer-remote.sh'))
+    try:
+        run('bash',str(ROOT/'scripts/customer-remote.sh'))
+        # The first appliance operator already has Docker administration rights.
+        # Delegate only on this new dedicated host, without enrolling any account.
+        run('tailscale','set','--operator='+user.pw_name)
     except (OSError,subprocess.SubprocessError):print('Optional Tailscale package unavailable; local setup continues',flush=True)
     setup_service(instance,user)
     STATE.mkdir(mode=0o700,exist_ok=True);(STATE/'pilot-provisioned').write_text('Installed; browser onboarding and private access pending\n')
