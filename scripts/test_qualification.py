@@ -3,6 +3,13 @@ from pathlib import Path
 def load(name):
     spec=importlib.util.spec_from_file_location(name,Path(__file__).with_name(name+'.py'));m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);return m
 class QualificationTests(unittest.TestCase):
+    def test_running_without_probe_has_no_health_pass(self):
+        report = {'architecture': 'x86_64', 'verified_backup': None,
+                  'services': [{'Service': 'app', 'State': 'running', 'Health': ''}]}
+        checks = load('qualify-appliance').acceptance(report)
+        self.assertEqual(checks['container_health/app'], 'not-tested')
+        self.assertEqual(checks['backup_archive_integrity'], 'fail')
+
     def test_reboot_evidence(self):
         q=load('qualify-appliance')
         base={'boot':'before','release':'release','data_mount':'data','backup_mount':'backup','health':{'alerts':[]}}
