@@ -114,6 +114,16 @@ def create(instance,app,user,email,pw):
     _create(instance,app,user,email,pw)
     from account_progress import record
     record(instance,app)
+    if app=='monitor':
+        # Best-effort initial fixed monitors; a valid owner login remains valid
+        # even if a monitor creation fails. No passwords are retained.
+        try:
+            import importlib.util
+            spec=importlib.util.spec_from_file_location('monitors',ROOT/'scripts/configure-monitors.py');m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+            env,desired=m.targets(instance);m.configure(env,desired,user,pw,True)
+            print('Default appliance monitors configured',flush=True)
+        except Exception:
+            print('Default monitor creation needs review; owner login verified',flush=True)
 def invite_vault(instance,email):
     """Send only the intended customer invitation; native client creates encryption keys."""
     import urllib.parse

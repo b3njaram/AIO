@@ -47,6 +47,13 @@ class Session:
                     print(app+': account verified',flush=True)
             return self.status()
 class Server(http.server.ThreadingHTTPServer):
+    def handle_error(self,request,client_address):
+        # Browsers may reject the temporary self-signed certificate before pairing.
+        # Keep verification intact; do not fill the physical console with tracebacks.
+        if isinstance(sys.exc_info()[1],(ssl.SSLError,ConnectionError,TimeoutError)):
+            print('Setup connection closed or TLS certificate not yet trusted; verify the displayed fingerprint.',flush=True)
+            return
+        super().handle_error(request,client_address)
     # Wait for the current approved account operation and its response before exit.
     daemon_threads=False
     def __init__(self,port,session,bind='127.0.0.1',tls=None):
