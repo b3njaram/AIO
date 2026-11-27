@@ -10,6 +10,7 @@ RUN tar -xzf /tmp/gosu.tgz --strip-components=1 && \
     go get golang.org/x/sys@v0.44.0 && go mod download && go mod verify
 RUN --network=none go build -mod=readonly -trimpath -ldflags='-d -w' -o /out/gosu .
 FROM ${BASE_IMAGE} AS runtime
+HEALTHCHECK --interval=10s --timeout=5s --start-period=60s --retries=6 CMD pg_isready -h 127.0.0.1 -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-postgres}"
 COPY --from=build --chmod=0755 /out/gosu /usr/local/bin/gosu
 RUN test "$(gosu postgres id -u)" = "$(id -u postgres)" && \
     test "$(gosu postgres id -g)" = "$(id -g postgres)" && gosu postgres postgres --version

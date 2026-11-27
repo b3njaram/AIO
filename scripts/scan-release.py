@@ -15,6 +15,7 @@ def summarize(data):
                     'installed':v.get('InstalledVersion'), 'fixed':v.get('FixedVersion') or None,
                     'severity':severity,'target':section.get('Target'),'ecosystem':section.get('Type'),
                     'status':v.get('Status'),'advisory':v.get('PrimaryURL'),
+                    'package_path':v.get('PkgPath'),'package_identifier':v.get('PkgIdentifier'),'package_id':v.get('PkgID'),
                     'vendor':v.get('DataSource'),'references':v.get('References') or []})
                 findings.add((v.get('VulnerabilityID','unknown'),v.get('PkgName','unknown'),v.get('InstalledVersion',''),v.get('FixedVersion',''),severity))
         for license in section.get('Licenses') or []:
@@ -56,6 +57,14 @@ def scan(instance,scanner,destination):
     queue=[{**row,'ids':sorted(row['ids']),'services':sorted(row['services'])} for row in actions.values()]
     queue.sort(key=lambda x:(not bool(x['fixed']),{'CRITICAL':0,'HIGH':1,'UNKNOWN':2}.get(x['severity'],3),-len(x['ids']),x['package']))
     (out/'remediation.json').write_text(json.dumps({'release':release['aio_commit'],'packages':queue},indent=2)+'\n')
+    # Preserve concrete installation paths, including duplicate copies, without
+    # changing the established deduplicated severity gate.
+    locations=[]
+    for report in reports:
+        for v in report['advisories']:
+            if v.get('fixed'):
+                locations.append({'services':report['services'],**{k:v.get(k) for k in ('id','package','installed','fixed','severity','target','ecosystem','package_path','package_identifier','package_id')}})
+    (out/'fix-locations.json').write_text(json.dumps({'release':release['aio_commit'],'locations':locations},indent=2)+'\n')
     (out/'report.json').write_text(json.dumps(payload,indent=2)+'\n')
     count=sum(len(x['vulnerabilities']) for x in reports)
     print('Release image scan:',count,'high/critical/unknown findings; review required' if count else 'findings at gated severities')

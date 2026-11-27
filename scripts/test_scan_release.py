@@ -8,4 +8,9 @@ class Tests(unittest.TestCase):
         self.assertEqual(len(r['vulnerabilities']),2);self.assertEqual(r['license_names'],['MIT'])
         self.assertTrue(any(x['fixed']=='' for x in r['vulnerabilities']))
         with self.assertRaises(ValueError):m.summarize({'Results':[]})
+    def test_distinct_install_paths_remain_visible_without_changing_gate(self):
+        v={'VulnerabilityID':'CVE-fixture','PkgName':'example','InstalledVersion':'1','FixedVersion':'2','Severity':'HIGH'}
+        result=m.summarize({'Results':[{'Target':'runtime','Type':'python','Vulnerabilities':[{**v,'PkgPath':'/venv/pkg'},{**v,'PkgPath':'/global/pkg'}]}]})
+        self.assertEqual(len(result['vulnerabilities']),1)
+        self.assertEqual({x['package_path'] for x in result['advisories']},{'/venv/pkg','/global/pkg'})
 if __name__=='__main__':unittest.main()

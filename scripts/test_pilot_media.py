@@ -4,7 +4,7 @@ import shutil
 import subprocess
 import unittest
 from pathlib import Path
-from pilot_media import SOULSEEK_LOGIN_PROBE,SLSKD,credentials,soulseek,invidious,invidious_credentials,pinned,existing_media,merge_services
+from pilot_media import SOULSEEK_LOGIN_PROBE,SLSKD,credentials,soulseek,invidious,invidious_credentials,pinned,existing_media,merge_services,local_transfer_source
 class Tests(unittest.TestCase):
     def test_per_appliance(self):
         a,b=credentials(),credentials()
@@ -64,3 +64,16 @@ class Tests(unittest.TestCase):
             (state/'invidious-source').mkdir()
             with self.assertRaises(ValueError):existing_media(overlay,state,False,True)
             with self.assertRaises(ValueError):merge_services(config,{'jobbi-music':{'environment':{'SLSKD_API_KEY':'replace'}}})
+
+    @unittest.skipUnless(shutil.which('node'),'Node required')
+    def test_local_transfer_contract(self):
+        subprocess.run(['node',str(Path(__file__).with_name('test_pilot_soulseek_transfers.mjs'))],check=True,timeout=30)
+    def test_exact_authenticated_route_patch(self):
+        get="app.get('/api/soulseek/downloads',mustAuth,mustAdmin,route(async(req,res)=>{\n"
+        post="app.post('/api/soulseek/download',mustAuth,mustAdmin,mustBeLimited,route(async(req,res)=>{\n"
+        source=get+"legacy();\n}));\n"+post+"legacy();\n}));"
+        patched=local_transfer_source(source)
+        self.assertIn(get+'  if(jobbiLocalTransfers.enabled())',patched)
+        self.assertIn(post+'  if(jobbiLocalTransfers.enabled())',patched)
+        self.assertEqual(patched.count('legacy();'),2)
+        with self.assertRaises(ValueError):local_transfer_source(patched)

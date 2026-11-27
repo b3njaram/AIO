@@ -3,7 +3,7 @@
 import argparse,fcntl,json,os,re,subprocess,sys
 from pathlib import Path
 from private_origins import atomic_write
-from pilot_media import SOULSEEK_LOGIN_PROBE,credentials,soulseek,invidious,invidious_credentials,public_origin,local_fallback_source,existing_media,merge_services
+from pilot_media import SOULSEEK_LOGIN_PROBE,credentials,soulseek,invidious,invidious_credentials,public_origin,local_fallback_source,existing_media,merge_services,local_transfer_source
 ROOT=Path(__file__).resolve().parents[1]
 def main():
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('instance',type=Path);p.add_argument('--soulseek',action='store_true',help='Customer approves a distinct Soulseek network account and sharing only authorized files');provider=p.add_mutually_exclusive_group();provider.add_argument('--invidious',dest='invidious_manifest',action='store_const',const=ROOT/'deploy/invidious-pilot.json',help='Use the repository-pinned Invidious pilot images');provider.add_argument('--invidious-manifest',type=Path,help='Reviewed exact images and upstream source SHA');p.add_argument('--invidious-public-url',help='Exact customer-owned private HTTPS route, already approved and configured');p.add_argument('--apply',action='store_true');a=p.parse_args()
@@ -16,7 +16,7 @@ def main():
     overlay=i/'deployment/pilot-media.json';state=i/'data/pilot-media';ctl=['bash',str(ROOT/'scripts/ctl.sh'),str(i)]
     if any((i/n).exists() for n in ('.upgrade-hold.json','.backup-running-services','deployment/recovery-images.json')):raise ValueError('Recovery or backup in progress')
     existing_media(overlay,state,a.soulseek,bool(a.invidious_manifest))
-    print('Preview: customer-only media providers; no public ports, no owner account or external fallback. Invidious UI remains loopback-only. Soulseek direct search, not downloader parity.')
+    print('Preview: customer-only media providers; no public ports, no owner account or external fallback. Invidious UI remains loopback-only. Soulseek direct search and selected-file queue; completed library import remains pending.')
     if not a.apply:return
     os.umask(0o077)
     with (i/'.backup.lock').open('a') as lock:
@@ -28,6 +28,13 @@ def main():
             for folder in ('slskd','shares','downloads','incomplete'):(state/folder).mkdir(mode=0o700)
             c=credentials();atomic_write(state/'soulseek.json',json.dumps(c).encode(),0o600)
             merge_services(config,soulseek(i,int(e['OWNER_UID']),int(e['OWNER_GID']),c))
+            target=i/'sources/navidrome/jobbi-music/server/index.js'
+            module=target.with_name('jobbi-local-transfers.mjs')
+            if target.is_symlink() or module.exists() or module.is_symlink():raise ValueError('Unexpected existing transfer adapter')
+            original=target.read_text();patched=local_transfer_source(original)
+            atomic_write(state/'soulseek-adapter.before',original.encode(),0o600)
+            atomic_write(module,(ROOT/'scripts/pilot-soulseek-transfers.mjs').read_bytes(),0o644)
+            atomic_write(target,patched.encode(),0o644)
             services+=['slskd','jobbi-music']
         if a.invidious_manifest:
             pins=json.loads(a.invidious_manifest.read_text());rev=pins['source_commit']
@@ -65,7 +72,7 @@ def main():
         if registry_services:subprocess.run(ctl+['pull',*registry_services],check=True)
         if a.soulseek:subprocess.run(ctl+['build','slskd'],check=True)
         if a.invidious_manifest:subprocess.run(ctl+['build','invidious','invidious-db'],check=True)
-        if public:subprocess.run(ctl+['build','jobbi-music'],check=True)
+        if public or a.soulseek:subprocess.run(ctl+['build','jobbi-music'],check=True)
         subprocess.run(ctl+['up','-d','--no-build',*services],check=True)
         print('Provider containers started; external account login and playback/search still require verification.')
         if a.soulseek:

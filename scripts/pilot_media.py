@@ -26,7 +26,7 @@ def pinned(image,repo):
 def soulseek(i,uid,gid,c):
     for k in ('username','password','api_key','ui_password'):
         if not re.fullmatch('[a-z0-9-]{16,80}',c[k]):raise ValueError('Invalid generated provider credential')
-    return {'slskd':{'build':{'context':'./security-patches','dockerfile':'Dockerfile.slskd','args':{'BASE_IMAGE':SLSKD}},'user':str(uid)+':'+str(gid),'restart':'unless-stopped','environment':{'SLSKD_SLSK_USERNAME':c['username'],'SLSKD_SLSK_PASSWORD':c['password'],'SLSKD_API_KEY':c['api_key'],'SLSKD_USERNAME':'jobbi-local','SLSKD_PASSWORD':c['ui_password'],'SLSKD_NO_HTTPS':'true','SLSKD_REMOTE_CONFIGURATION':'false','SLSKD_SHARED_DIR':'/shares','SLSKD_DOWNLOADS_DIR':'/downloads','SLSKD_INCOMPLETE_DIR':'/incomplete'},'volumes':[str(i/'data/pilot-media/slskd')+':/app',str(i/'data/pilot-media/shares')+':/shares:ro',str(i/'data/pilot-media/downloads')+':/downloads',str(i/'data/pilot-media/incomplete')+':/incomplete'],'cap_drop':['ALL'],'security_opt':['no-new-privileges:true'],'mem_limit':'512m'},'jobbi-music':{'environment':{'SLSKD_URL':'http://slskd:5030','SLSKD_API_KEY':c['api_key']}}}
+    return {'slskd':{'build':{'context':'./security-patches','dockerfile':'Dockerfile.slskd','args':{'BASE_IMAGE':SLSKD}},'user':str(uid)+':'+str(gid),'restart':'unless-stopped','environment':{'SLSKD_SLSK_USERNAME':c['username'],'SLSKD_SLSK_PASSWORD':c['password'],'SLSKD_API_KEY':c['api_key'],'SLSKD_USERNAME':'jobbi-local','SLSKD_PASSWORD':c['ui_password'],'SLSKD_NO_HTTPS':'true','SLSKD_REMOTE_CONFIGURATION':'false','SLSKD_SHARED_DIR':'/shares','SLSKD_DOWNLOADS_DIR':'/downloads','SLSKD_INCOMPLETE_DIR':'/incomplete'},'volumes':[str(i/'data/pilot-media/slskd')+':/app',str(i/'data/pilot-media/shares')+':/shares:ro',str(i/'data/pilot-media/downloads')+':/downloads',str(i/'data/pilot-media/incomplete')+':/incomplete'],'cap_drop':['ALL'],'security_opt':['no-new-privileges:true'],'mem_limit':'512m'},'jobbi-music':{'environment':{'SLSKD_URL':'http://slskd:5030','SLSKD_API_KEY':c['api_key'],'JOBBI_LOCAL_SOULSEEK':'true'}}}
 def invidious_builds(images, context='./security-patches'):
     return {
         'invidious': {'build': {'context': context, 'dockerfile': 'Dockerfile.invidious',
@@ -97,3 +97,19 @@ def merge_services(config,new):
         before=current[name]['environment'];after=service['environment']
         if set(before)&set(after):raise ValueError('Conflicting music provider configuration')
         before.update(after)
+
+def local_transfer_source(source):
+    # Exact pinned route anchors preserve existing mustAuth/mustAdmin/rate limits.
+    get="app.get('/api/soulseek/downloads',mustAuth,mustAdmin,route(async(req,res)=>{\n"
+    post="app.post('/api/soulseek/download',mustAuth,mustAdmin,mustBeLimited,route(async(req,res)=>{\n"
+    if source.count(get)!=1 or source.count(post)!=1 or 'jobbi-local-transfers.mjs' in source:raise ValueError('Unexpected pinned transfer routes')
+    return "import * as jobbiLocalTransfers from './jobbi-local-transfers.mjs';\n"+source.replace(get,get+"""  if(jobbiLocalTransfers.enabled()){
+    try{return res.json(await jobbiLocalTransfers.list())}
+    catch{return res.status(502).json({error:'Local Soulseek transfer status unavailable'})}
+  }
+""").replace(post,post+"""  if(jobbiLocalTransfers.enabled()){
+    try{jobbiLocalTransfers.validate(req.body)}catch{return res.status(400).json({error:'Select a valid authorized audio file'})}
+    try{return res.status(202).json({queued:true,details:await jobbiLocalTransfers.enqueue(req.body)})}
+    catch{return res.status(502).json({error:'Local Soulseek did not confirm the queue request'})}
+  }
+""")
