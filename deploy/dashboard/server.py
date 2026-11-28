@@ -1,5 +1,7 @@
 import concurrent.futures
 import json
+import os
+import stat
 import shutil
 from urllib.parse import urlsplit
 import urllib.request
@@ -19,19 +21,31 @@ def probe(app):
     except Exception:
         state = 'unavailable'
     return {'id': app['id'], 'state': state}
+def read_snapshot(path,limit):
+    """Read a bounded regular snapshot through one descriptor; never follow links."""
+    fd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK)
+    try:
+        info=os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode) or info.st_size>limit:raise ValueError('Invalid snapshot')
+        raw=bytearray()
+        while len(raw)<=limit:
+            chunk=os.read(fd,limit+1-len(raw))
+            if not chunk:break
+            raw.extend(chunk)
+        if len(raw)>limit:raise ValueError('Snapshot too large')
+        try:data=json.loads(raw.decode('utf-8'))
+        except RecursionError as exc:raise ValueError('Invalid snapshot') from exc
+        if not isinstance(data,dict):raise ValueError('Invalid snapshot')
+        return data
+    finally:os.close(fd)
 def account_status():
     try:
-        p=Path('/storage/accounts.json')
-        if p.is_symlink() or p.stat().st_size>4096:return {}
-        d=json.loads(p.read_text())
+        d=read_snapshot(Path('/storage/accounts.json'),4096)
         return {k:v for k,v in d.items() if k in 'music navidrome movies photos files passwords tasks monitor'.split() and v in ('verified','invited')}
     except (OSError,ValueError,AttributeError):return {}
 def monitoring_status():
     try:
-        p=Path('/storage/monitoring.json')
-        if p.is_symlink() or p.stat().st_size>32768:return {}
-        d=json.loads(p.read_text())
-        return d if isinstance(d,dict) else {}
+        return read_snapshot(Path('/storage/monitoring.json'),32768)
     except (OSError,ValueError):return {}
 class Handler(BaseHTTPRequestHandler):
     def send(self, data, mime, status=200):
@@ -59,10 +73,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send(json.dumps({'apps':states,'disk':{'total':d.total,'used':d.used,'free':d.free}}).encode(), 'application/json')
         elif self.path == '/api/health':
             try:
-                path=Path('/storage/health.json')
-                if path.is_symlink() or path.stat().st_size>65536:raise ValueError()
-                state=json.loads(path.read_text())
-                if not isinstance(state,dict):raise ValueError()
+                state=read_snapshot(Path('/storage/health.json'),65536)
                 # Host writes a sanitized snapshot; this endpoint does not execute commands.
                 self.send(json.dumps({**state,'accounts':account_status(),'monitoring':monitoring_status()}).encode(),'application/json')
             except (OSError,ValueError):self.send(json.dumps({'state':'not_configured','accounts':account_status(),'monitoring':monitoring_status()}).encode(),'application/json')
