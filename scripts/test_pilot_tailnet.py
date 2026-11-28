@@ -29,6 +29,9 @@ class Tests(unittest.TestCase):
             with patch.object(m.os,'getuid',return_value=1000),patch.object(m.os,'geteuid',return_value=1000),patch.object(m,'accounts',return_value={'music':'verified','navidrome':'verified','passwords':'invited'}):
                 m.eligibility(i,e,c,{})
                 with self.assertRaises(ValueError):m.eligibility(i,e,c,{'invidious':'ready'})
+                with patch('invidious_origin.overlay') as checked:
+                    m.eligibility(i,e,c,{'invidious':'ready'})
+                    checked.assert_called_once_with(i)
                 with self.assertRaises(ValueError):m.eligibility(i,e,c,{'soulseek':'review'})
 
     def test_failed_route_transaction_retains_only_unresolved_approval(self):

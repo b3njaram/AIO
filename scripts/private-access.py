@@ -5,6 +5,7 @@ from pathlib import Path
 from private_origins import prepare,rollback
 from private_routes import manage,verify_vault_admin_disabled
 import pilot_tailnet
+import invidious_origin
 import nextcloud_origin
 ROOT=Path(__file__).resolve().parents[1]
 APP_PORTS={'dashboard':'DASH_PORT','music':'MUSIC_PORT','navidrome':'NAV_PORT','movies':'MOVIE_PORT','photos':'PHOTO_PORT','files':'CLOUD_PORT','passwords':'VAULT_PORT','tasks':'TASK_PORT','monitor':'MONITOR_PORT','dns':'DNS_WEB_PORT'}
@@ -15,14 +16,15 @@ def hostname(raw):
     if len(host)>253 or not re.fullmatch(r'(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.){2,}[a-z]{2,}',host) or not host.endswith('.ts.net'):
         raise ValueError('A customer-owned MagicDNS .ts.net name is required')
     return host
-def routes(env,config,host,base):
+def routes(env,config,host,base,invidious=False):
     host=hostname(host)
     if not 1024<=base<=65525:raise ValueError('Use a dedicated HTTPS base port between 1024 and 65525')
     if env.get('BIND_IP')!='127.0.0.1':raise ValueError('Use loopback-only application bindings')
     selected={'dashboard'}|{a['id'] for a in config['apps']}
     if 'dns' in selected:
         if 'dns' not in env.get('COMPOSE_PROFILES','').split(',') or not 1024<=int(env.get('DNS_LISTEN_PORT','0'))<=65535:raise ValueError('Native isolated DNS profile required; only admin HTTP is routed')
-    if 'invidious' in selected:raise ValueError('Review experimental Invidious canonical origin before private route transition')
+    if 'invidious' in selected and not invidious:raise ValueError('Require approved Invidious overlay')
+    if invidious and 'music' not in selected:raise ValueError('Invidious requires installed music')
     result={}
     for offset,(app,key) in enumerate(APP_PORTS.items()):
         if app not in selected:continue
@@ -30,6 +32,7 @@ def routes(env,config,host,base):
         if not 1024<=port<=65535:raise ValueError('Invalid backend port')
         https=base+offset
         result[app]={'port':https,'target':'http://127.0.0.1:'+str(port),'url':'https://'+host+':'+str(https)}
+    if invidious:result['invidious']={'port':base+10,'target':'http://127.0.0.1:18091','url':'https://'+host+':'+str(base+10)}
     if len({x['target'] for x in result.values()})!=len(result):raise ValueError('Duplicate backend ports')
     reserved={int(y['target'].rsplit(':',1)[1]) for y in result.values()}
     if 'dns' in selected:reserved.add(int(env['DNS_LISTEN_PORT']))
@@ -88,9 +91,13 @@ def main():
         manage(i,{},host,True,verify_config,existing_conflicts)
         print('Removed journaled private routes. Origin rollback is now available.')
         return
-    plan=routes(env,config,host,a.https_base)
+    from pilot_options import read as read_options
+    options=read_options(i)
+    iv=options.get('invidious')=='ready' and a.paired_setup
+    if iv:invidious_origin.overlay(i)
+    plan=routes(env,config,host,a.https_base,iv)
     # Manual onboarding confirmations must exist before even generating exposure instructions.
-    selected={x['id'] for x in config['apps']}-{'remote','passwords'}
+    selected={x['id'] for x in config['apps']}-{'remote','passwords','invidious'}
     onboard=i/'onboarding.json'
     done=json.loads(onboard.read_text()) if onboard.is_file() else {}
     if a.paired_setup:
@@ -100,6 +107,9 @@ def main():
     status=json.loads(output('tailscale','serve','status','--json'))
     if a.verify:
         verify_config(status,plan,host)
+        if iv:
+            from private_routes import verify_backends
+            verify_backends(i,plan)
         if a.paired_setup:verify_vault_admin_disabled(plan)
         if 'files' in plan:nextcloud_origin.verify(i,plan['files']['url'])
         print(json.dumps({'verified_serve_config':True,'urls':{k:v['url'] for k,v in plan.items()},'note':'Configuration check only. Verify TLS and app login from customer device, ACL denial from unauthorized account, and no public access.'},indent=2));return
@@ -107,6 +117,9 @@ def main():
     c=commands(plan)
     # Output configuration proposals, never copy customer secrets or rewrite instance files.
     cfg={**config,'apps':[{**app,**({'url':plan[app['id']]['url']+('/admin/' if app['id']=='dns' else '')} if app['id'] in plan else {})} for app in config['apps']]}
+    if iv and not any(app['id']=='invidious' for app in cfg['apps']):
+        cfg['apps'].append({'id':'invidious','name':'Invidious','en':'Private video service','es':'Servicio privado de video','port':18091,'probe':'http://invidious:3000/','url':plan['invidious']['url']})
+    media=invidious_origin.desired(i,plan['invidious']['url']) if iv else None
     changes={}
     if 'movies' in plan:changes['MOVIE_HTTPS']='true'
     if 'music' in plan:changes['MUSIC_HTTPS']='true'
@@ -115,7 +128,7 @@ def main():
         if a.paired_setup:changes['VAULT_ADMIN_TOKEN']=''
     if 'tasks' in plan:changes.update(TASK_URL=plan['tasks']['url']+'/',TASK_REGISTRATION='false')
     if a.enable_routes:
-        if any(env.get(k)!=v for k,v in changes.items()) or cfg!=config:
+        if any(env.get(k)!=v for k,v in changes.items()) or cfg!=config or (iv and json.loads((i/'deployment/pilot-media.json').read_text())!=json.loads(media)):
             p.error('Prepare app origins before enabling routes')
         if 'files' in plan:nextcloud_origin.verify(i,plan['files']['url'])
         if a.paired_setup:verify_vault_admin_disabled(plan)
@@ -123,7 +136,7 @@ def main():
         print('Private Serve configuration verified. Test TLS and ACLs from independent devices.')
         return
     if a.prepare_origins:
-        prepare(i,cfg,changes)
+        prepare(i,cfg,changes,media=media)
         if 'files' in plan:nextcloud_origin.prepare(i,plan['files']['url'])
         print('Saved previous configuration and prepared private origins. Recreate dashboard and affected services before enabling Serve.')
     print(json.dumps({'host':host,'routes':plan,'proposed_origin_keys':sorted(changes),'dashboard_origins':{k:v['url'] for k,v in plan.items()},'enable_commands':c['enable'],'disable_commands':c['disable'],'note':'Preview only. Confirm Vaultwarden signups are closed and the intended owner invitation before serving; finish its acceptance after HTTPS. Configure app origins and verify ACLs before enabling routes. Never enable Funnel. Do not run on owner infrastructure.'},indent=2))

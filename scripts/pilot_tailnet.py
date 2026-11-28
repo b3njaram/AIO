@@ -13,12 +13,16 @@ def hostname(raw):
 def eligibility(i,e,c,options):
     if i.name!='laptop-test' or e.get('INSTANCE_DIR')!=str(i) or e.get('BIND_IP')!='127.0.0.1' or e.get('COMPOSE_PROJECT_NAME')!='jobbi-laptop-test' or e.get('OWNER_UID')!=str(os.getuid()) or os.geteuid()==0:raise ValueError('Dedicated fresh pilot operator required')
     selected={x['id'] for x in c['apps']}
-    if not selected or selected-{'music','navidrome','movies','photos','files','passwords','tasks','monitor','dns'}:raise ValueError('Unsupported application origin')
+    if not selected or selected-{'music','navidrome','movies','photos','files','passwords','tasks','monitor','dns','invidious'}:raise ValueError('Unsupported application origin')
     if any((i/x).exists() or (i/x).is_symlink() for x in ('.pilot-lan-client.json','.pilot-dns-native-pending','.upgrade-hold.json','.backup-running-services','deployment/pilot-network.json')):raise ValueError('Existing LAN or maintenance configuration needs review')
-    if 'invidious' in options or any((i/n).exists() or (i/n).is_symlink() for n in ('data/pilot-media/invidious-source','data/pilot-media/invidious-adapter.before')):raise ValueError('Invidious origin migration requires review')
+    if options.get('invidious')=='ready':
+        from invidious_origin import overlay
+        if 'music' not in selected:raise ValueError('Invidious requires music')
+        overlay(i)
+    elif 'invidious' in selected or any((i/n).exists() or (i/n).is_symlink() for n in ('data/pilot-media/invidious-source','data/pilot-media/invidious-adapter.before')):raise ValueError('Unapproved Invidious state requires review')
     if any(v!='ready' for v in options.values()):raise ValueError('Resolve optional service state first')
     statuses=accounts(i)
-    for app in selected-{'dns'}:
+    for app in selected-{'dns','invidious'}:
         if statuses.get(app)!=('invited' if app=='passwords' else 'verified'):raise ValueError('Core account verification incomplete')
     if 'dns' in selected and ('dns' not in e.get('COMPOSE_PROFILES','').split(',') or options.get('dns')!='ready'):raise ValueError('Verify native DNS before exposing its admin interface')
 def check_approval(i,e,c,host,options):

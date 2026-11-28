@@ -22,6 +22,13 @@ class Tests(unittest.TestCase):
         with self.assertRaises(ValueError):m.routes({**e,'DNS_LISTEN_PORT':'53'},c,'customer.example.ts.net',19443)
         with self.assertRaises(ValueError):m.routes({**e,'DNS_LISTEN_PORT':'19452'},c,'customer.example.ts.net',19443)
         with self.assertRaises(ValueError):m.routes(e,{'apps':[{'id':'invidious'}]},'customer.example.ts.net',19443)
+    def test_invidious_route(self):
+        e={**self.env,'MUSIC_PORT':'18081'}
+        c={'apps':[{'id':'music'}]}
+        p=m.routes(e,c,'customer.example.ts.net',19443,True)
+        self.assertEqual(p['invidious'],{'port':19453,'target':'http://127.0.0.1:18091','url':'https://customer.example.ts.net:19453'})
+        self.assertNotIn('invidious-companion',p)
+        self.assertNotIn('prowlarr',p)
     def test_refusals(self):
         for host in ('example.com','x.ts.net/abc','x.ts.net;touch'):
             with self.assertRaises(ValueError):m.routes(self.env,self.config,host,19443)

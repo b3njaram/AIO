@@ -25,7 +25,7 @@ function renderOptions(){
  const t=state.tailnet||{};$('tailnetText').textContent=tr('Connection: ','Conexión: ')+(t.state||'Unavailable')+'. '+tr('Enrollment uses your own account. Review private route access before enabling.','La inscripción usa tu cuenta. Revisa el acceso antes de activarlo.');
  $('connectTailnet').disabled=busy||['Running','Unavailable','NeedsMachineAuth'].includes(t.state);$('refreshTailnet').disabled=busy;
  const link=$('tailnetLink');link.hidden=!t.url;if(t.url)link.href=t.url;else link.removeAttribute('href');
- const eligible=t.state==='Running'&&!!t.host&&!options.invidious&&Object.values(options).every(v=>v==='ready');$('tailnetFinish').hidden=!eligible;
+ const eligible=t.state==='Running'&&!!t.host&&Object.values(options).every(v=>v==='ready');$('tailnetFinish').hidden=!eligible;
  $('tailnetHost').textContent=t.host||'';text('tailnetConsentText','I own this tailnet, enabled HTTPS certificates, reviewed device access policy and approve private app routes. This disables Vaultwarden administration after invitation.','Soy propietario de esta red, activé certificados HTTPS, revisé permisos de dispositivos y autorizo rutas privadas. Esto desactiva la administración de Vaultwarden tras la invitación.');text('finishTailnetButton','Finish using private Tailscale HTTPS','Finalizar con HTTPS privado de Tailscale');$('tailnetConsent').disabled=busy;$('finishTailnetButton').disabled=busy||!eligible||!$('tailnetConsent').checked
 }
 $('optDns').onchange=()=>renderOptions();

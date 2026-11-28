@@ -31,6 +31,11 @@ def verify_backends(instance, plan):
             'vaultwarden':{'SIGNUPS_ALLOWED':'false','DOMAIN':plan.get('passwords',{}).get('url')},
             'vikunja':{'VIKUNJA_SERVICE_ENABLEREGISTRATION':'false','VIKUNJA_SERVICE_PUBLICURL':plan.get('tasks',{}).get('url','')+'/'}
         }.get(service,{})
+        if 'invidious' in plan and service=='jobbi-music':required['JOBBI_INVIDIOUS_PUBLIC_ORIGIN']=plan['invidious']['url']
+        if 'invidious' in plan and service=='invidious':
+            from urllib.parse import urlsplit
+            u=urlsplit(plan['invidious']['url']);cfg=json.loads(env['INVIDIOUS_CONFIG'])
+            if (cfg.get('domain'),cfg.get('external_port'),cfg.get('https_only'))!=(u.hostname,u.port,True):raise ValueError('Invidious runtime origin differs')
         if any(env.get(k)!=v for k,v in required.items()):
             raise ValueError('Recreate and verify private settings for '+service)
         if obj['HostConfig']['NetworkMode']=='host':
@@ -42,7 +47,7 @@ def verify_backends(instance, plan):
                 ports[int(bind['HostPort'])]=service
     if 'movies' in plan and 'backend' not in running:
         raise ValueError('Missing StreamHub backend')
-    owners={'dashboard':'dashboard','music':'jobbi-music','navidrome':'navidrome','movies':'frontend','photos':'immich-server','files':'nextcloud','passwords':'vaultwarden','tasks':'vikunja','monitor':'uptime-kuma','dns':'pihole'}
+    owners={'dashboard':'dashboard','music':'jobbi-music','navidrome':'navidrome','movies':'frontend','photos':'immich-server','files':'nextcloud','passwords':'vaultwarden','tasks':'vikunja','monitor':'uptime-kuma','dns':'pihole','invidious':'invidious'}
     for app,row in plan.items():
         if ports.get(int(row['target'].rsplit(':',1)[1]))!=owners[app]:
             raise ValueError('Missing running customer backend for '+app)

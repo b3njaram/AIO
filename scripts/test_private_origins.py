@@ -4,6 +4,16 @@ import unittest
 from private_origins import prepare, rollback
 
 class OriginTests(unittest.TestCase):
+    def test_media_roundtrip(self):
+        with TemporaryDirectory() as tmp:
+            i=Path(tmp);(i/'deployment').mkdir()
+            (i/'.env').write_text('X=1\n');(i/'dashboard.json').write_text('{}')
+            p=i/'deployment/pilot-media.json';p.write_bytes(b'original-secret')
+            prepare(i,{}, {},media=b'changed-secret')
+            self.assertEqual(p.read_bytes(),b'changed-secret')
+            self.assertEqual(p.stat().st_mode&0o777,0o600)
+            rollback(i)
+            self.assertEqual(p.read_bytes(),b'original-secret')
     def test_roundtrip_and_conflicting_edits(self):
         with TemporaryDirectory() as tmp:
             i=Path(tmp)
