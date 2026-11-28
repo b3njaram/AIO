@@ -23,6 +23,8 @@ class Tests(unittest.TestCase):
                 self.assertEqual(req('/api/create',payload,origin='https://evil.example')[0],403)
                 self.assertEqual(req('/api/create',{**payload,'app':'movies'})[0],400)
                 self.assertEqual(req('/api/options',{'services':['dns'],'consent':True,'dns_password':'fixture-password'})[0],400)
+                self.assertEqual(req('/api/indexers',{'action':'list'},auth=False)[0],401)
+                self.assertEqual(req('/api/indexers',{'action':'list'})[0],400)
                 self.assertEqual(req('/api/tailnet',{'consent':True})[0],400)
                 self.assertEqual(req('/api/options-recheck',{})[0],400)
                 self.assertEqual(req('/api/finish-tailnet',{'consent':True,'host':'customer.example.ts.net'})[0],400)

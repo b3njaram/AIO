@@ -18,6 +18,7 @@ function render(){
 function renderOptions(){
  const visible=state?.lan&&state.done.length===state.apps.length;$('optional').hidden=!visible;if(!visible)return;
  text('optionalTitle','Optional services','Servicios opcionales');text('dnsPasswordLabel','Separate Pi-hole admin password (12+ letters, numbers or ._!@%+-)','Contraseña independiente de Pi-hole (12+ letras, números o ._!@%+-)');text('consentText','I authorize these services and will download or share only content I have permission to use.','Autorizo estos servicios y solo descargaré o compartiré contenido permitido.');text('activateOptions','Activate selected services','Activar servicios seleccionados');text('connectTailnet','Connect my own account','Conectar mi propia cuenta');text('refreshTailnet','Refresh connection','Actualizar conexión');text('tailnetLink','Authorize Tailscale','Autorizar Tailscale');
+ renderIndexers();
  const options=state.options||{};for(const [id,key] of [['optSoulseek','soulseek'],['optInvidious','invidious'],['optDns','dns']]){const e=$(id);if(options[key])e.checked=false;e.disabled=busy||!!options[key]||(!state.apps.includes('music')&&key!=='dns')}
  $('dnsPasswordRow').hidden=!$('optDns').checked;$('dnsPassword').required=$('optDns').checked;$('dnsPassword').disabled=busy;
  $('activateOptions').disabled=busy;$('optConsent').disabled=busy;$('recheckOptions').disabled=busy||!Object.keys(options).length;text('recheckOptions','Recheck installed services','Volver a comprobar servicios');
@@ -28,6 +29,41 @@ function renderOptions(){
  const eligible=t.state==='Running'&&!!t.host&&Object.values(options).every(v=>v==='ready');$('tailnetFinish').hidden=!eligible;
  $('tailnetHost').textContent=t.host||'';text('tailnetConsentText','I own this tailnet, enabled HTTPS certificates, reviewed device access policy and approve private app routes. This disables Vaultwarden administration after invitation.','Soy propietario de esta red, activé certificados HTTPS, revisé permisos de dispositivos y autorizo rutas privadas. Esto desactiva la administración de Vaultwarden tras la invitación.');text('finishTailnetButton','Finish using private Tailscale HTTPS','Finalizar con HTTPS privado de Tailscale');$('tailnetConsent').disabled=busy;$('finishTailnetButton').disabled=busy||!eligible||!$('tailnetConsent').checked
 }
+let indexerFields=[],indexerTemplates=[];
+function renderIndexers(){
+ $('indexerPanel').hidden=!state.done.includes('movies');
+ text('indexerTitle','Prowlarr indexers','Indexadores de Prowlarr');
+ text('indexerHelp','Add only providers you are authorized to use. Credentials stay on this appliance.','Agrega solo proveedores autorizados. Las credenciales permanecen en este equipo.');
+ text('indexerLoad','Load / refresh indexers','Cargar / actualizar indexadores');
+ text('indexerTemplateLabel','Provider','Proveedor');text('indexerNameLabel','Name','Nombre');
+ text('indexerConsentText','I am authorized to use this provider.','Tengo autorización para utilizar este proveedor.');
+ text('indexerAdd','Test and add indexer','Probar y agregar indexador');
+ for(const id of ['indexerLoad','indexerTemplate','indexerName','indexerConsent','indexerAdd'])$(id).disabled=busy;
+ for(const el of $('indexerFields').querySelectorAll('input,select'))el.disabled=busy;
+}
+async function loadIndexers(){
+ const result=await api('indexers',{action:'list'});indexerTemplates=result.templates;
+ $('indexerInstalled').textContent=tr('Installed: ','Instalados: ')+(result.installed.map(x=>x.name).join(', ')||tr('None','Ninguno'));
+ const select=$('indexerTemplate');select.replaceChildren();
+ const placeholder=document.createElement('option');placeholder.value='';placeholder.textContent=tr('Choose provider','Selecciona proveedor');select.append(placeholder);
+ for(const row of indexerTemplates){const o=document.createElement('option');o.value=row.id;o.textContent=row.name+' · '+row.protocol;select.append(o)}
+ $('indexerFields').replaceChildren();indexerFields=[];$('indexerName').value='';$('indexerConsent').checked=false;$('indexerForm').hidden=false;
+}
+$('indexerLoad').onclick=async()=>{if(busy)return;busy=true;render();try{await loadIndexers();$('indexerStatus').textContent=''}catch{text('indexerStatus','Prowlarr not ready. Check local movie setup.','Prowlarr no está listo. Revisa la configuración de películas.')}finally{busy=false;render()}};
+$('indexerTemplate').onchange=async()=>{
+ const id=$('indexerTemplate').value;$('indexerFields').replaceChildren();indexerFields=[];$('indexerName').value='';if(!id||busy)return;
+ busy=true;render();try{
+ const result=await api('indexers',{action:'fields',id});indexerFields=result.fields;$('indexerName').value=indexerTemplates.find(x=>x.id===id)?.name||'';
+ for(const field of indexerFields){const label=document.createElement('label');label.textContent=field.label;const el=document.createElement(field.type==='select'?'select':'input');
+ if(field.type==='select'){const empty=document.createElement('option');empty.value='';empty.textContent=tr('Default','Predeterminado');el.append(empty);field.choices.forEach((choice,n)=>{const o=document.createElement('option');o.value=String(n);o.textContent=choice.label;el.append(o)})}
+ else{el.type=({password:'password',number:'number',checkbox:'checkbox',url:'url'})[field.type]||'text';el.maxLength=1024;el.autocomplete='off'}
+ el.dataset.field=field.name;label.append(el);$('indexerFields').append(label)}
+ }catch{text('indexerStatus','Could not load provider fields.','No se pudo cargar el proveedor.')}finally{busy=false;render()}
+};
+$('indexerForm').onsubmit=async e=>{
+ e.preventDefault();if(busy)return;const values={};for(const el of $('indexerFields').querySelectorAll('[data-field]')){const f=indexerFields.find(x=>x.name===el.dataset.field);if(f.type==='checkbox'){if(el.checked)values[f.name]=true}else if(el.value!==''){values[f.name]=f.type==='number'?Number(el.value):f.type==='select'?f.choices[Number(el.value)].value:el.value}if(el.type==='password')el.value=''}
+ busy=true;render();try{await api('indexers',{action:'add',id:$('indexerTemplate').value,name:$('indexerName').value,values,consent:$('indexerConsent').checked});await loadIndexers();text('indexerStatus','Indexer tested and added.','Indexador probado y agregado.')}catch{text('indexerStatus','Indexer not confirmed. Refresh before retrying; verify credentials and provider access.','Indexador no confirmado. Actualiza antes de reintentar; verifica las credenciales.')}finally{for(const key of Object.keys(values))delete values[key];busy=false;$('indexerConsent').checked=false;render()}
+};
 $('optDns').onchange=()=>renderOptions();
 $('optionalForm').onsubmit=async e=>{e.preventDefault();if(busy)return;const services=[['optSoulseek','soulseek'],['optInvidious','invidious'],['optDns','dns']].filter(([id])=>$(id).checked).map(([,key])=>key);if(!services.length||!$('optConsent').checked){text('status','Select services and authorize them.','Selecciona y autoriza los servicios.');return}const data={services,consent:true,dns_password:services.includes('dns')?$('dnsPassword').value:''};$('dnsPassword').value='';busy=true;render();text('status','Installing optional services. Keep this page open.','Instalando servicios opcionales. Mantén esta página abierta.');try{state=await api('options',data);text('status','Optional service results are shown above.','Los resultados aparecen arriba.')}catch{try{state=await api('status')}catch{}text('status','Optional setup interrupted. Existing accounts are retained.','Configuración interrumpida. Se conservan las cuentas.')}finally{data.dns_password='';busy=false;$('optConsent').checked=false;render()}};
 $('recheckOptions').onclick=async()=>{if(busy)return;busy=true;render();try{state=await api('options-recheck',{});text('status','Existing service probes updated; no accounts changed.','Pruebas actualizadas; no se cambiaron cuentas.')}catch{text('status','Could not recheck services.','No se pudieron comprobar los servicios.')}finally{busy=false;render()}};

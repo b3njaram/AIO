@@ -46,6 +46,13 @@ class Session:
             if not self.active():raise ValueError('Setup expired')
             pilot_options.tailnet_connect()
         return self.status()
+    def indexers(self,data):
+        if not self.lan or not self.active() or 'movies' not in self.done:raise ValueError('Verify the movie owner first')
+        with self.lock:
+            if not self.active():raise ValueError('Setup expired')
+            import prowlarr_setup
+            env=self.adapter.env_for(self.instance)
+            return prowlarr_setup.handle(prowlarr_setup.client(self.instance,env),data)
     def finish_tailnet(self,data):
         if not self.lan or not self.active() or self.done!=set(self.apps):raise ValueError('Complete paired core accounts first')
         with self.lock:
@@ -137,6 +144,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self.send(200,self.server.session.recheck(data))
             elif self.path=='/api/tailnet':
                 self.send(200,self.server.session.enroll(data))
+            elif self.path=='/api/indexers':
+                self.send(200,self.server.session.indexers(data))
             elif self.path=='/api/finish-tailnet':
                 self.send(200,self.server.session.finish_tailnet(data))
             elif self.path=='/api/finish' and data=={}:
