@@ -1,0 +1,18 @@
+{
+  "name": "JobbiSoft Home",
+  "short_name": "Jobbi Home",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f5f7fb",
+  "theme_color": "#3155b7",
+  "icons": [
+    {
+      "src": "/home.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

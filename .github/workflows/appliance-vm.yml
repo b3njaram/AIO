@@ -1,0 +1,14 @@
+name: Headless Ubuntu first-boot VM
+on:
+  workflow_dispatch:
+  push:
+jobs:
+  vm:
+    if: github.event_name == 'workflow_dispatch' || (contains(github.event.head_commit.message, '[vm-pilot]') || contains(github.event.head_commit.message, '[release-gate]'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          bash scripts/ci-ubuntu-packages.sh qemu-system-x86 qemu-utils cloud-image-utils e2fsprogs openssh-client xorriso
+      - run: bash scripts/vm-pilot.sh

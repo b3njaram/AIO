@@ -1,0 +1,13 @@
+name: Disposable RAID1 replacement and expansion
+on:
+  workflow_dispatch:
+  push:
+jobs:
+  raid:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[release-gate]') || contains(github.event.head_commit.message, '[raid-pilot]')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/ci-ubuntu-packages.sh mdadm e2fsprogs
+      - run: sudo --preserve-env=GITHUB_ACTIONS,RUNNER_ENVIRONMENT,GITHUB_RUN_ID,GITHUB_RUN_ATTEMPT bash scripts/raid-pilot.sh

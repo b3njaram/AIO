@@ -23,7 +23,11 @@ class BackupTests(unittest.TestCase):
                     finally:
                         os.umask(previous)
                     writer.execute('DELETE FROM payments')
-                recovered=folder/'cash.sqlite3'
+                recovered=m.restore(folder,root/'restored')
+                with self.assertRaises(FileExistsError):m.restore(folder,root/'restored')
+                (folder/'cash.sqlite3').write_bytes(b'damaged')
+                with self.assertRaisesRegex(ValueError,'checksum mismatch'):m.restore(folder,root/'damaged')
+                self.assertFalse((root/'damaged/cash.sqlite3').exists())
                 self.assertEqual(recovered.stat().st_mode & 0o777,0o600)
                 digest=hashlib.sha256(recovered.read_bytes()).hexdigest()
                 self.assertEqual((folder/'SHA256SUMS').read_text(),digest+'  cash.sqlite3\n')

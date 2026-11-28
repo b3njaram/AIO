@@ -20,6 +20,8 @@ class DashboardTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as p,patch.object(server,'HOME',Path(p)),patch.object(server,'REPORTS',Path(p)/'sourcing'):
             http=server.http.server.ThreadingHTTPServer(('127.0.0.1',0),server.Handler)
             http.password='test-secret-for-ci'
+            http.allowed_origins=server.permitted_origins(http.server_port)
+            http.preview=False
             t=threading.Thread(target=http.serve_forever,daemon=True);t.start()
             base='http://127.0.0.1:'+str(http.server_port)
             auth='Basic '+base64.b64encode(b'owner:test-secret-for-ci').decode()

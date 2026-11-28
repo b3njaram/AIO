@@ -1,0 +1,33 @@
+# syntax=docker/dockerfile:1
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+
+# CVE-2026-109518 is in APT itself. Use HTTPS and the Noble archive key
+# throughout the upgrade, keeping the existing slskd entrypoint and service.
+RUN <<'SH'
+set -eu
+. /etc/os-release
+test "$ID" = ubuntu && test "$VERSION_CODENAME" = noble
+key=/usr/share/keyrings/ubuntu-archive-keyring.gpg
+test -s "$key"
+printf '%s\n' \
+  "deb [signed-by=$key] https://archive.ubuntu.com/ubuntu noble main" \
+  "deb [signed-by=$key] https://archive.ubuntu.com/ubuntu noble-updates main" \
+  "deb [signed-by=$key] https://security.ubuntu.com/ubuntu noble-security main" > /tmp/jobbi-slskd.list
+set -- -o Dir::Etc::sourcelist=/tmp/jobbi-slskd.list -o Dir::Etc::sourceparts=- \
+    -o Acquire::Retries=4 -o APT::Update::Error-Mode=any
+apt-get "$@" update
+DEBIAN_FRONTEND=noninteractive apt-get "$@" install -y --only-upgrade --no-remove --no-install-recommends apt libapt-pkg6.0t64
+for name in apt libapt-pkg6.0t64; do
+    actual=$(dpkg-query -W -f='${Version}' "$name")
+    dpkg --compare-versions "$actual" ge 2.8.4ubuntu0.1
+    printf '%s %s\n' "$name" "$actual"
+done
+rm -rf /var/lib/apt/lists/* /tmp/jobbi-slskd.list
+SH
+
+HEALTHCHECK --interval=60s --timeout=3s --start-period=60m --retries=3 CMD wget --no-proxy -q -O /dev/null "http://127.0.0.1:${SLSKD_HTTP_PORT:-5030}/health"
+
+# Explicit non-root standalone default. The appliance Compose configuration
+# overrides this with the original non-root instance UID:GID and owns the mounts.
+USER 1000:1000

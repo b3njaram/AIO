@@ -1,0 +1,23 @@
+name: Ubuntu installation ISO build
+on:
+  workflow_dispatch:
+  push:
+jobs:
+  iso:
+    if: github.event_name == 'workflow_dispatch' || (contains(github.event.head_commit.message, '[iso-pilot]') || contains(github.event.head_commit.message, '[release-gate]'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/ci-ubuntu-packages.sh xorriso
+      - run: bash scripts/iso-pilot.sh
+      - name: Verify reproducible source package
+        run: |
+          bash scripts/package-source.sh "$RUNNER_TEMP/pilot"
+          bash scripts/package-source.sh "$RUNNER_TEMP/rebuild"
+          diff -r "$RUNNER_TEMP/pilot" "$RUNNER_TEMP/rebuild"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jobbi-home-pilot-source-${{ github.sha }}
+          path: ${{ runner.temp }}/pilot/
+          if-no-files-found: error

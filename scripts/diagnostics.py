@@ -32,7 +32,10 @@ def smart_device(device):
     import re,stat
     # Explicit block devices only. No implicit enumeration or sudo.
     p=Path(device)
-    if not re.fullmatch(r'/dev/(?:sd[a-z]+|nvme\d+n\d+|hd[a-z]+)',str(p)) or not stat.S_ISBLK(p.stat().st_mode):raise ValueError('Specify an exact whole block device, e.g. /dev/sda')
+    if re.fullmatch(r'/dev/disk/by-id/[A-Za-z0-9_.:+-]+',str(p)):
+        try:p=p.resolve(strict=True)
+        except OSError:return {'device':device,'state':'unknown','reason':'Approved drive missing'}
+    if not re.fullmatch(r'/dev/(?:sd[a-z]+|nvme\d+n\d+|hd[a-z]+)',str(p)) or not p.exists() or not stat.S_ISBLK(p.stat().st_mode):return {'device':device,'state':'unknown','reason':'Approved block device unavailable'}
     if not shutil.which('smartctl'):return {'device':str(p),'state':'unknown','reason':'smartctl unavailable'}
     try:
         r=subprocess.run(['smartctl','-j','-H','-A',str(p)],capture_output=True,text=True,timeout=30)
@@ -58,6 +61,13 @@ def inspect(instance,smart=()):
                 temperatures.append({'sensor':(p/'type').read_text().strip(),'celsius':value})
                 if value>=85:alerts.append('High thermal-zone reading; check sensor-specific limits')
         except (OSError,ValueError):pass
+    for p in Path('/sys/class/hwmon').glob('hwmon*/temp*_input'):
+        try:
+            value=round(int(p.read_text())/1000,1)
+            if -20<=value<=150:
+                temperatures.append({'sensor':p.parent.name,'celsius':value})
+                if value>=85:alerts.append('High hardware-sensor reading; check sensor-specific limits')
+        except (OSError,ValueError):pass
     services=run('bash',str(Path(__file__).resolve().parent/'ctl.sh'),str(instance),'ps','-a','--format','json')
     parsed=[]
     if services is not None:
@@ -70,6 +80,12 @@ def inspect(instance,smart=()):
                     if item['State']!='running' or item['Health']=='unhealthy':alerts.append('Service needs review: '+str(item['Service']))
         except (ValueError,TypeError):alerts.append('Compose status unreadable')
     else:alerts.append('Compose status unavailable')
+    expected=run('bash',str(Path(__file__).resolve().parent/'ctl.sh'),str(instance),'config','--services')
+    if expected is None:
+        alerts.append('Cannot verify expected service list')
+    else:
+        for missing in sorted(set(expected.splitlines())-{s['Service'] for s in parsed}):
+            alerts.append('Missing container: '+missing)
     # lsblk lists devices but does not claim SMART health; privileged testing remains explicit.
     disks=run('lsblk','-J','-d','-o','NAME,SIZE,MODEL,ROTA,TYPE')
     try:devices=json.loads(disks)['blockdevices'] if disks else []
@@ -81,6 +97,9 @@ def inspect(instance,smart=()):
         if dockerfree<15:alerts.append('Docker filesystem under 15% free')
     smart_results=[smart_device(x) for x in smart]
     for x in smart_results:
+        temperature=x.get('temperature_c')
+        if isinstance(temperature,(int,float)) and temperature>=60:
+            alerts.append('Elevated drive temperature; check manufacturer limits: '+x['device'])
         if x['state']!='passed':alerts.append('SMART '+x['state']+': '+x['device'])
     if not parsed:alerts.append('No service status available')
     return {'at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'project':env['COMPOSE_PROJECT_NAME'],'data_free_percent':free,'docker_free_percent':dockerfree,'ram_gib':mem,'load_average':os.getloadavg(),'thermal_zones':temperatures,'disks':devices,'smart':smart_results or 'Not tested; specify --smart-device for authorized read-only checks','services':parsed,'alerts':alerts}

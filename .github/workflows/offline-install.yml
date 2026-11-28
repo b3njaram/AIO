@@ -1,0 +1,76 @@
+name: Fresh offline application install
+on:
+  push:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  fresh:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[release-gate]') || contains(github.event.head_commit.message, '[offline-pilot]')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - run: |
+          mkdir -p /tmp/jobbi-fresh /tmp/jobbi-fresh-backups
+          python3 scripts/install.py --name reference --data-root /tmp/jobbi-fresh --apps monitor --base-port 19600
+          bash scripts/backup.sh /tmp/jobbi-fresh/reference /tmp/jobbi-fresh-backups --all-images
+          python3 scripts/make-install-bundle.py /tmp/jobbi-fresh/reference --output /tmp/jobbi-install-bundle --apply
+          GIT_ALLOW_PROTOCOL=file python3 scripts/install.py --name clean --data-root /tmp/jobbi-fresh --apps monitor --base-port 19700 --offline-bundle /tmp/jobbi-install-bundle
+          python3 - <<'PY'
+          from pathlib import Path
+          def env(name):return dict(x.split('=',1) for x in (Path('/tmp/jobbi-fresh')/name/'.env').read_text().splitlines() if '=' in x)
+          a,b=env('reference'),env('clean')
+          for k in ('MUSIC_DB_PASSWORD','MOVIE_SECRET','VAULT_ADMIN_TOKEN','TASK_DB_PASSWORD','DNS_PASSWORD'):assert a[k]!=b[k]
+          PY
+          curl --retry 30 --retry-all-errors --retry-delay 2 -fsS http://127.0.0.1:19700/healthz
+          curl --retry 30 --retry-all-errors --retry-delay 2 -fsS http://127.0.0.1:19710/ -o /dev/null
+      - name: Back up the disconnected installation with the retained exact helper
+        run: |
+          bash scripts/backup.sh /tmp/jobbi-fresh/clean /tmp/jobbi-fresh-backups --all-images
+          python3 scripts/make-recovery-kit.py /tmp/jobbi-fresh/clean --output /tmp/jobbi-second-kit --apply
+      - name: Resolve fresh Ubuntu host packages from private offline media
+        run: |
+          bash scripts/ci-ubuntu-packages.sh dpkg-dev
+          python3 scripts/offline_media.py /tmp/jobbi-install-bundle --out /tmp/jobbi-host-media
+          PYTHONPATH=scripts python3 - <<'PYCODE'
+          import hashlib
+          import importlib.util
+          import os
+          from pathlib import Path
+          from types import SimpleNamespace
+          spec = importlib.util.spec_from_file_location("seed", "scripts/make-install-usb.py")
+          seed = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(seed)
+          digest = hashlib.sha256(Path("/tmp/jobbi-host-media/SHA256SUMS").read_bytes()).hexdigest()
+          args = SimpleNamespace(name="home", operator="jobbi", commit=os.environ["GITHUB_SHA"],
+              data_uuid="abcd-1234", backup_uuid="abcd-5678", apps="monitor",
+              ssh_key="ssh-ed25519 AAAA", media_sha=digest)
+          commands = seed.config(args, "!")["autoinstall"]["late-commands"]
+          Path("/tmp/jobbi-offline-commands").write_text("set -eu\n" + "\n".join(commands) + "\n")
+          PYCODE
+          docker pull ubuntu:24.04
+          docker run --rm -i --network none \
+            -v /tmp/jobbi-host-media:/cdrom/jobbi-offline:ro \
+            -v /tmp/jobbi-offline-commands:/tmp/jobbi-offline-commands:ro \
+            -e EXPECTED_SHA="$GITHUB_SHA" ubuntu:24.04 bash -eu <<'EOF'
+          # This disposable root is already the installer target.
+          ln -s / /target
+          curtin() {
+            test "$1" = in-target && test "$2" = --
+            shift 2
+            "$@"
+          }
+          source /tmp/jobbi-offline-commands
+          test "$(stat -c %a /var/lib/jobbi-offline)" = 700
+          test ! -e /var/lib/jobbi-offline-packages
+          git clone --branch appliance /var/lib/jobbi-offline/release.bundle /opt/jobbi-aio
+          test "$(git -C /opt/jobbi-aio rev-parse HEAD)" = "$EXPECTED_SHA"
+          docker compose version
+          EOF
+      - if: always()
+        run: |
+          for n in reference clean; do
+            if test -f "/tmp/jobbi-fresh/$n/.env"; then bash scripts/ctl.sh "/tmp/jobbi-fresh/$n" down -v; fi
+          done

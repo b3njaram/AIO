@@ -1,0 +1,8 @@
+{
+  "source_commit": "4e9d20ddae3c23e4764df056d2e820aee04feef7",
+  "images": {
+    "invidious": "quay.io/invidious/invidious:2.20261114.0@sha256:59c5548ec6028d453fead25ad2839bb630f706aed6be3fe6fe0720bd641a483c",
+    "companion": "quay.io/invidious/invidious-companion@sha256:220a06a4d41418ed2b9744c3d624a3c3ebfab7f55ef94d748e6c0ed4f613dbef",
+    "postgres": "docker.io/library/postgres:14.25-bookworm@sha256:a54c8b1e143b22f16b0fd3e249e9297a6f08828a143ee7108b1b5ca51f352765"
+  }
+}

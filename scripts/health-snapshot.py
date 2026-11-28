@@ -1,0 +1,66 @@
+#!/usr/bin/env python3
+"""Publish a minimal read-only, instance-local health snapshot. No secrets, paths or disk serials."""
+import argparse,datetime as dt,json,os,re,subprocess,sys,tempfile
+from pathlib import Path
+from diagnostics import inspect
+from backup_mount import mount_identity
+from storage_manager import snapshot as storage_snapshot
+from maintenance_alerts import alerts
+from power_management import snapshot as power_snapshot
+ROOT=Path(__file__).resolve().parents[1]
+def now():return dt.datetime.now(dt.timezone.utc)
+def update_status(release,check=False):
+    if not check:return {'state':'not_checked'}
+    try:
+        r=subprocess.run(['git','ls-remote','--tags','https://github.com/b3njaram/AIO.git','refs/tags/jobbi-home-v*'],capture_output=True,text=True,timeout=20,check=True)
+        tags={}
+        for line in r.stdout.splitlines():
+            sha,_,tag=line.partition('\t')
+            m=re.fullmatch(r'refs/tags/(jobbi-home-v(\d+)\.(\d+)\.(\d+))(\^\{\})?',tag)
+            if m and re.fullmatch('[0-9a-f]{40}',sha):
+                version=tuple(map(int,m.group(2,3,4)))
+                if m[5] or version not in tags:
+                    tags[version]=(m[1],sha)
+        if not tags:return {'state':'no_approved_release'}
+        tag,sha=tags[max(tags)]
+        return {'state':'current' if sha==release.get('aio_commit') else 'review_available','release':tag}
+    except (OSError,subprocess.SubprocessError,ValueError):return {'state':'unknown'}
+def summarize(instance,dest,expected,devices=(),check_updates=False):
+    diag=inspect(instance,devices);release=json.loads((instance/'release.json').read_text())
+    backup={'state':'not_configured' if dest is None else 'not_verified'}
+    try:
+        if dest is None:pass
+        elif not dest.is_dir() or mount_identity(dest)!=expected:backup={'state':'mount_unavailable'}
+        else:
+            m=json.loads((instance/'maintenance.json').read_text())
+            stamp=m.get('verified_backup')
+            if stamp and re.fullmatch(re.escape(diag['project'])+r'-\d{8}T\d{6}Z',stamp) and (dest/stamp/'SHA256SUMS').is_file():
+                when=dt.datetime.strptime(stamp.rsplit('-',1)[-1],'%Y%m%dT%H%M%SZ').replace(tzinfo=dt.timezone.utc)
+                backup={'state':'stale' if (now()-when).days>=8 else 'verified','at':when.isoformat()}
+            elif stamp:backup={'state':'review'}
+            if any('backup' in x.lower() and ('fail' in x.lower() or 'older' in x.lower()) for x in m.get('alerts',[])):backup['state']='review'
+    except (OSError,ValueError,KeyError,subprocess.SubprocessError):pass
+    if any((instance/n).exists() for n in ('.pilot-dns-native-pending','deployment/pilot-media.json','deployment/pilot-network.json','data/pilot-media','data/pilot-pihole')):backup={'state':'review'}
+    recovery={'state':'idle'}
+    try:
+        r=json.loads((instance/'recovery-state.json').read_text());state=r.get('state')
+        if state in ('preparing','candidate_ready','trial_reachable','review_required','rolled_back','accepted','candidate_accepted'):recovery={'state':state}
+    except (OSError,ValueError):pass
+    smart=diag['smart'] if isinstance(diag['smart'],list) else []
+    # Keep raw diagnostics private. Provide only safe health categories, not hardware IDs.
+    return {'at':now().isoformat(),'data_free_percent':diag['data_free_percent'],'docker_free_percent':diag['docker_free_percent'],'ram_gib':diag['ram_gib'],'temperature_c':[x['celsius'] for x in diag['thermal_zones'] if isinstance(x.get('celsius'),(int,float))],'drives':[{'state':x['state'],'temperature_c':x.get('temperature_c')} for x in smart],'storage':storage_snapshot(instance),'recovery':recovery,'service_alert_count':len(diag['alerts']),'backup':backup,'updates':update_status(release,check_updates),'onboarding':sorted(set(json.loads((instance/'onboarding.json').read_text()))&set('music navidrome movies photos files passwords tasks dns monitor remote'.split())) if (instance/'onboarding.json').exists() else []}
+def main():
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('instance',type=Path);p.add_argument('backup',type=Path,nargs='?');p.add_argument('--expected-backup-mount');p.add_argument('--no-backup',action='store_true');p.add_argument('--smart-device',action='append',default=[]);p.add_argument('--check-updates',action='store_true');a=p.parse_args()
+    if a.no_backup != (a.backup is None) or (not a.no_backup and not a.expected_backup_mount):p.error('Provide backup and mount identity, or explicitly --no-backup')
+    i=a.instance.resolve();out=i/'data/.dashboard-metrics'
+    if not out.is_dir() or out.is_symlink():p.error('Metrics directory missing or unsafe')
+    payload=summarize(i,a.backup.resolve() if a.backup else None,a.expected_backup_mount,a.smart_device,a.check_updates)
+    payload['power']=power_snapshot(i)
+    payload['notifications']={'active':alerts(payload)}
+    with tempfile.NamedTemporaryFile(dir=out,delete=False) as tmp:
+        try:
+            tmp.write(json.dumps(payload).encode());tmp.flush();os.fchmod(tmp.fileno(),0o644);os.replace(tmp.name,out/'health.json')
+        finally:Path(tmp.name).unlink(missing_ok=True)
+if __name__=='__main__':
+    try:main()
+    except (OSError,ValueError,KeyError,subprocess.SubprocessError) as e:sys.exit('Health snapshot unavailable: '+type(e).__name__)

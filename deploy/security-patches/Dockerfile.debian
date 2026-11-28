@@ -1,0 +1,69 @@
+# syntax=docker/dockerfile:1
+# Keep upstream runtime, entrypoint, user, application version and data format.
+ARG BASE_IMAGE
+FROM scratch AS npm_archives
+ADD --checksum=sha256:48c903f98c5591d8d26f16f389d5cb3435459474c645209a79f6241bf4b657b6 https://registry.npmjs.org/postcss-selector-parser/-/postcss-selector-parser-7.1.6.tgz /archives/48c903f98c5591d8d26f16f389d5cb3435459474c645209a79f6241bf4b657b6.tgz
+ADD --checksum=sha256:051db69e7aad989abddc95fef96f19f1da68ef6890ff834d0c40a7fb48b9751d https://registry.npmjs.org/postcss-selector-parser/-/postcss-selector-parser-6.1.5.tgz /archives/051db69e7aad989abddc95fef96f19f1da68ef6890ff834d0c40a7fb48b9751d.tgz
+ADD --checksum=sha256:313c77944b719f68012fa3f114544bb0ca4e75b3107ce1954b8cbc6519b241ec https://registry.npmjs.org/systeminformation/-/systeminformation-5.33.16.tgz /archives/313c77944b719f68012fa3f114544bb0ca4e75b3107ce1954b8cbc6519b241ec.tgz
+ADD --checksum=sha256:67bb5a1b4d4a8ff497d845a0b891ffe6b7233aea2202641315cec88d0fff15eb https://registry.npmjs.org/brace-expansion/-/brace-expansion-5.0.11.tgz /archives/67bb5a1b4d4a8ff497d845a0b891ffe6b7233aea2202641315cec88d0fff15eb.tgz
+ADD --checksum=sha256:b6a535ae5fa87f6cffc90fb213b43c2ea34fdc21dc7ccad3f25caaf009d7fcaa https://registry.npmjs.org/multer/-/multer-2.5.0.tgz /archives/b6a535ae5fa87f6cffc90fb213b43c2ea34fdc21dc7ccad3f25caaf009d7fcaa.tgz
+ADD --checksum=sha256:33cceb321835a0754c60a9ac681df71dddc2ee8aafd890f763414b51574182b5 https://registry.npmjs.org/undici/-/undici-8.13.1.tgz /archives/33cceb321835a0754c60a9ac681df71dddc2ee8aafd890f763414b51574182b5.tgz
+ADD --checksum=sha256:29c4b8e0b2d86cb8795571c1959012ce057a14ecfd34858335f47c31e770a04f https://registry.npmjs.org/undici/-/undici-6.29.1.tgz /archives/29c4b8e0b2d86cb8795571c1959012ce057a14ecfd34858335f47c31e770a04f.tgz
+ADD --checksum=sha256:4f5a67f7b61110aae7b3ad38e806627f5712f4c150bd38eb804a562e69a9ee5e https://registry.npmjs.org/fast-uri/-/fast-uri-3.1.9.tgz /archives/4f5a67f7b61110aae7b3ad38e806627f5712f4c150bd38eb804a562e69a9ee5e.tgz
+
+FROM golang:1.27.3-alpine@sha256:fa3d596898d9f126af7c01d14ee7597bab3f39cccf392ef36b69fe77cd681f18 AS build_trust
+FROM ${BASE_IMAGE} AS patched
+ARG DEBIAN_CODENAME
+ARG PACKAGE_FLOORS
+RUN --mount=type=bind,from=build_trust,source=/etc/ssl/certs/ca-certificates.crt,target=/tmp/jobbi-build-ca.pem,ro \
+    --mount=type=bind,source=debian-patch.sh,target=/tmp/jobbi-patch.sh,ro \
+    /bin/sh /tmp/jobbi-patch.sh "$DEBIAN_CODENAME" "$PACKAGE_FLOORS"
+
+FROM patched AS machine_learning
+# Upgrade the system installer itself, which embeds its own HTTP and cache libraries.
+RUN --mount=type=bind,source=immich-pip-requirements.txt,target=/tmp/pip-pin.txt,ro \
+    /usr/local/bin/python -m pip install --no-cache-dir --no-deps --only-binary=:all: --require-hashes -r /tmp/pip-pin.txt
+RUN --network=none /usr/local/bin/python - <<'PYTHON'
+import ssl
+from pip._vendor import certifi, msgpack, urllib3
+assert (certifi.__version__, msgpack.__version__, urllib3.__version__) == ('2026.10.23', '1.2.4', '2.8.0')
+assert ssl.create_default_context(cafile=certifi.where()).get_ca_certs()
+assert msgpack.unpackb(msgpack.packb({'status': 'ready'})) == {'status': 'ready'}
+assert urllib3.util.parse_url('https://localhost/').host == 'localhost'
+PYTHON
+
+RUN --mount=type=bind,source=immich-ml-requirements.txt,target=/tmp/requirements.txt,ro \
+    /usr/local/bin/python -m pip --python /opt/venv install --no-cache-dir --no-deps --only-binary=:all: --require-hashes -r /tmp/requirements.txt
+RUN --network=none --mount=type=bind,source=check-ml.py,target=/tmp/check-ml.py,ro \
+    /usr/local/bin/python -m pip --python /opt/venv check && /opt/venv/bin/python /tmp/check-ml.py
+
+# Keep Immich on the same PostgreSQL package vendor and major version.
+FROM patched AS immich_server
+ADD --chmod=0644 --checksum=sha256:0144068502a1eddd2a0280ede10ef607d1ec592ce819940991203941564e8e76 https://www.postgresql.org/media/keys/ACCC4CF8.asc /tmp/jobbi-pgdg.asc
+RUN --mount=type=bind,from=build_trust,source=/etc/ssl/certs/ca-certificates.crt,target=/tmp/jobbi-build-ca.pem,ro <<'SH'
+set -eu
+. /etc/os-release
+test "$VERSION_CODENAME" = trixie
+version=17.12-1.pgdg13+1
+installed=$(dpkg-query -W -f='${Version}' postgresql-client-17)
+case "$installed" in 17.*.pgdg13+*) ;; *) exit 1;; esac
+dpkg --compare-versions "$version" ge "$installed"
+printf '%s\n' 'deb [signed-by=/tmp/jobbi-pgdg.asc] https://apt.postgresql.org/pub/repos/apt trixie-pgdg main' >/tmp/jobbi-pgdg.list
+set -- -o Dir::Etc::sourcelist=/tmp/jobbi-pgdg.list -o Dir::Etc::sourceparts=- \
+    -o Acquire::https::CaInfo=/tmp/jobbi-build-ca.pem -o Acquire::Retries=4 -o APT::Update::Error-Mode=any
+apt-get "$@" update
+DEBIAN_FRONTEND=noninteractive apt-get "$@" install -y --only-upgrade --no-remove --no-install-recommends "postgresql-client-17=$version"
+test "$(dpkg-query -W -f='${Version}' postgresql-client-17)" = "$version"
+pg_dump --version
+psql --version
+rm -rf /var/lib/apt/lists/* /tmp/jobbi-pgdg.list /tmp/jobbi-pgdg.asc
+SH
+
+# Same-major replacements in exact installed pnpm and npm package directories.
+# Preserve native modules, symlinks, upstream application and storage schema.
+RUN --network=none --mount=type=bind,from=npm_archives,source=/archives,target=/archives,ro \
+    --mount=type=bind,source=patch-immich-npm.cjs,target=/tmp/jobbi-immich-npm.cjs,ro \
+    --mount=type=bind,source=immich-npm-security.json,target=/tmp/jobbi-immich-npm.json,ro \
+    node /tmp/jobbi-immich-npm.cjs /tmp/jobbi-immich-npm.json
+
+FROM patched AS application

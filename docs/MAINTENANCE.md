@@ -42,4 +42,76 @@ It refuses existing conflicting units and same-filesystem backups. It only creat
 
     python3 scripts/release-inventory.py INSTANCE --record
 
-Records image IDs and available registry digests for this project's containers, without their environment or secrets. Cold backups now include image-inventory.json. During restore, the new project's image IDs are compared to the source. Use --require-exact-images to stop before restoring named volumes if any identity differs or cannot be checked. The default warns; do not start a mismatched recovery until reviewing compatibility. The bind data is already extracted into the new, isolated directory at that point; nothing overwrites the original. The restored project remains stopped. Older backups without an inventory require manual version review. This is drift detection, not image archival: retain compatible image artifacts separately. Docker rebuilds may produce different image IDs even with the same source. Strict mode intentionally refuses these until exact images are available.
+New cold backups include the image inventory and a compressed archive of locally built images. Recovery loads these by image ID and pins pulled services to a recorded registry digest. Keep registry access available on a replacement machine. The integrity manifest covers both image and data archives. Restore with `--require-exact-images`. Compose creates stopped containers without rebuilding and compares every image ID before copying named volume data. Older backups can require the original engine cache or a manual migration. A digest identifies image contents and does not establish vulnerability status.
+
+If backup power or execution was interrupted, inspect the project and run `bash scripts/backup.sh INSTANCE --resume` to start exactly the services that were running before the cold backup. A subsequent backup refuses to start while that journal exists. Only a directory with a completed and verified SHA256SUMS is eligible for recovery. After a crash, verify recovered application health. Checksums detect corruption. Maintain custody of backups containing secrets.
+
+For optional failure notification, add `--failure-unit your-notifier.service` to the schedule preview and enable commands. Supply a customer-owned systemd user service that delivers the notification. Inspect its own journal to confirm receipt. No third-party account is required.
+
+## Storage Manager
+See [STORAGE.md](STORAGE.md) for read-only RAID1 status and technician disk preparation, replacement and expansion plans. No web endpoint executes disk operations.
+
+## Recovery Center: supervised offline trial
+
+The new recovery-center.py provides a technician catalog of completed manifests, explicit checksum and identity verification, strict stopped restore, staged update and rollback. Capture the approved backup filesystem fingerprint from backup_mount.mount_identity; the tool refuses mount substitution and a backup sharing the Docker filesystem. Use a dedicated customer host only.
+
+    python3 -c 'import sys;sys.path.insert(0,"scripts");from backup_mount import mount_identity;print(mount_identity(sys.argv[1]))' BACKUP_ROOT
+
+    python3 scripts/recovery-center.py catalog INSTANCE BACKUP_ROOT --mount-id FINGERPRINT
+    python3 scripts/recovery-center.py verify INSTANCE BACKUP_ROOT --mount-id FINGERPRINT --backup EXACT_DIRECTORY_NAME
+    python3 scripts/recovery-center.py restore INSTANCE BACKUP_ROOT --mount-id FINGERPRINT --backup EXACT_DIRECTORY_NAME --candidate restored --base-port 19080
+
+Add --apply to restore only after verifying capacity and intended target. It creates a stopped copy. A manifest alone is not verified integrity.
+
+For a final update trial, check out the exact reviewed target revision with full Git history. Disable private routes, restore local origins, coordinate a customer maintenance window and prevent external writes. Confirm a separate physical backup, enough space for full image/data archives and a parallel copy.
+
+    python3 scripts/recovery-center.py stage INSTANCE BACKUP_ROOT --mount-id FINGERPRINT --candidate trial --base-port 19080 --to-commit FULL_REVIEWED_SHA
+
+Add --apply to perform a final cold backup with all images, hold the original offline and stage a separate stopped candidate. If staging fails, inspect the exact hold and any partial candidate; do not delete or overwrite it. An interruption before the hold is fully committed can resume the source through the normal backup journal; the trial refuses to start if the source is running.
+
+    python3 scripts/recovery-center.py start-trial INSTANCE BACKUP_ROOT --mount-id FINGERPRINT --candidate trial --apply
+
+This checks reachability, not functional acceptance. Keep the trial loopback-only with no public or private customer routes until a technician completes every selected application's acceptance. Do not allow real customer writes during testing. On rollback:
+
+    python3 scripts/recovery-center.py rollback INSTANCE BACKUP_ROOT --mount-id FINGERPRINT --candidate trial --confirm-no-candidate-writes --apply
+
+The tool stops the linked candidate and restarts the original exact service set; it retains both datasets and the backup. If a partial candidate has no valid link journal, inspect it manually before recovery. Never start both with real users. Production cutover, transferring systemd timers, private HTTPS, customer data reconciliation after real writes and retiring the original remain supervised tasks; this is not an unattended migration. No automatic deletion or rollback of migrated databases.
+
+## Customer-owned encrypted offsite copies
+
+Install the Ubuntu `age` package. The customer creates an age recovery identity on their trusted offline device and stores it independently of the appliance. Only the public recipient is needed to encrypt. Never put the secret identity in Git, the admin dashboard, the source appliance, a shell argument containing its contents, or the same backup media.
+
+    age-keygen -o customer-recovery.key
+    age-keygen -y customer-recovery.key
+
+On the appliance or a trusted backup workstation, export a completed verified backup:
+
+    python3 scripts/backup-export.py export COMPLETED_BACKUP /mnt/offsite/customer-backup.age --recipient CUSTOMER_AGE_PUBLIC_KEY
+
+The tool verifies checksums, streams encrypted data without writing an intermediate plaintext bundle, and never overwrites an existing output. The original backup remains; use encrypted local filesystems for its protection. Copy the ciphertext to a customer-approved independent location. Verify actual decryption on the trusted recovery workstation:
+
+    python3 scripts/backup-export.py import /mnt/offsite/customer-backup.age /mnt/recovery/new-backup --identity /private/customer-recovery.key --project jobbi-home --mount-id APPROVED_DESTINATION_FINGERPRINT
+
+The importer verifies authenticated decryption, safe archive members, checksums and exact project identity before publishing the new directory. Use strict restore separately. Never delete the only recovery identity or last known-good backup. No automatic offsite upload or deletion; establish retention and storage costs with the customer.
+
+## Retention review
+
+`python3 scripts/recovery-center.py retention INSTANCE BACKUP_ROOT --mount-id FINGERPRINT --keep 3 --days 30` previews older generations eligible for manual review only after checking the protected recent generations. It refuses active upgrade/backup journals, keeps at least three generations and thirty days, and never deletes or moves files. Before retiring any copy, verify actual restore, encryption recovery keys, offsite coverage and customer retention policy. Checksum verification is not a restore test.
+
+The Recovery Center defaults to a 50 GiB minimum free-space floor for staging and restore; `--minimum-free-gib` is an explicit operator override for small disposable fixtures or reviewed configurations, not a capacity guarantee. Size the available space for full uncompressed application data, image archives, Docker volumes and the additional candidate before applying.
+
+An active upgrade hold now blocks automatic backup-journal resume. If both the hold and backup journal survive a power interruption, inspect both and reconcile before manually restarting the original. Never clear a journal just to silence the boot warning.
+
+### Explicit trial acceptance
+
+A held original rejects ordinary `ctl.sh up`, `start`, and other state-changing commands; only inspection and stopping are permitted. Recovery Center rollback validates the original service set before using the explicit held-source recovery command. Docker administrators can still bypass this guard, so do not directly start the held project. The `accept-trial` action requires a private JSON record with schema 1, exact source and candidate absolute paths, full from/to commits, all selected dashboard application IDs mapped to `passed`, and the five explicit true flags `customer_approved`, `data_verified`, `backup_restore_verified`, `private_access_verified`, `maintenance_verified`. Only record these after actual acceptance (for local-only systems verify intended private access). Run the action with `--candidate NAME --acceptance FILE` first, then `--apply`. It records acceptance and keeps the original held. Private route and timer transfer remain separately supervised; never claim automated cutover or automatically delete the old dataset. Any rollback after acceptance must reconcile real writes first. CI uses a synthetic acceptance record to test the transition, not as customer acceptance evidence.
+
+## Phase 6: maintenance notifications
+The Maintenance page displays fixed-category alerts from the host snapshot. No external destination is configured by default. For optional delivery, the customer may use their own authenticated ntfy-compatible endpoint on a private Tailscale HTTPS hostname. The topic must be exact, access-controlled, and on port 443. Run `python3 scripts/notifications.py INSTANCE enable --url https://notify.example.ts.net/CUSTOMER_TOPIC --apply` as the original non-root operator; enter the customer-owned token privately. Preview and status do not send anything. Run `sudo python3 scripts/install-notification-service.py INSTANCE --operator OPERATOR --apply` on the dedicated host after reviewing the unit. The timer checks every 15 minutes, sends only fixed categories, deduplicates unchanged alerts for 24 hours, and never runs the delivery code as root. Check manually with `python3 scripts/notifications.py INSTANCE check`. Disable with `python3 scripts/notifications.py INSTANCE disable --apply` and revoke the token on the destination. The external endpoint and its ACLs must be verified by the customer; no public relay, remote shell, paid service, or automatic registration is included. If the appliance is offline, it cannot deliver a notification about its own outage; external availability monitoring is a separate opt-in service.
+
+Notifications refuse non-tailnet resolved addresses, pin the TLS connection to the approved private address, and never follow redirects. Enable and disable operations share the delivery lock, so no new send begins after revocation completes. A missing health snapshot generates a stale-health warning rather than silently skipping a check.
+
+### Temporary private support session
+Run `python3 scripts/support-session.py INSTANCE start --appliance-id ID --cert PRIVATE_CERT --key PRIVATE_KEY` as the original customer operator, using an owner-owned certificate matching the active Tailscale device DNS name and a mode-0600 private key. Customer must independently approve the private ACL for the intended technician and verify no Funnel or proxy forwards this port. The service binds the exact Tailscale IPv4 address, uses TLS, prints a random session code, and is preview-only unless `--approve` is given in an interactive terminal. Default 30 minutes; 5–60 allowed. Share the address and code securely with the intended technician; they verify the TLS certificate normally. Only the strict sanitized health report is accessible. No commands, shell, raw logs, file access, or modifications. Ctrl+C revokes; session expires without installing a service or changing Tailscale routes. `python3 scripts/support-session.py INSTANCE history` shows local event timestamps (not technician identity proof). Actual TLS/ACL and two-device testing remain physical acceptance steps. Privileged repair continues under separately supervised customer-controlled access.
+
+The support endpoint additionally has a disposable TLS integration test with a fixture certificate: hostname validation, bearer authorization, successful encrypted report retrieval, and rejection of the wrong certificate hostname. This does not substitute for a real customer tailnet or public CA certificate acceptance test.

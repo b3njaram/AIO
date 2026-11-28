@@ -1,10 +1,16 @@
 import unittest
 from decimal import Decimal
-from search import CAT, money_label, row, screen, choose, supplier_for, safe_url
+from search import mark_ambiguous_ebay_prices, CAT, money_label, row, screen, choose, supplier_for, safe_url
 class TestSourcing(unittest.TestCase):
     def setUp(self):
         self.parts=CAT['profiles']['family']['parts']
         self.drive=self.parts[1]
+    def test_different_prices_on_one_listing_require_review(self):
+        url='https://www.ebay.com/itm/123456789012'
+        offers=[row('US',self.drive,'eBay','WD40EFPX',url+query,Decimal(price),condition='New')
+                for price,query in [('80','?var=1'),('130','?var=2')]]
+        mark_ambiguous_ebay_prices(offers)
+        self.assertEqual([screen(self.drive,x,'family')[0] for x in offers],['review','review'])
     def test_prices(self):
         self.assertEqual(money_label('$249.99','US',249.99),Decimal('249.99'))
         self.assertEqual(money_label('MXN $2,999.00','MX'),Decimal('2999.00'))
