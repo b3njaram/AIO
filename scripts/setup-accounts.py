@@ -74,6 +74,10 @@ db.transaction(()=>{
             require(result.returncode==0,'Movie first owner creation refused; no existing password reset')
             code,body=login()
         require(code==200 and body.get('isAdmin') is True,'Movie owner login not confirmed')
+        # Also reconcile the local provider before recording the movie step.
+        # On failure, the customer can retry the same owner credentials.
+        result=subprocess.run([sys.executable,str(ROOT/'scripts/connect-movies.py'),str(instance)],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=360)
+        require(result.returncode==0,'Movie owner verified; local Prowlarr connection needs retry')
     elif app=='tasks':
         require(env['TASK_REGISTRATION']=='false','Registration must be disabled')
         url=base('TASK_PORT');code,info=request(url,'/api/v1/info')

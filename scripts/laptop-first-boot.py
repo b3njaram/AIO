@@ -78,6 +78,12 @@ def main():
         if subprocess.run([*prefix,'bash',str(ROOT/'scripts/verify.sh'),str(instance)],env=env).returncode==0:break
         time.sleep(10)
     else:raise ValueError('Services not ready; preserve instance for review')
+    # Link the instance's own provider before pairing. The movie account step
+    # retries if the provider was temporarily unavailable during first boot.
+    try:
+        run(*prefix,sys.executable,str(ROOT/'scripts/connect-movies.py'),str(instance),env=env,timeout=360)
+    except (OSError,subprocess.SubprocessError):
+        print('Prowlarr connection pending; retry during movie account setup',flush=True)
     devices=[]
     # Select only physical disk ancestry of the approved OS LV.
     rows=json.loads(out('lsblk','-J','-s','-p','-o','NAME,TYPE',root))['blockdevices']
